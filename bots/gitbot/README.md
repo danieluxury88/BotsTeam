@@ -2,6 +2,18 @@
 
 AI-powered git history analyzer. Reads your commit history, groups it intelligently, and asks Claude to produce a high-level summary of what's been happening in your codebase.
 
+## 💾 Auto-Saved Reports
+
+When invoked through the **Orchestrator**, all reports are automatically saved to:
+
+```
+data/{project-name}/reports/gitbot/
+├── latest.md              ← Always up-to-date
+└── YYYY-MM-DD-HHMMSS.md   ← Timestamped archive
+```
+
+**Usage:** `uv run orchestrator chat` → Ask for reports by project name
+
 ## Features
 
 - ✅ Reads any local git repository

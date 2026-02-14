@@ -1,16 +1,18 @@
 # 🤖 Orchestrator (DevBot)
 
-Conversational bot that knows about your projects and calls other bots on your behalf. Chat with it naturally to get reports from gitbot or qabot without remembering command syntax.
+Conversational bot that manages multiple projects and orchestrates gitbot, qabot, and pmbot. Chat naturally to analyze code, get test suggestions, and manage GitLab issues across all your projects.
 
-## Features
+## ✨ Features
 
 - 💬 **Natural Language Interface** — Ask questions in plain English
-- 🗂️ **Project Registry** — Maintains a list of your projects
+- 🗂️ **Multi-Project Registry** — Manage unlimited projects with metadata
+- 🔗 **GitLab/GitHub Integration** — Per-project remote repository connections
 - 🧠 **Smart Routing** — Uses Claude to understand requests and route to correct bot
-- 🔌 **Bot Invocation** — Calls gitbot and qabot programmatically
-- 💅 **Rich Terminal UI** — Beautiful formatted output
+- 🔌 **Bot Invocation** — Calls gitbot, qabot, and pmbot programmatically
+- 💾 **Auto-Save Reports** — All reports automatically saved to `data/{project}/reports/`
+- 💅 **Rich Terminal UI** — Beautiful formatted output with tables
 - 🔍 **Fuzzy Matching** — Finds projects even with partial names
-- 📋 **Project Management** — Add/remove/list projects easily
+- 📋 **Project Management** — Add/remove/list projects with integrations
 
 ## Installation
 
@@ -22,135 +24,192 @@ uv sync
 
 The orchestrator is also available as `devbot` command.
 
-## Usage
-
-### Quick Start
+## Quick Start
 
 ```bash
-# Add your projects to the registry
-uv run orchestrator add uni.li /home/user/projects/uni.li
+# 1. Add your first project
+uv run orchestrator add uni.li /home/user/projects/uni.li \
+  --gitlab-id 76261915 \
+  --desc "University Liechtenstein Project"
 
-# Start chat session
+# 2. List registered projects
+uv run orchestrator projects
+
+# 3. Start chatting!
 uv run orchestrator chat
 ```
 
-### Chat Interface
+## Project Management
 
-Once in chat mode, ask naturally:
+### Adding Projects
 
+**Basic project** (local analysis only):
+```bash
+uv run orchestrator add myapp ~/projects/myapp \
+  --desc "My application"
 ```
-You: get qabot report for uni.li
 
-→ Running qabot on uni.li...
-[Full QABot test analysis appears here]
+**With GitLab integration** (enables pmbot):
+```bash
+uv run orchestrator add myapp ~/projects/myapp \
+  --gitlab-id 12345 \
+  --desc "My application"
+```
 
-You: show me gitbot analysis of myproject
+**With self-hosted GitLab**:
+```bash
+uv run orchestrator add myapp ~/projects/myapp \
+  --gitlab-id mygroup/myproject \
+  --gitlab-url https://gitlab.company.com
+```
 
-→ Running gitbot on myproject...
-[Full GitBot history summary appears here]
+**With per-project credentials**:
+```bash
+uv run orchestrator add myapp ~/projects/myapp \
+  --gitlab-id 12345 \
+  --gitlab-token glpat-xxxxx  # Overrides .env
+```
 
+**With GitHub** (future support):
+```bash
+uv run orchestrator add myapp ~/projects/myapp \
+  --github-repo owner/repo
+```
+
+### Listing Projects
+
+```bash
+uv run orchestrator projects
+```
+
+**Output:**
+```
+                    Registered Projects
+┏━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Name   ┃ Path              ┃ Description    ┃ Integration ┃
+┡━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ uni.li │ /home/user/pro... │ University...  │ GitLab      │
+│ myapp  │ /home/user/myapp  │ My application │ —           │
+└────────┴───────────────────┴────────────────┴─────────────┘
+```
+
+### Removing Projects
+
+```bash
+uv run orchestrator remove myapp
+```
+
+## Chat Interface
+
+Start an interactive session:
+
+```bash
+uv run orchestrator chat
+```
+
+### Example Conversations
+
+**Get git history analysis:**
+```
+You: get gitbot report for uni.li
+
+→ Running gitbot on uni.li...
+
+─────────────── GITBOT Report ───────────────────
+# uni.li Repository Summary
+**Period:** 2026-02-13 | **Commits:** 50
+
+## Overview
+Active development on migration MVP...
+
+✓ Report saved to: data/uni.li/reports/gitbot/latest.md
+```
+
+**Get test suggestions:**
+```
+You: suggest tests for myapp
+
+→ Running qabot on myapp...
+
+[Full QA analysis with priority test areas]
+
+✓ Report saved to: data/myapp/reports/qabot/latest.md
+```
+
+**Analyze GitLab issues** (requires GitLab integration):
+```
+You: analyze issues for uni.li
+
+→ Running pmbot on uni.li...
+
+[Issue analysis with patterns, hotspots, recommendations]
+
+✓ Report saved to: data/uni.li/reports/pmbot/latest.md
+```
+
+**Create sprint plan:**
+```
+You: create sprint plan for uni.li
+
+→ Running pmbot on uni.li in plan mode...
+
+[Sprint plan with prioritized issues and effort estimates]
+
+✓ Report saved to: data/uni.li/reports/pmbot/latest.md
+```
+
+**List projects:**
+```
 You: what projects do you know?
 
-┏━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
-┃ Name   ┃ Path                     ┃ Description     ┃
-┡━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
-│ uni.li │ /home/user/projects/...  │ University...   │
-└────────┴──────────────────────────┴─────────────────┘
+[Projects table appears]
 ```
 
 ### Special Commands
 
-In chat mode, use these commands:
+In chat mode:
 
 - `/projects` — List all registered projects
 - `/add` — Add a project interactively
 - `/remove` — Remove a project
 - `/exit` or `/quit` — Exit chat
 
-### CLI Commands
+## How Bots Are Selected
 
-Manage projects without starting chat:
+The orchestrator uses Claude to understand your request and automatically route to the right bot:
 
-```bash
-# List projects
-uv run orchestrator projects
+| Request Type | Bot Used | Requirement |
+|---|---|---|
+| "git history", "changes", "commits" | **gitbot** | Local git repo |
+| "tests", "qa", "testing" | **qabot** | Local git repo |
+| "issues", "sprint", "backlog" | **pmbot** | GitLab integration |
 
-# Add a project
-uv run orchestrator add myproject /path/to/project
+## Auto-Saved Reports
 
-# Add with description
-uv run orchestrator add myproject /path/to/project --desc "My awesome project"
-
-# Remove a project
-uv run orchestrator remove myproject
-```
-
-## Example Conversations
-
-### Get QA Report
+All bot reports are automatically saved to:
 
 ```
-You: get qabot report for uni.li
-
-→ Running qabot on uni.li...
-
-╭──────────────────────── QABOT Report ────────────────────────╮
-│                                                              │
-│ Testing Summary                                              │
-│ Recent changes focus on authentication...                    │
-│                                                              │
-│ Priority Test Areas                                          │
-│ 1. Authentication Module (High)...                           │
-│ ...                                                          │
-╰──────────────────────────────────────────────────────────────╯
+data/
+└── {project-name}/
+    └── reports/
+        ├── gitbot/
+        │   ├── latest.md              ← Always up-to-date
+        │   └── 2026-02-14-101155.md   ← Timestamped archive
+        ├── qabot/
+        │   ├── latest.md
+        │   └── ...
+        └── pmbot/
+            ├── latest.md
+            └── ...
 ```
 
-### Get Git Analysis
+**Benefits:**
+- ✅ No manual saving needed
+- ✅ History preserved with timestamps
+- ✅ Easy to find (always check `latest.md`)
+- ✅ Git-ignored (won't clutter commits)
 
-```
-You: analyze recent changes in myproject
-
-→ Running gitbot on myproject...
-
-╭──────────────────────── GITBOT Report ────────────────────────╮
-│                                                               │
-│ Overview                                                      │
-│ The repository has seen active development...                │
-│                                                               │
-│ Key Changes                                                   │
-│ - Refactored authentication module                           │
-│ - Added new API endpoints                                    │
-│ ...                                                           │
-╰───────────────────────────────────────────────────────────────╯
-```
-
-### List Projects
-
-```
-You: what projects do you know?
-
-                    Registered Projects
-┏━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
-┃ Name        ┃ Path                     ┃ Description     ┃
-┡━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
-│ uni.li      │ /home/user/Clients/...   │ University...   │
-│ myproject   │ /home/user/projects/...  │ Web app         │
-│ api-server  │ /home/user/work/...      │ REST API        │
-└─────────────┴──────────────────────────┴─────────────────┘
-```
-
-## How It Works
-
-1. **You ask** in natural language (e.g., "get qabot report for uni.li")
-2. **Claude parses** your request and identifies:
-   - Which bot to use (gitbot or qabot)
-   - Which project you're referring to
-   - Any parameters (like max_commits)
-3. **Orchestrator finds** the project in the registry (fuzzy matching)
-4. **Bot is invoked** programmatically with the project path
-5. **Results are displayed** with beautiful formatting
-
-## Project Registry
+## Configuration
 
 Projects are stored in `~/.devbot/projects.json`:
 
@@ -158,79 +217,85 @@ Projects are stored in `~/.devbot/projects.json`:
 {
   "uni.li": {
     "name": "uni.li",
-    "path": "/home/user/Clients/ProtonSystems/uni.li",
-    "description": "University Liechtenstein Drupal Migration",
-    "language": "python"
+    "path": "/home/user/projects/uni.li",
+    "description": "University Liechtenstein Project",
+    "language": "python",
+    "gitlab_project_id": "76261915"
   }
 }
 ```
 
-The registry supports:
-- ✅ Exact name matching
-- ✅ Case-insensitive matching
-- ✅ Partial name matching (fuzzy)
-- ✅ Path and description search
-
-## Configuration
-
-Uses shared workspace configuration from root `.env`:
-
+**Global credentials** (in `.env`):
 ```bash
-ANTHROPIC_API_KEY=sk-...
-GITBOT_MODEL=claude-haiku-4-5-20251001  # used for parsing requests
+GITLAB_TOKEN=glpat-xxxxx
+GITLAB_URL=https://gitlab.com
+GITHUB_TOKEN=ghp-xxxxx
+```
+
+**Per-project credentials** override global settings when specified during `add`.
+
+## Integration Requirements
+
+| Feature | Requirements |
+|---|---|
+| **GitBot** | Local git repository |
+| **QABot** | Local git repository |
+| **PMBot** | GitLab project ID + `GITLAB_TOKEN` in `.env` or per-project |
+
+If pmbot is requested for a project without GitLab integration, you'll see:
+
+```
+⚠ pmbot requires GitLab integration
+Project 'myapp' doesn't have a GitLab ID.
+
+To enable pmbot:
+  orchestrator add myapp /path/to/project --gitlab-id YOUR_PROJECT_ID
 ```
 
 ## Programmatic Usage
 
-You can use orchestrator components in your own scripts:
+Use the orchestrator from Python:
 
 ```python
 from orchestrator.registry import ProjectRegistry
 from orchestrator.bot_invoker import invoke_bot
 
-# Manage projects
+# Load registry
 registry = ProjectRegistry()
-registry.add_project("myproject", "/path/to/project")
-project = registry.get_project("myproject")
+project = registry.get_project("uni.li")
 
-# Invoke bots
-result = invoke_bot("gitbot", project.path, max_commits=100)
+# Invoke gitbot
+result = invoke_bot("gitbot", project=project, max_commits=50)
 print(result.markdown_report)
 
-result = invoke_bot("qabot", project.path, max_commits=50)
-print(result.summary)
+# Invoke pmbot
+result = invoke_bot("pmbot", project=project, pmbot_mode="analyze")
+print(result.report_md)
 ```
 
-## Natural Language Examples
+## Tips
 
-The orchestrator understands various phrasings:
+1. **Start with local projects** - Add projects without GitLab integration first to use gitbot/qabot
+2. **Add GitLab later** - Re-run `orchestrator add` with `--gitlab-id` to enable pmbot
+3. **Use descriptive names** - Short project names make chat easier
+4. **Check saved reports** - All analysis is saved to `data/{project}/reports/`
+5. **Per-project tokens** - Useful for working with multiple GitLab instances
 
-- "get qabot report for uni.li"
-- "show me gitbot analysis of myproject"
-- "analyze recent changes in api-server"
-- "what should I test in uni.li?"
-- "run gitbot on myproject"
-- "give me a qa report for api-server"
-- "what projects do you know?"
-- "list all my projects"
+## Troubleshooting
 
-## Roadmap
+**Project not found:**
+- Check registered projects: `orchestrator projects`
+- Try exact name match (case-insensitive)
 
-- [x] Project registry with JSON storage
-- [x] Conversational interface with Claude
-- [x] Bot invocation (gitbot, qabot)
-- [x] Fuzzy project matching
-- [ ] Multi-bot workflows (gitbot → qabot pipeline)
-- [ ] Project templates
-- [ ] Slack/Discord integration
-- [ ] Web UI
-- [ ] Scheduled reports
-- [ ] Git webhook integration
+**pmbot not working:**
+- Verify project has GitLab integration: `orchestrator projects`
+- Check `GITLAB_TOKEN` in `.env`
+- Ensure GitLab project ID is correct
 
-## Aliases
+**Reports not saving:**
+- Check file permissions on `data/` directory
+- Verify project is registered in `~/.devbot/projects.json`
 
-The orchestrator is available under two names:
-- `uv run orchestrator` — Full name
-- `uv run devbot` — Short alias
+## Examples
 
-Both work identically!
+See the [main README](../../README.md) for more examples and architecture details.

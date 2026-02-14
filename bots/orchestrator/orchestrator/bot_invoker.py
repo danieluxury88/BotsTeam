@@ -15,8 +15,9 @@ BotName = Literal["gitbot", "qabot", "pmbot"]
 
 def invoke_bot(
     bot_name: BotName,
-    repo_path: Path | str | None = None,
-    project_id: str | None = None,
+    project: "Project | None" = None,
+    repo_path: Path | str | None = None,  # Legacy
+    project_id: str | None = None,  # Legacy
     max_commits: int = 100,
     model: str | None = None,
     pmbot_mode: str = "analyze",
@@ -26,70 +27,108 @@ def invoke_bot(
 
     Args:
         bot_name: Which bot to invoke ("gitbot", "qabot", or "pmbot")
-        repo_path: Path to the repository (for gitbot/qabot)
-        project_id: GitLab project ID (for pmbot)
-        max_commits: Maximum number of commits to analyze (gitbot/qabot)
+        project: Project object (preferred - contains all metadata)
+        repo_path: Path to repository (legacy - for gitbot/qabot)
+        project_id: GitLab project ID (legacy - for pmbot)
+        max_commits: Max commits to analyze (gitbot/qabot)
         model: Optional Claude model override
         pmbot_mode: Mode for pmbot - "analyze" or "plan"
 
     Returns:
         BotResult with the bot's analysis
     """
+    from orchestrator.registry import Project
+
     if bot_name in ["gitbot", "qabot"]:
+        # Extract repo_path from project or use legacy parameter
+        if project:
+            repo_path = project.path
+
         if not repo_path:
             return BotResult(
-                bot_name=bot_name,
-                status="error",
-                summary=f"{bot_name} requires repo_path",
-                data={"error": "missing_repo_path"},
-                markdown_report="",
+                bot_name=bot_name, status="error",
+                summary=f"{bot_name} requires repo_path or project",
+                data={"error": "missing_repo_path"}, markdown_report="",
             )
 
         repo_path = Path(repo_path).resolve()
-
         if not repo_path.exists():
             return BotResult(
-                bot_name=bot_name,
-                status="error",
+                bot_name=bot_name, status="error",
                 summary=f"Repository path does not exist: {repo_path}",
-                data={"error": "path_not_found"},
-                markdown_report="",
+                data={"error": "path_not_found"}, markdown_report="",
             )
 
         if bot_name == "gitbot":
-            return gitbot_get_result(repo_path, max_commits=max_commits, model=model)
+            return gitbot_get_result(
+                repo_path,
+                max_commits=max_commits,
+                model=model,
+                project_name=project.name if project else None,
+            )
         elif bot_name == "qabot":
-            return qabot_get_result(repo_path, max_commits=max_commits, model=model)
+            return qabot_get_result(
+                repo_path,
+                max_commits=max_commits,
+                model=model,
+                project_name=project.name if project else None,
+            )
 
     elif bot_name == "pmbot":
+        # Extract GitLab details from project or use legacy parameters
+        if project:
+            if not project.has_gitlab():
+                return BotResult(
+                    bot_name=bot_name, status="error",
+                    summary=f"Project '{project.name}' does not have GitLab integration",
+                    data={"error": "no_gitlab_integration"}, markdown_report="",
+                )
+
+            project_id = project.gitlab_project_id
+            gitlab_url = project.get_gitlab_url()
+            gitlab_token = project.get_gitlab_token()
+        else:
+            # Legacy mode
+            gitlab_url = None
+            gitlab_token = None
+
         if not project_id:
             return BotResult(
-                bot_name=bot_name,
-                status="error",
-                summary="pmbot requires project_id",
-                data={"error": "missing_project_id"},
-                markdown_report="",
+                bot_name=bot_name, status="error",
+                summary="pmbot requires project_id or Project with GitLab integration",
+                data={"error": "missing_project_id"}, markdown_report="",
+            )
+
+        if not gitlab_token:
+            return BotResult(
+                bot_name=bot_name, status="error",
+                summary="GitLab token not found (check .env or project credentials)",
+                data={"error": "missing_gitlab_token"}, markdown_report="",
             )
 
         try:
-            issue_set = fetch_issues(project_id=project_id)
-            return pmbot_get_result(issue_set, mode=pmbot_mode)
+            issue_set = fetch_issues(
+                project_id=project_id,
+                token=gitlab_token,
+                url=gitlab_url,
+            )
+            return pmbot_get_result(
+                issue_set,
+                mode=pmbot_mode,
+                project_name=project.name if project else None,
+            )
         except Exception as e:
             return BotResult(
-                bot_name=bot_name,
-                status="error",
+                bot_name=bot_name, status="error",
                 summary=f"Failed to fetch issues: {e}",
-                data={"error": "gitlab_fetch_failed"},
-                markdown_report="",
+                data={"error": "gitlab_fetch_failed"}, markdown_report="",
             )
 
     else:
         return BotResult(
-            bot_name=bot_name,
-            status="error",
+            bot_name=bot_name, status="error",
             summary=f"Unknown bot: {bot_name}",
-            data={"error": "unknown_bot"},
-            markdown_report="",
+            data={"error": "unknown_bot"}, markdown_report="",
         )
 
 

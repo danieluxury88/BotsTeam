@@ -122,14 +122,25 @@ def get_bot_result(
     branch: str = "HEAD",
     max_commits: int = 100,
     model: str | None = None,
+    project_name: str | None = None,
 ) -> BotResult:
     """
     Return gitbot analysis as a BotResult for orchestrator integration.
+
+    Args:
+        repo_path: Path to the git repository
+        branch: Git branch to analyze
+        max_commits: Maximum number of commits to analyze
+        model: Optional Claude model override
+        project_name: Optional project name for auto-saving reports
+
+    Returns:
+        BotResult with analysis and markdown report
     """
     try:
         changeset = get_changeset(repo_path, branch, max_commits, model)
 
-        return BotResult(
+        result = BotResult(
             bot_name="gitbot",
             status="success",
             summary=changeset.summary[:200] + "..." if len(changeset.summary) > 200 else changeset.summary,
@@ -140,6 +151,23 @@ def get_bot_result(
             },
             markdown_report=changeset.summary,
         )
+
+        # Auto-save report if project_name is provided
+        if project_name:
+            from shared.data_manager import save_report
+            latest, timestamped = save_report(
+                project_name,
+                "gitbot",
+                changeset.summary,
+                save_latest=True,
+                save_timestamped=True,
+            )
+            result.data["report_saved"] = {
+                "latest": str(latest),
+                "timestamped": str(timestamped) if timestamped else None,
+            }
+
+        return result
     except Exception as e:
         return BotResult(
             bot_name="gitbot",

@@ -351,6 +351,7 @@ def _render_plan_markdown(plan_obj: WorkloadPlan) -> str:
 def get_bot_result(
     issue_set: IssueSet,
     mode: str = "analyze",
+    project_name: str | None = None,
 ) -> BotResult:
     """
     Programmatic API for calling pmbot from other bots (e.g., orchestrator).
@@ -358,15 +359,15 @@ def get_bot_result(
     Args:
         issue_set: IssueSet containing GitLab issues to analyze/plan
         mode: "analyze" for issue analysis, "plan" for sprint planning
+        project_name: Optional project name for auto-saving reports
 
     Returns:
         BotResult with analysis or sprint plan
     """
     if mode == "analyze":
-        return analyze(issue_set)
+        result = analyze(issue_set)
     elif mode == "plan":
-        _plan_obj, bot_result = plan(issue_set)
-        return bot_result
+        _plan_obj, result = plan(issue_set)
     else:
         return BotResult(
             bot_name="issuebot",
@@ -374,3 +375,22 @@ def get_bot_result(
             summary=f"Unknown mode: {mode}. Use 'analyze' or 'plan'.",
             report_md="",
         )
+
+    # Auto-save report if project_name is provided
+    if project_name and result.report_md:
+        from shared.data_manager import save_report
+        latest, timestamped = save_report(
+            project_name,
+            "pmbot",
+            result.report_md,
+            save_latest=True,
+            save_timestamped=True,
+        )
+        if not result.payload:
+            result.payload = {}
+        result.payload["report_saved"] = {
+            "latest": str(latest),
+            "timestamped": str(timestamped) if timestamped else None,
+        }
+
+    return result

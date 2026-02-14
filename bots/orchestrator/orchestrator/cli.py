@@ -27,6 +27,27 @@ app = typer.Typer(
 )
 console = Console()
 
+# ── Shared option types ──────────────────────────────────────────────────────
+GitLabProjectIdOpt = Annotated[
+    str | None,
+    typer.Option("--gitlab-id", "-g", help="GitLab project ID or 'namespace/project'")
+]
+
+GitLabUrlOpt = Annotated[
+    str | None,
+    typer.Option("--gitlab-url", help="GitLab instance URL (self-hosted only)")
+]
+
+GitLabTokenOpt = Annotated[
+    str | None,
+    typer.Option("--gitlab-token", help="Per-project GitLab token (overrides .env)")
+]
+
+GitHubRepoOpt = Annotated[
+    str | None,
+    typer.Option("--github-repo", help="GitHub repository 'owner/repo' (future)")
+]
+
 SYSTEM_PROMPT = """\
 You are DevBot Orchestrator, an intelligent assistant that helps developers get information about their projects.
 
@@ -34,14 +55,14 @@ You have access to:
 1. A project registry - list of known projects with their paths
 2. gitbot - analyzes git history and provides summaries
 3. qabot - suggests tests based on recent changes
-4. pmbot - analyzes GitLab issues and generates sprint plans
+4. pmbot - analyzes GitLab issues and generates sprint plans (requires GitLab integration)
 
 When the user asks for information, you should:
 1. Identify which project they're referring to (match by name)
 2. Determine which bot they need:
    - gitbot: for history/changes/commits
    - qabot: for testing/test suggestions
-   - pmbot: for issues/sprint planning/backlog analysis
+   - pmbot: for issues/sprint planning/backlog (only if project has GitLab integration)
 3. Return a JSON response with the action to take
 
 Response format:
@@ -62,6 +83,8 @@ Examples:
 - "analyze issues for project X" → {"action": "invoke_bot", "bot": "pmbot", "project": "X", "params": {"pmbot_mode": "analyze"}, ...}
 - "create sprint plan for project Y" → {"action": "invoke_bot", "bot": "pmbot", "project": "Y", "params": {"pmbot_mode": "plan"}, ...}
 - "what projects do you know?" → {"action": "list_projects", ...}
+
+IMPORTANT: pmbot only works if project has GitLab integration configured.
 
 Be concise and helpful.
 """
@@ -212,17 +235,25 @@ def chat(
                 console.print(f"[cyan]Running {bot_name} on {project.name}...[/cyan]")
                 console.print()
 
-                # Handle pmbot differently (requires project_id, not repo_path)
+                # Handle pmbot differently (requires GitLab integration)
                 if bot_name == "pmbot":
                     pmbot_mode = params.get("pmbot_mode", "analyze")
-                    # For pmbot, we need a project_id stored in the project metadata
-                    # For now, we'll show an error if trying to use pmbot
-                    console.print("[yellow]⚠[/yellow] pmbot requires GitLab project ID")
-                    console.print("[dim]Use 'uv run pmbot analyze --project-id 12345' directly for now[/dim]")
-                    continue
 
-                max_commits = params.get("max_commits", 50)
-                result = invoke_bot(bot_name, repo_path=project.path, max_commits=max_commits)
+                    if not project.has_gitlab():
+                        console.print(
+                            "[yellow]⚠[/yellow] pmbot requires GitLab integration\n"
+                            f"[dim]Project '{project.name}' doesn't have a GitLab ID.[/dim]\n\n"
+                            "To enable pmbot:\n"
+                            f"  [bold]orchestrator add {project.name} {project.path} "
+                            f"--gitlab-id YOUR_PROJECT_ID[/bold]\n"
+                        )
+                        continue
+
+                    result = invoke_bot(bot_name, project=project, pmbot_mode=pmbot_mode)
+                else:
+                    # gitbot/qabot
+                    max_commits = params.get("max_commits", 50)
+                    result = invoke_bot(bot_name, project=project, max_commits=max_commits)
 
                 if result.status == "success":
                     console.print(Rule(f"[dim]{bot_name.upper()} Report[/dim]"))
@@ -261,6 +292,11 @@ def add(
     name: Annotated[str, typer.Argument(help="Project name")],
     path: Annotated[Path, typer.Argument(help="Project path")],
     description: Annotated[str, typer.Option("--desc", "-d", help="Project description")] = "",
+    language: Annotated[str, typer.Option("--lang", "-l", help="Primary language")] = "python",
+    gitlab_project_id: GitLabProjectIdOpt = None,
+    gitlab_url: GitLabUrlOpt = None,
+    gitlab_token: GitLabTokenOpt = None,
+    github_repo: GitHubRepoOpt = None,
     registry_path: Annotated[
         Path | None,
         typer.Option("--registry", "-r", help="Path to project registry JSON"),
@@ -269,14 +305,32 @@ def add(
     """
     Add a project to the registry.
 
-    Example:\n
-      orchestrator add uni.li ~/Projects/uni.li --desc "University project"
+    Examples:\n
+      # Basic project (gitbot/qabot only)
+      orchestrator add uni.li ~/Projects/uni.li
+
+      # With GitLab integration (enables pmbot)
+      orchestrator add myapp ~/Projects/myapp --gitlab-id 12345
+
+      # With per-project token
+      orchestrator add myapp ~/Projects/myapp --gitlab-id 12345 --gitlab-token glpat-xxxxx
     """
     registry = ProjectRegistry(registry_path)
 
     try:
-        registry.add_project(name, path, description=description)
+        registry.add_project(
+            name, path, description=description, language=language,
+            gitlab_project_id=gitlab_project_id,
+            gitlab_url=gitlab_url,
+            gitlab_token=gitlab_token,
+            github_repo=github_repo,
+        )
+
         console.print(f"[green]✓[/green] Added project: [bold]{name}[/bold] → {path}")
+        if gitlab_project_id:
+            console.print(f"[dim]  GitLab: {gitlab_project_id}" +
+                         (f" @ {gitlab_url}" if gitlab_url else "") + "[/dim]")
+
     except ValueError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
@@ -309,12 +363,21 @@ def _show_projects(registry: ProjectRegistry):
     table.add_column("Name", style="cyan")
     table.add_column("Path")
     table.add_column("Description", style="dim")
+    table.add_column("Integration", style="green")
 
     for proj in projects:
+        integrations = []
+        if proj.has_gitlab():
+            integrations.append("GitLab")
+        if proj.has_github():
+            integrations.append("GitHub")
+        integration_str = ", ".join(integrations) if integrations else "[dim]—[/dim]"
+
         table.add_row(
             proj.name,
             str(proj.path),
-            proj.description or "[dim]—[/dim]"
+            proj.description or "[dim]—[/dim]",
+            integration_str,
         )
 
     console.print(table)
@@ -326,8 +389,14 @@ def _add_project_interactive(registry: ProjectRegistry):
     path_str = Prompt.ask("Project path")
     description = Prompt.ask("Description (optional)", default="")
 
+    console.print("\n[dim]GitLab Integration (optional - enables pmbot)[/dim]")
+    gitlab_id = Prompt.ask("GitLab project ID (press Enter to skip)", default="")
+
     try:
-        registry.add_project(name, Path(path_str), description=description)
+        registry.add_project(
+            name, Path(path_str), description=description,
+            gitlab_project_id=gitlab_id if gitlab_id else None,
+        )
         console.print(f"[green]✓[/green] Added project: [bold]{name}[/bold]")
     except ValueError as e:
         console.print(f"[red]Error:[/red] {e}")

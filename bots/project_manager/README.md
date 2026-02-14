@@ -2,6 +2,18 @@
 
 AI-powered GitLab issue analyzer and workload planner. Fetches issues from GitLab, analyzes patterns and team health, and generates prioritized sprint plans with effort estimates.
 
+## 💾 Auto-Saved Reports
+
+When invoked through the **Orchestrator**, all reports are automatically saved to:
+
+```
+data/{project-name}/reports/project_manager/
+├── latest.md              ← Always up-to-date
+└── YYYY-MM-DD-HHMMSS.md   ← Timestamped archive
+```
+
+**Usage:** `uv run orchestrator chat` → Ask for reports by project name
+
 ## Features
 
 - ✅ Fetch issues from GitLab (open, closed, filtered by labels/milestones)

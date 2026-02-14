@@ -170,15 +170,25 @@ def get_bot_result(
     repo_path: Path | str,
     max_commits: int = 100,
     model: str | None = None,
+    project_name: str | None = None,
 ) -> BotResult:
     """
     Return qabot analysis as a BotResult for orchestrator integration.
+
+    Args:
+        repo_path: Path to the git repository
+        max_commits: Maximum number of commits to analyze
+        model: Optional Claude model override
+        project_name: Optional project name for auto-saving reports
+
+    Returns:
+        BotResult with QA analysis and markdown report
     """
     try:
         repo_path = Path(repo_path).resolve()
         result = analyze_changes_for_testing(repo_path, max_commits, model)
 
-        return BotResult(
+        bot_result = BotResult(
             bot_name="qabot",
             status="success",
             summary=result.summary,
@@ -188,6 +198,23 @@ def get_bot_result(
             },
             markdown_report=result.markdown_report,
         )
+
+        # Auto-save report if project_name is provided
+        if project_name:
+            from shared.data_manager import save_report
+            latest, timestamped = save_report(
+                project_name,
+                "qabot",
+                result.markdown_report,
+                save_latest=True,
+                save_timestamped=True,
+            )
+            bot_result.data["report_saved"] = {
+                "latest": str(latest),
+                "timestamped": str(timestamped) if timestamped else None,
+            }
+
+        return bot_result
     except Exception as e:
         return BotResult(
             bot_name="qabot",

@@ -14,13 +14,81 @@ class Project:
     description: str = ""
     language: str = "python"
 
+    # GitLab integration (optional)
+    gitlab_project_id: str | None = None
+    gitlab_url: str | None = None
+    gitlab_token: str | None = None
+
+    # GitHub integration (future)
+    github_repo: str | None = None
+    github_token: str | None = None
+
+    def has_gitlab(self) -> bool:
+        """Check if this project has GitLab integration configured."""
+        return self.gitlab_project_id is not None
+
+    def has_github(self) -> bool:
+        """Check if this project has GitHub integration configured."""
+        return self.github_repo is not None
+
+    def get_gitlab_token(self) -> str | None:
+        """Get GitLab token (per-project or fall back to global env)."""
+        if self.gitlab_token:
+            return self.gitlab_token
+        from shared.config import Config
+        try:
+            return Config.gitlab_token()
+        except EnvironmentError:
+            return None
+
+    def get_gitlab_url(self) -> str:
+        """Get GitLab URL (per-project or fall back to global env)."""
+        if self.gitlab_url:
+            return self.gitlab_url
+        from shared.config import Config
+        return Config.gitlab_url()
+
+    def get_data_dir(self) -> Path:
+        """Get the data directory for this project."""
+        from shared.data_manager import get_project_data_dir
+        return get_project_data_dir(self.name)
+
+    def get_reports_dir(self, bot: str | None = None) -> Path:
+        """Get the reports directory for this project (optionally for a specific bot)."""
+        from shared.data_manager import get_reports_dir
+        return get_reports_dir(self.name, bot)  # type: ignore
+
+    def get_report_path(self, bot: str, variant: str = "latest") -> Path:
+        """Get the path to a bot report (latest or timestamped)."""
+        from shared.data_manager import get_report_path
+        return get_report_path(self.name, bot, variant)  # type: ignore
+
+    def get_cache_dir(self) -> Path:
+        """Get the cache directory for this project."""
+        from shared.data_manager import get_cache_dir
+        return get_cache_dir(self.name)
+
+    def ensure_data_structure(self) -> None:
+        """Ensure the complete data directory structure exists for this project."""
+        from shared.data_manager import ensure_project_structure
+        ensure_project_structure(self.name)
+
     def to_dict(self):
-        return {
+        base = {
             "name": self.name,
             "path": str(self.path),
             "description": self.description,
             "language": self.language,
         }
+        # Only include integration fields if they have values
+        optional = {
+            "gitlab_project_id": self.gitlab_project_id,
+            "gitlab_url": self.gitlab_url,
+            "gitlab_token": self.gitlab_token,
+            "github_repo": self.github_repo,
+            "github_token": self.github_token,
+        }
+        return {**base, **{k: v for k, v in optional.items() if v is not None}}
 
     @classmethod
     def from_dict(cls, data: dict):
@@ -29,6 +97,11 @@ class Project:
             path=Path(data["path"]),
             description=data.get("description", ""),
             language=data.get("language", "python"),
+            gitlab_project_id=data.get("gitlab_project_id"),
+            gitlab_url=data.get("gitlab_url"),
+            gitlab_token=data.get("gitlab_token"),
+            github_repo=data.get("github_repo"),
+            github_token=data.get("github_token"),
         )
 
 
@@ -65,7 +138,18 @@ class ProjectRegistry:
             data = {name: proj.to_dict() for name, proj in self.projects.items()}
             json.dump(data, f, indent=2)
 
-    def add_project(self, name: str, path: Path | str, description: str = "", language: str = "python"):
+    def add_project(
+        self,
+        name: str,
+        path: Path | str,
+        description: str = "",
+        language: str = "python",
+        gitlab_project_id: str | None = None,
+        gitlab_url: str | None = None,
+        gitlab_token: str | None = None,
+        github_repo: str | None = None,
+        github_token: str | None = None,
+    ):
         """Add a project to the registry."""
         path = Path(path).resolve()
         if not path.exists():
@@ -76,6 +160,11 @@ class ProjectRegistry:
             path=path,
             description=description,
             language=language,
+            gitlab_project_id=gitlab_project_id,
+            gitlab_url=gitlab_url,
+            gitlab_token=gitlab_token,
+            github_repo=github_repo,
+            github_token=github_token,
         )
         self._save()
 

@@ -37,6 +37,9 @@ uv.lock
 # Generated reports
 *-report.md
 
+# Project data (reports, cache, etc.)
+data/
+
 # IDEs
 .vscode/
 .idea/
