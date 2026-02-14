@@ -14,7 +14,7 @@ from rich.rule import Rule
 from rich.table import Table
 
 from gitbot.analyzer import analyze_history
-from gitbot.git_reader import (
+from shared.git_reader import (
     format_groups_for_llm,
     group_commits_auto,
     group_commits_by_author,

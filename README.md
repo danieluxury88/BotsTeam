@@ -1,107 +1,180 @@
-# 🤖 GitBot
+# 🤖 DevBots
 
-AI-powered git history reviewer. Reads your commit history, groups it intelligently, and asks Claude to produce a high-level summary of what's been happening in your codebase.
+**AI-powered development automation tools** — A monorepo of intelligent bots that help you understand and improve your code.
 
-## Features
+## 🎯 What's Inside
 
-- Reads any local git repository (outside of its own repo)
-- Groups commits by day, author, or automatically
-- Produces a structured AI analysis: overview, key changes, active areas, observations
-- Beautiful terminal output via Rich
-- Fast and cheap — uses Claude Haiku by default
+This workspace contains multiple specialized bots that share common infrastructure:
 
-## Installation
+- **[GitBot](bots/gitbot/README.md)** — Analyzes git history and generates AI-powered summaries
+- **[QABot](bots/qabot/README.md)** — Suggests tests based on code changes and runs test suites
+- **[Project Manager](bots/project_manager/README.md)** — GitLab issue analyzer and AI-powered sprint planner
+- **[Orchestrator](bots/orchestrator/README.md)** — Conversational interface that knows your projects and calls other bots
+
+All bots use **Claude (Anthropic)** for AI analysis and share utilities for git reading, LLM access, and configuration.
+
+## ⚡ Quick Start
 
 ```bash
 # 1. Install uv (if not already installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
-# Or on macOS: brew install uv
 
-# 2. Clone this repo
+# 2. Clone and setup
 git clone <your-repo-url>
-cd gitbot
-
-# 3. Install with uv (automatically creates venv and installs dependencies)
+cd BotsTeam
 uv sync
 
-# 4. Configure your API key
+# 3. Configure API key
 cp .env.example .env
 # Edit .env and add your ANTHROPIC_API_KEY
+
+# 4. Use any bot!
+uv run gitbot /path/to/project
+uv run qabot suggest /path/to/project
+uv run pmbot analyze --project-id 12345
+uv run orchestrator chat
 ```
 
-### Alternative: Traditional pip installation
+## 🚀 Usage Examples
 
+### GitBot - Analyze Repository History
 ```bash
-# Create a virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+# Get AI summary of recent changes
+uv run gitbot . --max-commits 50
 
-# Install with pip
-pip install -e .
-```
-
-## Usage
-
-```bash
-# After installation with uv sync, use uv run to execute commands:
-# Analyze the current directory
-uv run gitbot .
-
-# Analyze an external project
-uv run gitbot /path/to/your/project
-
-# Analyze a specific branch, last 50 commits
-uv run gitbot /path/to/project --branch main --max-commits 50
-
-# Group by day instead of auto
-uv run gitbot /path/to/project --group-by day
-
-# Skip AI, just show the grouped commit table
-uv run gitbot /path/to/project --raw
-
-# Use a different Claude model
-uv run gitbot . --model claude-sonnet-4-5-20250929
-
-# Save report to markdown file
+# Save report to file
 uv run gitbot /path/to/project --output report.md
-uv run gitbot /path/to/project -o analysis-2026-02-13.md
 ```
 
-### With traditional pip installation:
-After activating your virtual environment, you can use `gitbot` directly:
+### QABot - Test Suggestions & Execution
 ```bash
-gitbot .
-gitbot /path/to/your/project
-gitbot /path/to/project --output report.md
+# Get test suggestions based on recent changes
+uv run qabot suggest /path/to/project
+
+# Run tests in a repository
+uv run qabot run /path/to/project
+
+# Full workflow: suggest then run tests
+uv run qabot full /path/to/project
 ```
 
-## Configuration
+### Project Manager - GitLab Issue Analysis
+```bash
+# Analyze GitLab issues (patterns, team workload, recommendations)
+uv run pmbot analyze --project-id 12345
+
+# Generate sprint plan with priorities and effort estimates
+uv run pmbot plan --project-id 12345 --output sprint-plan.md
+
+# List issues in a Rich table
+uv run pmbot list --project-id 12345 --state opened --labels bug
+```
+
+### Orchestrator - Conversational Interface
+```bash
+# Register your projects
+uv run orchestrator add uni.li /home/user/projects/uni.li
+
+# Start chat session
+uv run orchestrator chat
+
+# Then ask:
+# > get qabot report for uni.li
+# > show me gitbot analysis of myproject
+# > analyze issues for project X
+# > what projects do you know?
+```
+
+## 📦 Architecture
+
+This is a **uv workspace monorepo** with:
+
+```
+BotsTeam/
+├── shared/              # Shared utilities (git_reader, llm, models, config)
+├── bots/
+│   ├── gitbot/         # Git history analyzer
+│   ├── qabot/          # Test suggestion & execution
+│   ├── project_manager/ # GitLab issue analyzer & sprint planner
+│   └── orchestrator/   # Conversational bot interface
+└── docs/               # Documentation
+```
+
+Each bot:
+- Imports from `shared` for common functionality
+- Returns structured `BotResult` for composition
+- Can be called via CLI or programmatically
+- Uses the same Claude client and configuration
+
+See [docs/architecture.md](docs/architecture.md) for detailed design.
+
+## ⚙️ Configuration
+
+Set up your `.env` file in the workspace root:
 
 | Variable | Default | Description |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | required | Your Anthropic API key |
-| `GITBOT_MODEL` | `claude-haiku-4-5-20251001` | Claude model to use |
+| `ANTHROPIC_API_KEY` | *required* | Your Anthropic API key |
+| `GITBOT_MODEL` | `claude-haiku-4-5-20251001` | Claude model to use (all bots) |
+| `GITLAB_PRIVATE_TOKEN` | — | Your GitLab personal access token (for pmbot) |
+| `GITLAB_URL` | `https://gitlab.com` | GitLab instance URL |
+| `GITLAB_PROJECT_ID` | — | Default GitLab project ID |
 
-## Options
+## 🔧 Development
 
+```bash
+# Sync all dependencies
+uv sync
+
+# Run individual bots
+uv run gitbot --help
+uv run qabot --help
+uv run pmbot --help
+uv run orchestrator --help
+
+# Run tests (when available)
+uv run pytest
 ```
---max-commits  -n   Max commits to read (default: 100)
---group-by     -g   Grouping: auto | day | author (default: auto)
---branch       -b   Branch to analyze (default: HEAD)
---model        -m   Claude model override
---output       -o   Save report to markdown file
---raw              Skip AI, show raw groups only
-```
 
-## Grouping Strategy
+## 📚 Bot Documentation
 
-- **auto** — Spans > 7 days → group by day. Shorter → group by author.
-- **day** — One group per calendar day, most recent first.
-- **author** — One group per contributor, sorted by commit count.
+Each bot has its own README with detailed usage:
 
-## Roadmap
+- [GitBot README](bots/gitbot/README.md) - Git history analysis
+- [QABot README](bots/qabot/README.md) - Test suggestions and execution
+- [Project Manager README](bots/project_manager/README.md) - GitLab issue analysis and sprint planning
+- [Orchestrator README](bots/orchestrator/README.md) - Conversational interface
 
+## 🗺️ Roadmap
+
+### GitBot
 - [x] Export report to Markdown file
+- [x] Programmatic API for other bots
 - [ ] Compare two branches
 - [ ] GitHub Actions integration
-- [ ] REST API wrapper (FastAPI)
+
+### QABot
+- [x] Test framework detection (pytest, unittest)
+- [x] AI-powered test suggestions
+- [x] Test execution
+- [ ] Coverage analysis
+- [ ] Test generation
+
+### Project Manager
+- [x] GitLab issue fetching and display
+- [x] AI-powered issue analysis
+- [x] Sprint planning with effort estimates
+- [x] Programmatic API
+- [ ] Multi-project comparison
+- [ ] Velocity tracking
+
+### Orchestrator
+- [x] Project registry
+- [x] Conversational interface with Claude
+- [x] Bot invocation (gitbot, qabot, pmbot)
+- [ ] Multi-bot workflows (gitbot → qabot pipeline)
+- [ ] Slack/Discord integration
+
+## 📄 License
+
+MIT
