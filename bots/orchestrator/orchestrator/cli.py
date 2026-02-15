@@ -55,14 +55,14 @@ You have access to:
 1. A project registry - list of known projects with their paths
 2. gitbot - analyzes git history and provides summaries
 3. qabot - suggests tests based on recent changes
-4. pmbot - analyzes GitLab issues and generates sprint plans (requires GitLab integration)
+4. pmbot - analyzes issues and generates sprint plans (requires GitLab or GitHub integration)
 
 When the user asks for information, you should:
 1. Identify which project they're referring to (match by name)
 2. Determine which bot they need:
    - gitbot: for history/changes/commits
    - qabot: for testing/test suggestions
-   - pmbot: for issues/sprint planning/backlog (only if project has GitLab integration)
+   - pmbot: for issues/sprint planning/backlog (only if project has GitLab or GitHub integration)
 3. Return a JSON response with the action to take
 
 Response format:
@@ -84,7 +84,7 @@ Examples:
 - "create sprint plan for project Y" → {"action": "invoke_bot", "bot": "pmbot", "project": "Y", "params": {"pmbot_mode": "plan"}, ...}
 - "what projects do you know?" → {"action": "list_projects", ...}
 
-IMPORTANT: pmbot only works if project has GitLab integration configured.
+IMPORTANT: pmbot only works if project has GitLab or GitHub integration configured.
 
 Be concise and helpful.
 """
@@ -235,17 +235,19 @@ def chat(
                 console.print(f"[cyan]Running {bot_name} on {project.name}...[/cyan]")
                 console.print()
 
-                # Handle pmbot differently (requires GitLab integration)
+                # Handle pmbot differently (requires GitLab or GitHub integration)
                 if bot_name == "pmbot":
                     pmbot_mode = params.get("pmbot_mode", "analyze")
 
-                    if not project.has_gitlab():
+                    if not project.has_gitlab() and not project.has_github():
                         console.print(
-                            "[yellow]⚠[/yellow] pmbot requires GitLab integration\n"
-                            f"[dim]Project '{project.name}' doesn't have a GitLab ID.[/dim]\n\n"
+                            "[yellow]⚠[/yellow] pmbot requires GitLab or GitHub integration\n"
+                            f"[dim]Project '{project.name}' has no issue tracker configured.[/dim]\n\n"
                             "To enable pmbot:\n"
                             f"  [bold]orchestrator add {project.name} {project.path} "
                             f"--gitlab-id YOUR_PROJECT_ID[/bold]\n"
+                            f"  [bold]orchestrator add {project.name} {project.path} "
+                            f"--github-repo owner/repo[/bold]\n"
                         )
                         continue
 
@@ -330,6 +332,8 @@ def add(
         if gitlab_project_id:
             console.print(f"[dim]  GitLab: {gitlab_project_id}" +
                          (f" @ {gitlab_url}" if gitlab_url else "") + "[/dim]")
+        if github_repo:
+            console.print(f"[dim]  GitHub: {github_repo}[/dim]")
 
     except ValueError as e:
         console.print(f"[red]Error:[/red] {e}")
@@ -389,13 +393,15 @@ def _add_project_interactive(registry: ProjectRegistry):
     path_str = Prompt.ask("Project path")
     description = Prompt.ask("Description (optional)", default="")
 
-    console.print("\n[dim]GitLab Integration (optional - enables pmbot)[/dim]")
+    console.print("\n[dim]Issue Tracker Integration (optional - enables pmbot)[/dim]")
     gitlab_id = Prompt.ask("GitLab project ID (press Enter to skip)", default="")
+    github_repo = Prompt.ask("GitHub repo owner/repo (press Enter to skip)", default="")
 
     try:
         registry.add_project(
             name, Path(path_str), description=description,
             gitlab_project_id=gitlab_id if gitlab_id else None,
+            github_repo=github_repo if github_repo else None,
         )
         console.print(f"[green]✓[/green] Added project: [bold]{name}[/bold]")
     except ValueError as e:

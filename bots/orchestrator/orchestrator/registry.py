@@ -48,6 +48,21 @@ class Project:
         from shared.config import Config
         return Config.gitlab_url()
 
+    def get_github_token(self) -> str | None:
+        """Get GitHub token (per-project or fall back to global env)."""
+        if self.github_token:
+            return self.github_token
+        from shared.config import Config
+        try:
+            return Config.github_token()
+        except EnvironmentError:
+            return None
+
+    def get_github_base_url(self) -> str:
+        """Get GitHub API base URL (per-project or fall back to global env)."""
+        from shared.config import Config
+        return Config.github_base_url()
+
     def get_data_dir(self) -> Path:
         """Get the data directory for this project."""
         from shared.data_manager import get_project_data_dir

@@ -1,0 +1,195 @@
+@startuml
+' =========================
+' SeriousDesign Bot Team Map
+' =========================
+' Paste into a PlantUML renderer (VS Code PlantUML, plantuml.com, etc.)
+
+skinparam backgroundColor #0B0F14
+skinparam shadowing true
+skinparam roundcorner 18
+skinparam dpi 160
+skinparam defaultFontName "Inter"
+skinparam ArrowColor #B8C0CC
+skinparam ArrowThickness 1.2
+
+skinparam rectangle {
+  BorderColor #2D3642
+  FontColor #E9EEF5
+  BackgroundColor #111824
+}
+
+skinparam package {
+  BorderColor #2D3642
+  FontColor #E9EEF5
+  BackgroundColor #0F1621
+}
+
+skinparam note {
+  BackgroundColor #101A2A
+  BorderColor #3A4656
+  FontColor #D6DEEA
+}
+
+skinparam class {
+  BorderColor #2D3642
+  BackgroundColor #101824
+  FontColor #E9EEF5
+}
+
+title <size:20><b>Bot Team — Layers, Relationships & Communication</b></size>\n<size:12>Human-led, coordinator-driven, tool-enabled collaboration</size>
+
+' ---------- Legend ----------
+legend right
+  <b>Line styles</b>
+  <color:#9AE6B4><b>Solid</b></color> = primary handoff\n
+  <color:#90CDF4><b>Dashed</b></color> = feedback / review loop\n
+  <color:#FBD38D><b>Dotted</b></color> = signals / events / notifications\n
+  <b>Layers</b> (top→down): Human → Orchestration → Specialists → Tools/Systems
+endlegend
+
+' =========================
+' LAYER 1 — HUMAN
+' =========================
+package "L1 — Human Direction" as L1 #0F1621 {
+  rectangle "🧑‍💼 Daniel\n(Owner / PM / Architect)" as H_Daniel #1B2A3A
+  rectangle "🎛️ Johana\n(PM / Admin / Ops)" as H_Johana #1B2A3A
+  rectangle "🛠️ Diego\n(HW / Field / Support)" as H_Diego #1B2A3A
+}
+
+' =========================
+' LAYER 2 — ORCHESTRATION
+' =========================
+package "L2 — Orchestration & Governance" as L2 #0F1621 {
+  rectangle "🧭 Coordinator Bot\n(Plans · Routes · Tracks)" as BOT_Coord #1E293B
+  rectangle "🧱 Policy / Standards\n(DoD · ADR · Templates)" as GOV_Standards #152033
+  rectangle "📌 Context Hub\n(Project Context · Memory · Glossary)" as HUB_Context #152033
+}
+
+' =========================
+' LAYER 3 — SPECIALISTS
+' =========================
+package "L3 — Specialist Bots" as L3 #0F1621 {
+
+  package "Architecture & Planning" as P_ARCH #0B1220 {
+    rectangle "🏗️ Migration Architect" as BOT_MigArch #1F2A44
+    rectangle "🧩 System Designer\n(Symfony/Drupal)" as BOT_System #1F2A44
+  }
+
+  package "Quality & Risk" as P_QA #0B1220 {
+    rectangle "🧪 QA Root Cause" as BOT_QA #1F2A44
+    rectangle "🔒 Security & Safety" as BOT_Sec #1F2A44
+  }
+
+  package "Implementation" as P_IMPL #0B1220 {
+    rectangle "🧑‍💻 Code Writer" as BOT_Code #1F2A44
+    rectangle "🧰 Refactor & Cleanup" as BOT_Refactor #1F2A44
+  }
+
+  package "Docs & Comms" as P_DOCS #0B1220 {
+    rectangle "📝 Documentation Bot" as BOT_Docs #1F2A44
+    rectangle "📣 Release / Changelog" as BOT_Release #1F2A44
+  }
+
+  package "Data & Insights" as P_DATA #0B1220 {
+    rectangle "📊 Audit & Reporting" as BOT_Audit #1F2A44
+    rectangle "🔎 Search & Triage" as BOT_Triage #1F2A44
+  }
+}
+
+' =========================
+' LAYER 4 — TOOLS / SYSTEMS
+' =========================
+package "L4 — Tools & Systems" as L4 #0F1621 {
+  rectangle "🗂️ Git Repo\n(uni.li / SwissArmyApp / etc.)" as SYS_Repo #132033
+  rectangle "🧱 Drupal\n(Legacy + New)" as SYS_Drupal #132033
+  rectangle "⚙️ CLI Tools\n(ddev · drush · composer)" as SYS_CLI #132033
+  rectangle "🗃️ DB\n(MariaDB / Postgres)" as SYS_DB #132033
+  rectangle "📡 External APIs\n(GitLab · Notion · MCP)" as SYS_APIs #132033
+  rectangle "📈 Dashboards\n(JSON reports · Grafana)" as SYS_Dash #132033
+}
+
+' =========================
+' PRIMARY HUMAN → ORCH
+' =========================
+H_Daniel -[#9AE6B4,thickness=2]-> BOT_Coord : goals / priorities
+H_Johana -[#9AE6B4,thickness=2]-> BOT_Coord : ops constraints / checklists
+H_Diego  -[#9AE6B4,thickness=2]-> BOT_Coord : field needs / hw context
+
+BOT_Coord -[#90CDF4,dashed]-> H_Daniel : plans / options / tradeoffs
+BOT_Coord -[#90CDF4,dashed]-> H_Johana : tasks / SOP / docs
+BOT_Coord -[#90CDF4,dashed]-> H_Diego  : actionable steps
+
+' =========================
+' GOVERNANCE FEEDS
+' =========================
+BOT_Coord -[#9AE6B4,thickness=2]-> GOV_Standards : enforce DoD/ADR/templates
+BOT_Coord -[#9AE6B4,thickness=2]-> HUB_Context : update shared context
+
+GOV_Standards -[#90CDF4,dashed]-> BOT_Coord : constraints + quality gates
+HUB_Context   -[#90CDF4,dashed]-> BOT_Coord : shared memory
+
+' =========================
+' ORCH → SPECIALISTS (Handoff)
+' =========================
+BOT_Coord -[#9AE6B4,thickness=2]-> BOT_MigArch : migration plan
+BOT_Coord -[#9AE6B4,thickness=2]-> BOT_System  : architecture decisions
+BOT_Coord -[#9AE6B4,thickness=2]-> BOT_QA      : investigate failures
+BOT_Coord -[#9AE6B4,thickness=2]-> BOT_Sec     : review risky changes
+BOT_Coord -[#9AE6B4,thickness=2]-> BOT_Code    : implement tasks
+BOT_Coord -[#9AE6B4,thickness=2]-> BOT_Refactor: cleanup / readability
+BOT_Coord -[#9AE6B4,thickness=2]-> BOT_Docs    : docs generation
+BOT_Coord -[#9AE6B4,thickness=2]-> BOT_Release : release notes
+BOT_Coord -[#9AE6B4,thickness=2]-> BOT_Audit   : reports & diffs
+BOT_Coord -[#9AE6B4,thickness=2]-> BOT_Triage  : issue sorting
+
+' =========================
+' SPECIALIST ↔ SPECIALIST collaboration
+' =========================
+BOT_MigArch <-[#90CDF4,dashed]-> BOT_Audit   : evidence ↔ plan updates
+BOT_System  <-[#90CDF4,dashed]-> BOT_Sec     : design ↔ risk review
+BOT_Code    <-[#90CDF4,dashed]-> BOT_QA      : fix ↔ reproduce
+BOT_Code    <-[#90CDF4,dashed]-> BOT_Refactor: implement ↔ polish
+BOT_Docs    <-[#90CDF4,dashed]-> BOT_Release : changelog ↔ documentation
+BOT_Triage  <-[#90CDF4,dashed]-> BOT_QA      : prioritize ↔ root cause
+
+' =========================
+' SPECIALISTS → TOOLS / SYSTEMS
+' =========================
+BOT_Audit   -[#9AE6B4,thickness=2]-> SYS_Repo   : read configs / diffs
+BOT_Code    -[#9AE6B4,thickness=2]-> SYS_Repo   : apply code edits
+BOT_Refactor -[#9AE6B4,thickness=2]-> SYS_Repo   : refactor / restructure
+BOT_MigArch -[#9AE6B4,thickness=2]-> SYS_Drupal : migration mapping
+BOT_QA      -[#9AE6B4,thickness=2]-> SYS_CLI    : run tests / drush
+BOT_QA      -[#9AE6B4,thickness=2]-> SYS_DB     : validate data
+BOT_Triage  -[#9AE6B4,thickness=2]-> SYS_APIs   : issues / tickets
+BOT_Docs    -[#9AE6B4,thickness=2]-> SYS_Repo   : docs/ADR updates
+BOT_Audit   -[#9AE6B4,thickness=2]-> SYS_Dash   : publish reports
+
+' =========================
+' EVENT SIGNALS / NOTIFICATIONS
+' =========================
+SYS_APIs -[#FBD38D,dotted]-> BOT_Coord : new issue / MR / comment
+SYS_CLI  -[#FBD38D,dotted]-> BOT_Coord : build/test results
+SYS_Drupal -[#FBD38D,dotted]-> BOT_Coord : migration run status
+SYS_Dash -[#FBD38D,dotted]-> H_Daniel : status snapshot
+
+' =========================
+' Notes for clarity
+' =========================
+note bottom of BOT_Coord
+  The Coordinator Bot is the "router":
+  - ensures shared context
+  - assigns work to specialists
+  - enforces standards (DoD/ADR)
+  - merges outputs into a single plan
+end note
+
+note bottom of GOV_Standards
+  Governance examples:
+  - Definition of Done
+  - Commit message rules
+  - Migration checklist
+  - ADR template
+end note
+
+@enduml

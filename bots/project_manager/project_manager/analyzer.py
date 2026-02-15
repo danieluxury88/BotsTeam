@@ -14,7 +14,7 @@ from shared.models import (
     BotResult,
     BotStatus,
     EffortSize,
-    GitLabIssue,
+    Issue,
     IssuePriority,
     IssueSet,
     PlannedIssue,
@@ -33,7 +33,7 @@ Be concise, direct, and actionable. Format responses in clean Markdown.
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def _format_issue_list(issues: list[GitLabIssue], max_issues: int = 60) -> str:
+def _format_issue_list(issues: list[Issue], max_issues: int = 60) -> str:
     """Compact text representation of issues for LLM prompts."""
     lines: list[str] = []
     for i in issues[:max_issues]:

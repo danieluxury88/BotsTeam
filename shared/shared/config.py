@@ -50,3 +50,19 @@ class Config:
     def gitlab_project_id() -> str | None:
         """Get default GitLab project ID from environment."""
         return os.environ.get("GITLAB_PROJECT_ID")
+
+    @staticmethod
+    def github_token() -> str:
+        """Get GitHub personal access token from environment."""
+        token = os.environ.get("GITHUB_TOKEN")
+        if not token:
+            raise EnvironmentError(
+                "GITHUB_TOKEN is not set. "
+                "Add it to your .env file."
+            )
+        return token
+
+    @staticmethod
+    def github_base_url() -> str:
+        """Get GitHub API base URL from environment (for GitHub Enterprise)."""
+        return os.environ.get("GITHUB_API_URL", "https://api.github.com")

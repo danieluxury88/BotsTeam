@@ -198,10 +198,10 @@ class EffortSize(str, Enum):
 
 
 @dataclass
-class GitLabIssue:
+class Issue:
     """
-    A single GitLab issue — normalised from the python-gitlab API response.
-    All bots work with this type; raw API objects never leave gitlab_client.py.
+    A single issue — normalised from the GitLab or GitHub API response.
+    All bots work with this type; raw API objects never leave their respective client modules.
     """
     iid: int                          # Project-scoped issue number (#42)
     title: str
@@ -237,20 +237,20 @@ class GitLabIssue:
 @dataclass
 class IssueSet:
     """
-    Collection of GitLab issues for a project — project-manager's core payload.
-    Consumed by AI analyzers and the planner.
+    Collection of issues for a project — project-manager's core payload.
+    Consumed by AI analyzers and the planner. Works with both GitLab and GitHub issues.
     """
     project_id: str
     project_name: str
     fetched_at: datetime
-    issues: list[GitLabIssue] = field(default_factory=list)
+    issues: list[Issue] = field(default_factory=list)
 
     @property
-    def open_issues(self) -> list[GitLabIssue]:
+    def open_issues(self) -> list[Issue]:
         return [i for i in self.issues if i.state == IssueState.OPEN]
 
     @property
-    def closed_issues(self) -> list[GitLabIssue]:
+    def closed_issues(self) -> list[Issue]:
         return [i for i in self.issues if i.state == IssueState.CLOSED]
 
     @property
@@ -275,20 +275,20 @@ class IssueSet:
                     result.append(a)
         return result
 
-    def by_label(self, label: str) -> list[GitLabIssue]:
+    def by_label(self, label: str) -> list[Issue]:
         return [i for i in self.issues if label in i.labels]
 
-    def by_assignee(self, assignee: str) -> list[GitLabIssue]:
+    def by_assignee(self, assignee: str) -> list[Issue]:
         return [i for i in self.issues if assignee in i.assignees]
 
-    def stale(self, threshold_days: int = 30) -> list[GitLabIssue]:
+    def stale(self, threshold_days: int = 30) -> list[Issue]:
         return [i for i in self.open_issues if i.is_stale(threshold_days)]
 
 
 @dataclass
 class PlannedIssue:
     """An issue enriched with AI planning metadata."""
-    issue: GitLabIssue
+    issue: Issue
     priority: IssuePriority
     effort: EffortSize
     rationale: str        # Why this priority/effort was assigned
@@ -314,3 +314,7 @@ class WorkloadPlan:
             w = pi.week or 99
             weeks.setdefault(w, []).append(pi)
         return dict(sorted(weeks.items()))
+
+
+# Backward-compatibility alias
+GitLabIssue = Issue

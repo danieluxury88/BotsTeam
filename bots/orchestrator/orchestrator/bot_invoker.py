@@ -7,7 +7,8 @@ from gitbot.analyzer import get_bot_result as gitbot_get_result
 from qabot.analyzer import get_bot_result as qabot_get_result
 from project_manager.analyzer import get_bot_result as pmbot_get_result
 from shared.models import BotResult, IssueSet
-from shared.gitlab_client import fetch_issues
+from shared.gitlab_client import fetch_issues as gitlab_fetch_issues
+from shared.github_client import fetch_issues as github_fetch_issues
 
 
 BotName = Literal["gitbot", "qabot", "pmbot"]
@@ -75,54 +76,83 @@ def invoke_bot(
             )
 
     elif bot_name == "pmbot":
-        # Extract GitLab details from project or use legacy parameters
+        # Determine issue source: GitLab or GitHub
+        issue_set: IssueSet | None = None
+
         if project:
-            if not project.has_gitlab():
+            if project.has_gitlab():
+                # GitLab path
+                gitlab_token = project.get_gitlab_token()
+                if not gitlab_token:
+                    return BotResult(
+                        bot_name=bot_name, status="error",
+                        summary="GitLab token not found (check .env or project credentials)",
+                        data={"error": "missing_gitlab_token"}, markdown_report="",
+                    )
+                try:
+                    issue_set = gitlab_fetch_issues(
+                        project_id=project.gitlab_project_id,
+                        token=gitlab_token,
+                        url=project.get_gitlab_url(),
+                    )
+                except Exception as e:
+                    return BotResult(
+                        bot_name=bot_name, status="error",
+                        summary=f"Failed to fetch GitLab issues: {e}",
+                        data={"error": "gitlab_fetch_failed"}, markdown_report="",
+                    )
+
+            elif project.has_github():
+                # GitHub path
+                github_token = project.get_github_token()
+                if not github_token:
+                    return BotResult(
+                        bot_name=bot_name, status="error",
+                        summary="GitHub token not found (check .env or project credentials)",
+                        data={"error": "missing_github_token"}, markdown_report="",
+                    )
+                try:
+                    issue_set = github_fetch_issues(
+                        repo=project.github_repo,
+                        token=github_token,
+                        base_url=project.get_github_base_url(),
+                    )
+                except Exception as e:
+                    return BotResult(
+                        bot_name=bot_name, status="error",
+                        summary=f"Failed to fetch GitHub issues: {e}",
+                        data={"error": "github_fetch_failed"}, markdown_report="",
+                    )
+
+            else:
                 return BotResult(
                     bot_name=bot_name, status="error",
-                    summary=f"Project '{project.name}' does not have GitLab integration",
-                    data={"error": "no_gitlab_integration"}, markdown_report="",
+                    summary=f"Project '{project.name}' has no GitLab or GitHub integration",
+                    data={"error": "no_issue_integration"}, markdown_report="",
                 )
 
-            project_id = project.gitlab_project_id
-            gitlab_url = project.get_gitlab_url()
-            gitlab_token = project.get_gitlab_token()
         else:
-            # Legacy mode
-            gitlab_url = None
-            gitlab_token = None
+            # Legacy mode — GitLab only via project_id parameter
+            if not project_id:
+                return BotResult(
+                    bot_name=bot_name, status="error",
+                    summary="pmbot requires project_id or Project with GitLab/GitHub integration",
+                    data={"error": "missing_project_id"}, markdown_report="",
+                )
+            try:
+                issue_set = gitlab_fetch_issues(project_id=project_id)
+            except Exception as e:
+                return BotResult(
+                    bot_name=bot_name, status="error",
+                    summary=f"Failed to fetch issues: {e}",
+                    data={"error": "fetch_failed"}, markdown_report="",
+                )
 
-        if not project_id:
-            return BotResult(
-                bot_name=bot_name, status="error",
-                summary="pmbot requires project_id or Project with GitLab integration",
-                data={"error": "missing_project_id"}, markdown_report="",
-            )
-
-        if not gitlab_token:
-            return BotResult(
-                bot_name=bot_name, status="error",
-                summary="GitLab token not found (check .env or project credentials)",
-                data={"error": "missing_gitlab_token"}, markdown_report="",
-            )
-
-        try:
-            issue_set = fetch_issues(
-                project_id=project_id,
-                token=gitlab_token,
-                url=gitlab_url,
-            )
-            return pmbot_get_result(
-                issue_set,
-                mode=pmbot_mode,
-                project_name=project.name if project else None,
-            )
-        except Exception as e:
-            return BotResult(
-                bot_name=bot_name, status="error",
-                summary=f"Failed to fetch issues: {e}",
-                data={"error": "gitlab_fetch_failed"}, markdown_report="",
-            )
+        return pmbot_get_result(
+            issue_set,
+            mode=pmbot_mode,
+            project_name=project.name if project else None,
+        )
 
     else:
         return BotResult(

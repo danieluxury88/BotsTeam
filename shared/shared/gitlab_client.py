@@ -15,7 +15,7 @@ import gitlab
 from gitlab.v4.cli import GitlabCLI
 
 from shared.config import Config
-from shared.models import GitLabIssue, IssueSet, IssueState
+from shared.models import Issue, IssueSet, IssueState
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,8 +40,8 @@ def _require_dt(value: str | None, fallback: datetime | None = None) -> datetime
     return datetime.now(tz=timezone.utc)
 
 
-def _normalise_issue(raw) -> GitLabIssue:
-    """Convert a python-gitlab issue object to a GitLabIssue datamodel."""
+def _normalise_issue(raw) -> Issue:
+    """Convert a python-gitlab issue object to an Issue datamodel."""
     assignees = [a.get("username", a.get("name", "")) for a in (raw.assignees or [])]
 
     author = ""
@@ -62,7 +62,7 @@ def _normalise_issue(raw) -> GitLabIssue:
         except ValueError:
             pass
 
-    return GitLabIssue(
+    return Issue(
         iid=raw.iid,
         title=raw.title,
         state=IssueState.OPEN if raw.state == "opened" else IssueState.CLOSED,
@@ -165,7 +165,7 @@ class GitLabClient:
         self,
         project_id: str,
         state: IssueState = IssueState.ALL,
-    ) -> Iterator[GitLabIssue]:
+    ) -> Iterator[Issue]:
         """Stream issues one by one — useful for very large projects."""
         project = self.get_project(project_id)
         for raw in project.issues.list(
