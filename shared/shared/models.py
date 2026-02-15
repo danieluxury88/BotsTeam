@@ -223,7 +223,6 @@ class Issue:
         """How many days since this issue was opened."""
         return (datetime.utcnow() - self.created_at.replace(tzinfo=None)).days
 
-    @property
     def is_stale(self, threshold_days: int = 30) -> bool:
         updated = self.updated_at.replace(tzinfo=None)
         return (datetime.utcnow() - updated).days > threshold_days

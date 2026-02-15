@@ -15,12 +15,14 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from shared.config import Config
+from shared.config import Config, load_env
 from shared.gitlab_client import fetch_issues as gitlab_fetch_issues
 from shared.github_client import fetch_issues as github_fetch_issues
 from shared.models import BotStatus, IssueSet, IssueState
 
 from project_manager.analyzer import analyze, plan
+
+load_env()
 
 app = typer.Typer(
     name="issuebot",
