@@ -16,6 +16,7 @@ from rich.table import Table
 from rich.text import Text
 
 from shared.config import Config, load_env
+from shared.data_manager import save_report
 from shared.gitlab_client import fetch_issues as gitlab_fetch_issues
 from shared.github_client import fetch_issues as github_fetch_issues
 from shared.models import BotStatus, IssueSet, IssueState
@@ -261,9 +262,18 @@ def analyze_issues(
 
     console.print(Markdown(result.report_md))
 
+    # Auto-save to data/{project}/reports/pmbot/
+    if result.report_md:
+        latest, timestamped = save_report(
+            issue_set.project_name, "pmbot", result.report_md,
+        )
+        console.print(f"\n[green]✓[/green] Report saved to [bold]{latest}[/bold]")
+        if timestamped:
+            console.print(f"[dim]  Archived: {timestamped}[/dim]")
+
     if output:
         output.write_text(result.report_md)
-        console.print(f"\n[green]✓[/green] Analysis saved to [bold]{output}[/bold]")
+        console.print(f"[green]✓[/green] Also saved to [bold]{output}[/bold]")
 
     console.print()
     console.print(Rule())
@@ -326,9 +336,18 @@ def plan_workload(
 
     console.print(Markdown(result.report_md))
 
+    # Auto-save to data/{project}/reports/pmbot/
+    if result.report_md:
+        latest, timestamped = save_report(
+            issue_set.project_name, "pmbot", result.report_md,
+        )
+        console.print(f"\n[green]✓[/green] Report saved to [bold]{latest}[/bold]")
+        if timestamped:
+            console.print(f"[dim]  Archived: {timestamped}[/dim]")
+
     if output:
         output.write_text(result.report_md)
-        console.print(f"\n[green]✓[/green] Sprint plan saved to [bold]{output}[/bold]")
+        console.print(f"[green]✓[/green] Also saved to [bold]{output}[/bold]")
 
     # Summary stats
     console.print()
