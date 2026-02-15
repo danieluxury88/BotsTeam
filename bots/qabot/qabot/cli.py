@@ -15,6 +15,7 @@ from rich.table import Table
 
 from qabot.analyzer import analyze_changes_for_testing
 from qabot.runner import detect_test_framework, run_tests
+from shared.data_manager import save_report
 from shared.models import BotResult
 
 app = typer.Typer(
@@ -103,9 +104,8 @@ def suggest(
     console.print(Markdown(result.markdown_report))
     console.print()
 
-    # Save report if requested
-    if output:
-        output_path = output.resolve()
+    # Auto-save report
+    if result.markdown_report:
         full_report = _generate_markdown_report(
             repo_name=repo_path.name,
             repo_path=repo_path,
@@ -113,12 +113,19 @@ def suggest(
             framework_info=framework_info,
             analysis=result.markdown_report,
         )
+        latest, timestamped = save_report(repo_path.name, "qabot", full_report)
+        console.print(f"[green]✓[/green] Report saved to [bold]{latest}[/bold]")
+        if timestamped:
+            console.print(f"[dim]  Archived: {timestamped}[/dim]")
+
+    if output:
+        output_path = output.resolve()
         try:
             output_path.write_text(full_report, encoding="utf-8")
-            console.print(f"[green]✓[/green] Report saved to [bold]{output_path}[/bold]")
+            console.print(f"[green]✓[/green] Also saved to [bold]{output_path}[/bold]")
         except Exception as e:
             rprint(f"[yellow]Warning:[/yellow] Could not save report: {e}")
-        console.print()
+    console.print()
 
     console.print(Rule())
     console.print("[dim]QABot v0.1.0 — powered by Claude[/dim]")
@@ -270,6 +277,14 @@ def full(
 
     console.print(Markdown(analysis.markdown_report))
     console.print()
+
+    # Auto-save report
+    if analysis.markdown_report:
+        latest, timestamped = save_report(repo_path.name, "qabot", analysis.markdown_report)
+        console.print(f"[green]✓[/green] Report saved to [bold]{latest}[/bold]")
+        if timestamped:
+            console.print(f"[dim]  Archived: {timestamped}[/dim]")
+        console.print()
 
     # Step 3: Run tests (if not skipped and framework exists)
     if not skip_tests and framework_info.name != "none":

@@ -14,6 +14,7 @@ from rich.rule import Rule
 from rich.table import Table
 
 from gitbot.analyzer import analyze_history
+from shared.data_manager import save_report
 from shared.git_reader import (
     format_groups_for_llm,
     group_commits_auto,
@@ -241,23 +242,29 @@ def review(
     console.print(Markdown(summary))
     console.print()
 
-    # --- Step 6: Save to file if requested ---
+    # --- Step 6: Auto-save report ---
+    markdown_report = _generate_markdown_report(
+        repo_name=repo_name,
+        repo_path=repo_path,
+        branch=branch,
+        max_commits=max_commits,
+        groups=groups,
+        summary=summary,
+    )
+
+    latest, timestamped = save_report(repo_name, "gitbot", markdown_report)
+    console.print(f"[green]✓[/green] Report saved to [bold]{latest}[/bold]")
+    if timestamped:
+        console.print(f"[dim]  Archived: {timestamped}[/dim]")
+
     if output:
         output_path = output.resolve()
-        markdown_report = _generate_markdown_report(
-            repo_name=repo_name,
-            repo_path=repo_path,
-            branch=branch,
-            max_commits=max_commits,
-            groups=groups,
-            summary=summary,
-        )
         try:
             output_path.write_text(markdown_report, encoding="utf-8")
-            console.print(f"[green]✓[/green] Report saved to [bold]{output_path}[/bold]")
+            console.print(f"[green]✓[/green] Also saved to [bold]{output_path}[/bold]")
         except Exception as e:
             rprint(f"[yellow]Warning:[/yellow] Could not save report: {e}")
-        console.print()
+    console.print()
 
     console.print(Rule())
     console.print(
