@@ -33,10 +33,10 @@ class Config:
     @staticmethod
     def gitlab_token() -> str:
         """Get GitLab private token from environment."""
-        token = os.environ.get("GITLAB_PRIVATE_TOKEN")
+        token = os.environ.get("GITLAB_TOKEN") or os.environ.get("GITLAB_PRIVATE_TOKEN")
         if not token:
             raise EnvironmentError(
-                "GITLAB_PRIVATE_TOKEN is not set. "
+                "GITLAB_TOKEN is not set. "
                 "Add it to your .env file."
             )
         return token
