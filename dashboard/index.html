@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="DevBots Dashboard - Unified interface for AI-powered development bots">
+    <title>DevBots Dashboard</title>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" role="banner">
+        <div class="header-content">
+            <div class="header-brand">
+                <span class="header-logo">🤖</span>
+                <h1 class="header-title">DevBots Dashboard</h1>
+            </div>
+            <nav class="header-nav" role="navigation" aria-label="Main navigation">
+                <a href="index.html" class="nav-link active" aria-current="page">Dashboard</a>
+                <a href="projects.html" class="nav-link">Projects</a>
+                <a href="bots.html" class="nav-link">Bots</a>
+                <a href="activity.html" class="nav-link">Activity</a>
+            </nav>
+            <div class="header-actions">
+                <button class="btn-icon" id="refresh-btn" aria-label="Refresh data" title="Refresh">
+                    <span class="icon">🔄</span>
+                </button>
+                <button class="btn-icon" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+                    <span class="icon">☀️</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main" role="main">
+        <div class="container">
+            <!-- Summary Cards -->
+            <section class="summary-section" aria-label="Dashboard summary">
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <div class="summary-icon">📊</div>
+                        <div class="summary-content">
+                            <h2 class="summary-title">Projects</h2>
+                            <p class="summary-value" id="projects-count">0</p>
+                            <p class="summary-label">Total projects</p>
+                        </div>
+                        <a href="projects.html" class="summary-link">View All →</a>
+                    </div>
+
+                    <div class="summary-card">
+                        <div class="summary-icon">🤖</div>
+                        <div class="summary-content">
+                            <h2 class="summary-title">Bots</h2>
+                            <p class="summary-value">4</p>
+                            <p class="summary-label">Active bots</p>
+                        </div>
+                        <a href="bots.html" class="summary-link">View Status →</a>
+                    </div>
+
+                    <div class="summary-card">
+                        <div class="summary-icon">📈</div>
+                        <div class="summary-content">
+                            <h2 class="summary-title">Activity</h2>
+                            <p class="summary-value" id="activity-count">0</p>
+                            <p class="summary-label">Recent actions</p>
+                        </div>
+                        <a href="activity.html" class="summary-link">View Feed →</a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Recent Projects -->
+            <section class="projects-section" aria-label="Recent projects">
+                <div class="section-header">
+                    <h2 class="section-title">Recent Projects</h2>
+                    <a href="projects.html" class="section-link">View All →</a>
+                </div>
+                <div class="projects-grid" id="projects-grid">
+                    <!-- Projects will be loaded here via JavaScript -->
+                    <div class="loading">Loading projects...</div>
+                </div>
+            </section>
+
+            <!-- Recent Reports -->
+            <section class="reports-section" aria-label="Recent reports">
+                <div class="section-header">
+                    <h2 class="section-title">Recent Reports</h2>
+                    <a href="reports.html" class="section-link">View All →</a>
+                </div>
+                <div class="reports-list" id="reports-list">
+                    <!-- Reports will be loaded here via JavaScript -->
+                    <div class="loading">Loading reports...</div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="footer-content">
+            <p>&copy; 2026 DevBots. Built with ❤️ and no frameworks.</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/components.js"></script>
+    <script src="js/dashboard.js"></script>
+
+    <!-- No-JS fallback -->
+    <noscript>
+        <div class="no-js-message">
+            <p>This dashboard works best with JavaScript enabled.</p>
+            <p>However, you can still access the CLI tools directly.</p>
+        </div>
+    </noscript>
+</body>
+</html>

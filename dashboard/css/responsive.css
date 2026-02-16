@@ -1,0 +1,115 @@
+/* Responsive Design - Mobile First */
+
+/* Mobile (< 768px) - default */
+
+/* Tablet (768px - 1023px) */
+@media (min-width: 768px) {
+    .header-nav {
+        gap: var(--space-md);
+    }
+    
+    .nav-link {
+        padding: var(--space-sm) var(--space-lg);
+    }
+    
+    .summary-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .projects-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Desktop (1024px+) */
+@media (min-width: 1024px) {
+    .container {
+        padding: 0 var(--space-xl);
+    }
+    
+    .projects-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .reports-section {
+        margin-top: var(--space-2xl);
+    }
+}
+
+/* Wide screens (1440px+) */
+@media (min-width: 1440px) {
+    .projects-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* Mobile menu adjustments */
+@media (max-width: 767px) {
+    .header-title {
+        font-size: var(--font-size-lg);
+    }
+    
+    .header-nav {
+        display: none;
+    }
+    
+    .summary-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .projects-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-sm);
+    }
+}
+
+/* Touch-friendly spacing for mobile */
+@media (max-width: 767px) and (pointer: coarse) {
+    .card {
+        padding: var(--space-xl);
+    }
+    
+    .btn {
+        min-height: 52px;
+        min-width: 52px;
+        padding: var(--space-md) var(--space-xl);
+    }
+    
+    .btn-icon {
+        min-height: 52px;
+        min-width: 52px;
+    }
+}
+
+/* Print styles */
+@media print {
+    .header-actions,
+    .nav-link,
+    .btn,
+    .card-actions {
+        display: none;
+    }
+    
+    .card,
+    .report-item {
+        box-shadow: none;
+        border: 1px solid #ccc;
+        break-inside: avoid;
+    }
+}
+
+/* Prefers reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
