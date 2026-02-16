@@ -1,0 +1,449 @@
+# 📊 BotsTeam Dashboard - Design Document
+
+## Overview
+
+This document outlines the design plan for a visual dashboard for DevBots. The dashboard will provide a unified interface for monitoring bot activities, viewing reports, and managing projects without requiring JavaScript frameworks or build/compilation steps.
+
+## Design Principles
+
+1. **Simplicity First** - No frameworks, no build tools, no compilation
+2. **Touch-Friendly** - Large interactive elements, mobile-responsive design
+3. **Progressive Enhancement** - Works without JavaScript, enhanced with it
+4. **Zero Dependencies** - Pure HTML5, CSS3, and minimal vanilla JavaScript
+5. **Fast Loading** - Static files served directly, no bundling required
+
+## Technology Stack
+
+### Core Technologies
+- **HTML5** - Semantic markup with modern elements
+- **CSS3** - Grid/Flexbox layouts, CSS Variables for theming
+- **Vanilla JavaScript** - Optional enhancement, no libraries required
+- **Web Server** - Python's built-in `http.server` or similar
+
+### Key Features (No Compilation Required)
+- CSS Grid & Flexbox for responsive layouts
+- CSS Variables for theming and customization
+- Native HTML5 form elements
+- Fetch API for async data loading (optional)
+- LocalStorage for client-side persistence
+- SVG for icons and visualizations
+
+## Dashboard Components
+
+### 1. Main Dashboard View
+
+**Layout Structure:**
+```
+┌─────────────────────────────────────────┐
+│  Header (Logo, Navigation)              │
+├─────────────────────────────────────────┤
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ │
+│  │ Projects │ │   Bots   │ │ Activity │ │
+│  │  Cards   │ │  Status  │ │   Feed   │ │
+│  └──────────┘ └──────────┘ └──────────┘ │
+├─────────────────────────────────────────┤
+│  Recent Reports (Scrollable Grid)       │
+└─────────────────────────────────────────┘
+```
+
+**Touch-Friendly Elements:**
+- Minimum touch target: 48x48px (following mobile accessibility guidelines)
+- Generous padding and spacing (16-24px between elements)
+- Large, clear typography (minimum 16px base font)
+- High contrast for readability
+- Swipe-friendly card layouts
+
+### 2. Project Dashboard
+
+**Features:**
+- Project overview cards with status indicators
+- Quick access to registered projects
+- Visual indicators for GitLab/GitHub integration
+- Last activity timestamps
+- Quick action buttons (view reports, run bots)
+
+**Data Display:**
+- Project name and description
+- Repository path
+- Integration status (GitLab/GitHub)
+- Last bot run timestamp
+- Number of reports available
+
+### 3. Bot Status Panel
+
+**Features:**
+- Real-time bot status indicators (idle/running/error)
+- Last run information for each bot
+- Quick launch buttons for each bot
+- Visual progress indicators
+
+**Bot Cards:**
+Each bot (GitBot, QABot, ProjectManager, Orchestrator) gets a status card showing:
+- Bot icon/emoji
+- Current status
+- Last successful run
+- Quick action button
+- Report count
+
+### 4. Reports Viewer
+
+**Features:**
+- Timeline view of all reports
+- Filter by bot type, project, date
+- Markdown rendering in browser
+- Export options
+- Search functionality
+
+**Display Options:**
+- Grid view (cards)
+- List view (detailed)
+- Timeline view (chronological)
+
+### 5. Activity Feed
+
+**Features:**
+- Real-time activity log
+- Filter by project/bot
+- Expandable entries for details
+- Auto-refresh capability
+- Status indicators (success/warning/error)
+
+## File Structure
+
+```
+dashboard/
+├── index.html              # Main dashboard entry point
+├── css/
+│   ├── reset.css          # CSS reset/normalize
+│   ├── variables.css      # CSS custom properties (theme)
+│   ├── layout.css         # Grid and layout styles
+│   ├── components.css     # Reusable component styles
+│   └── touch.css          # Touch-specific optimizations
+├── js/
+│   ├── data-loader.js     # Load data from JSON/reports
+│   ├── dashboard.js       # Main dashboard logic
+│   ├── filters.js         # Filtering and search
+│   └── utils.js           # Helper functions
+├── data/
+│   └── dashboard.json     # Dashboard state/config
+└── assets/
+    ├── icons/             # SVG icons
+    └── images/            # Any images needed
+```
+
+## Data Integration Strategy
+
+### Static Data Approach (Phase 1)
+The dashboard reads from JSON files generated by the bots:
+
+1. **Projects Registry**
+   - Read from `~/.devbot/projects.json`
+   - Copy to `dashboard/data/projects.json` for serving
+
+2. **Bot Reports**
+   - Scan `data/{project}/reports/{bot}/` directories
+   - Generate index JSON with report metadata
+   - Serve markdown files directly
+
+3. **Dashboard State**
+   - Store in `dashboard/data/dashboard.json`
+   - Include: last refresh, bot statuses, preferences
+
+### Data Schema Example
+
+```json
+{
+  "projects": [
+    {
+      "id": "uni-li",
+      "name": "uni.li",
+      "path": "/home/user/projects/uni.li",
+      "gitlab_id": 76261915,
+      "description": "University Liechtenstein Project",
+      "last_activity": "2026-02-15T10:30:00Z"
+    }
+  ],
+  "bots": [
+    {
+      "name": "gitbot",
+      "status": "idle",
+      "last_run": "2026-02-15T09:15:00Z",
+      "last_project": "uni-li",
+      "reports_count": 5
+    }
+  ],
+  "reports": [
+    {
+      "id": "gitbot-uni-li-2026-02-15",
+      "bot": "gitbot",
+      "project": "uni-li",
+      "timestamp": "2026-02-15T09:15:00Z",
+      "path": "data/uni.li/reports/gitbot/2026-02-15T09-15-00.md",
+      "summary": "Analyzed 50 commits..."
+    }
+  ]
+}
+```
+
+## UI Design Specifications
+
+### Color Scheme
+
+**Light Mode (Default):**
+```css
+--bg-primary: #ffffff;
+--bg-secondary: #f5f5f5;
+--text-primary: #2c3e50;
+--text-secondary: #7f8c8d;
+--accent-primary: #3498db;
+--accent-success: #27ae60;
+--accent-warning: #f39c12;
+--accent-error: #e74c3c;
+--border-color: #ecf0f1;
+```
+
+**Dark Mode:**
+```css
+--bg-primary: #1e1e1e;
+--bg-secondary: #2d2d2d;
+--text-primary: #e0e0e0;
+--text-secondary: #a0a0a0;
+--accent-primary: #3498db;
+--accent-success: #27ae60;
+--accent-warning: #f39c12;
+--accent-error: #e74c3c;
+--border-color: #404040;
+```
+
+### Typography
+
+```css
+--font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', 
+                    'Roboto', 'Helvetica', 'Arial', sans-serif;
+--font-family-mono: 'SF Mono', 'Monaco', 'Inconsolata', 
+                    'Courier New', monospace;
+
+--font-size-xs: 0.75rem;   /* 12px */
+--font-size-sm: 0.875rem;  /* 14px */
+--font-size-base: 1rem;    /* 16px */
+--font-size-lg: 1.125rem;  /* 18px */
+--font-size-xl: 1.25rem;   /* 20px */
+--font-size-2xl: 1.5rem;   /* 24px */
+--font-size-3xl: 2rem;     /* 32px */
+```
+
+### Spacing Scale
+
+```css
+--space-xs: 0.25rem;  /* 4px */
+--space-sm: 0.5rem;   /* 8px */
+--space-md: 1rem;     /* 16px */
+--space-lg: 1.5rem;   /* 24px */
+--space-xl: 2rem;     /* 32px */
+--space-2xl: 3rem;    /* 48px */
+```
+
+### Touch Targets
+
+All interactive elements must meet minimum size requirements:
+- **Buttons**: 48x48px minimum
+- **Cards**: 64x64px minimum
+- **Links**: 44x44px minimum touch area
+- **Form inputs**: 48px height minimum
+
+### Responsive Breakpoints
+
+```css
+--mobile: 320px;
+--tablet: 768px;
+--desktop: 1024px;
+--wide: 1440px;
+```
+
+## Component Library
+
+### 1. Card Component
+
+```html
+<div class="card" role="article">
+  <div class="card-header">
+    <h3 class="card-title">Project Name</h3>
+    <span class="card-status status-active">Active</span>
+  </div>
+  <div class="card-body">
+    <p class="card-description">Project description here...</p>
+    <ul class="card-meta">
+      <li>GitLab: #12345</li>
+      <li>Last activity: 2 hours ago</li>
+    </ul>
+  </div>
+  <div class="card-actions">
+    <button class="btn btn-primary">View Reports</button>
+    <button class="btn btn-secondary">Run Bot</button>
+  </div>
+</div>
+```
+
+### 2. Bot Status Component
+
+```html
+<div class="bot-status">
+  <div class="bot-icon">🤖</div>
+  <div class="bot-info">
+    <h4 class="bot-name">GitBot</h4>
+    <p class="bot-description">Git history analyzer</p>
+  </div>
+  <div class="bot-status-indicator status-idle">
+    <span class="status-dot"></span>
+    <span class="status-text">Idle</span>
+  </div>
+  <div class="bot-actions">
+    <button class="btn-icon" aria-label="Run GitBot">▶</button>
+    <button class="btn-icon" aria-label="View Reports">📄</button>
+  </div>
+</div>
+```
+
+### 3. Activity Feed Item
+
+```html
+<div class="activity-item" data-severity="success">
+  <div class="activity-timestamp">2 hours ago</div>
+  <div class="activity-content">
+    <div class="activity-icon">✅</div>
+    <div class="activity-details">
+      <strong>GitBot</strong> completed analysis of 
+      <strong>uni.li</strong> project
+    </div>
+  </div>
+  <button class="activity-expand" aria-label="Show details">
+    ▼
+  </button>
+</div>
+```
+
+## Implementation Phases
+
+### Phase 1: Foundation (Week 1)
+- [ ] Create basic HTML structure
+- [ ] Implement CSS layout system
+- [ ] Design component library
+- [ ] Setup data structure and JSON schemas
+- [ ] Create static mockup with sample data
+
+### Phase 2: Data Integration (Week 2)
+- [ ] Implement data loading from report files
+- [ ] Build project registry reader
+- [ ] Create report indexer
+- [ ] Add markdown rendering
+- [ ] Implement file system scanner for reports
+
+### Phase 3: Interactivity (Week 3)
+- [ ] Add filtering and sorting
+- [ ] Implement search functionality
+- [ ] Add theme switcher (light/dark mode)
+- [ ] Create report viewer
+- [ ] Add navigation between views
+
+### Phase 4: Polish (Week 4)
+- [ ] Optimize for touch devices
+- [ ] Add accessibility features (ARIA labels, keyboard nav)
+- [ ] Implement responsive design
+- [ ] Add loading states and error handling
+- [ ] Performance optimization
+
+## Serving the Dashboard
+
+### Option 1: Python Built-in Server
+```bash
+cd dashboard
+python3 -m http.server 8080
+# Access at http://localhost:8080
+```
+
+### Option 2: Simple Integration with DevBots
+Add a new command to orchestrator:
+
+```bash
+uv run orchestrator dashboard
+# Starts dashboard server and opens browser
+```
+
+### Option 3: Static File Hosting
+Deploy to:
+- GitHub Pages
+- Netlify
+- Vercel
+- Any static hosting service
+
+## Touch-Friendly Optimizations
+
+### Gestures
+- **Swipe left/right** - Navigate between cards
+- **Pull down** - Refresh data
+- **Long press** - Show context menu
+- **Pinch zoom** - Adjust view (if needed)
+
+### Mobile Optimizations
+- Larger touch targets (48px minimum)
+- Generous spacing between elements
+- Clear visual feedback on touch
+- Prevent accidental taps with proper spacing
+- Bottom navigation for thumb-friendly access
+- Sticky headers for context
+
+### Tablet Optimizations
+- Split-pane layouts
+- Multi-column card grids
+- Side panel navigation
+- Expanded information density
+
+## Accessibility Considerations
+
+1. **Semantic HTML** - Proper heading hierarchy, landmarks
+2. **ARIA Labels** - For all interactive elements
+3. **Keyboard Navigation** - Full keyboard support
+4. **Focus Indicators** - Clear focus states
+5. **Color Contrast** - WCAG AA compliance minimum
+6. **Screen Reader Support** - Descriptive labels and roles
+7. **Text Scaling** - Support up to 200% zoom
+8. **Motion Reduction** - Respect prefers-reduced-motion
+
+## Security Considerations
+
+1. **No Server-Side Processing** - Pure static files
+2. **Read-Only Access** - Dashboard only displays data
+3. **Local Storage Only** - No cookies or tracking
+4. **CSP Headers** - Content Security Policy (if serving via server)
+5. **No External Dependencies** - All assets self-hosted
+
+## Future Enhancements (Out of Scope for Initial Design)
+
+1. **Real-Time Updates** - WebSocket or SSE for live updates
+2. **Bot Control** - Trigger bot runs from dashboard
+3. **Collaborative Features** - Multi-user support
+4. **Advanced Visualizations** - Charts and graphs (using vanilla JS canvas)
+5. **Mobile App** - PWA wrapper for native-like experience
+6. **Export Features** - Export reports to PDF, CSV
+7. **Custom Themes** - User-created color schemes
+
+## Success Metrics
+
+The dashboard will be considered successful if it:
+- ✅ Loads in under 2 seconds on average connection
+- ✅ Works on devices from 320px to 4K displays
+- ✅ Requires zero build/compilation steps
+- ✅ Operates with JavaScript disabled (basic functionality)
+- ✅ Passes WCAG 2.1 Level AA accessibility standards
+- ✅ Has touch targets meeting mobile guidelines
+- ✅ Provides clear value over CLI-only interface
+
+## Conclusion
+
+This design provides a comprehensive plan for a simple, touch-friendly dashboard that aligns with the project's requirements:
+- **No frameworks** - Pure HTML/CSS/JS
+- **No compilation** - Direct file serving
+- **Touch-friendly** - Large targets, responsive design
+- **Design phase** - Complete specification before implementation
+
+The dashboard will serve as a unified visual interface for monitoring DevBots activities while maintaining the project's philosophy of simplicity and zero build complexity.
