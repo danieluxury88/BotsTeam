@@ -1,0 +1,5 @@
+# Ignore generated data files (regenerated on demand)
+data/*.json
+
+# But keep the data directory structure
+!data/.gitkeep
