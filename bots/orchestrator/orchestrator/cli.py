@@ -1,6 +1,9 @@
 """Conversational orchestrator CLI."""
 
 import json
+import os
+import subprocess
+import webbrowser
 from pathlib import Path
 from typing import Annotated
 
@@ -275,6 +278,85 @@ def chat(
         except EOFError:
             console.print("\n[dim]Goodbye![/dim]")
             break
+
+
+@app.command()
+def dashboard(
+    port: Annotated[int, typer.Option("--port", "-p", help="Port to serve dashboard on")] = 8080,
+    no_generate: Annotated[bool, typer.Option("--no-generate", help="Skip data generation")] = False,
+    no_browser: Annotated[bool, typer.Option("--no-browser", help="Don't open browser")] = False,
+):
+    """
+    Launch the DevBots Dashboard web interface.
+    
+    Generates data and starts a local web server to view projects, bots, and reports.
+    
+    Examples:\n
+      orchestrator dashboard\n
+      orchestrator dashboard --port 3000\n
+      orchestrator dashboard --no-generate  # Use existing data
+    """
+    # Find dashboard directory
+    repo_root = Path(__file__).parent.parent.parent.parent
+    dashboard_dir = repo_root / "dashboard"
+    
+    if not dashboard_dir.exists():
+        console.print("[red]Error:[/red] Dashboard directory not found")
+        console.print(f"[dim]Expected: {dashboard_dir}[/dim]")
+        raise typer.Exit(1)
+    
+    # Generate data
+    if not no_generate:
+        console.print("🔄 Generating dashboard data...")
+        generate_script = dashboard_dir / "generate_data.py"
+        try:
+            result = subprocess.run(
+                ["python3", str(generate_script)],
+                cwd=dashboard_dir,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                console.print(f"[yellow]Warning:[/yellow] Data generation failed")
+                console.print(f"[dim]{result.stderr}[/dim]")
+            else:
+                console.print("[green]✓[/green] Dashboard data generated")
+        except Exception as e:
+            console.print(f"[yellow]Warning:[/yellow] Could not generate data: {e}")
+    
+    # Print instructions
+    console.print()
+    console.print(Panel(
+        f"[bold cyan]🤖 DevBots Dashboard[/bold cyan]\n\n"
+        f"[green]Server starting on:[/green] http://localhost:{port}\n\n"
+        f"[dim]Available pages:[/dim]\n"
+        f"  • Main Dashboard: http://localhost:{port}/\n"
+        f"  • Projects:       http://localhost:{port}/projects.html\n"
+        f"  • Bots:           http://localhost:{port}/bots.html\n"
+        f"  • Activity:       http://localhost:{port}/activity.html\n\n"
+        f"[yellow]Press Ctrl+C to stop the server[/yellow]",
+        border_style="cyan",
+    ))
+    console.print()
+    
+    # Open browser
+    if not no_browser:
+        try:
+            webbrowser.open(f"http://localhost:{port}")
+            console.print("[dim]Opening browser...[/dim]")
+        except Exception:
+            pass
+    
+    # Start server
+    server_script = dashboard_dir / "server.py"
+    try:
+        os.chdir(dashboard_dir)
+        subprocess.run(["python3", str(server_script), str(port)])
+    except KeyboardInterrupt:
+        console.print("\n\n[dim]👋 Dashboard server stopped[/dim]")
+    except Exception as e:
+        console.print(f"\n[red]Error:[/red] {e}")
+        raise typer.Exit(1)
 
 
 @app.command()
