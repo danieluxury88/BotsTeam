@@ -6,9 +6,9 @@ Scans the data/ directory and projects registry to create index files
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import re
 
 # Paths
@@ -68,7 +68,7 @@ class DashboardDataGenerator:
         return reports
     
     def parse_report(self, project_id: str, bot: str, 
-                    report_path: Path) -> Dict[str, Any] | None:
+                    report_path: Path) -> Optional[Dict[str, Any]]:
         """Parse a report file and extract metadata"""
         try:
             # Get file stats
@@ -177,7 +177,7 @@ class DashboardDataGenerator:
         
         return {
             "projects": enriched_projects,
-            "last_updated": datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
+            "last_updated": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         }
     
     def generate_index_json(self) -> Dict[str, Any]:
@@ -200,7 +200,7 @@ class DashboardDataGenerator:
         
         return {
             "reports": all_reports,
-            "last_updated": datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z'),
+            "last_updated": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             "total_reports": len(all_reports)
         }
     
@@ -226,7 +226,7 @@ class DashboardDataGenerator:
         
         return {
             "version": "1.0.0",
-            "last_updated": datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z'),
+            "last_updated": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             "statistics": {
                 "total_projects": len(self.projects),
                 "active_projects": active_projects,
