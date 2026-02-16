@@ -4,16 +4,26 @@
 
 DevBots is a monorepo containing AI-powered development automation tools ("bots") that share common infrastructure.
 
+> **📊 Visual Diagrams:** For a visual understanding of the architecture, see the [PlantUML diagrams](DIAGRAMS.md):
+> - [System Overview](system-overview.puml) - High-level component view
+> - [Bot Architecture](bot-architecture.puml) - Detailed component structure
+> - [Data Flow](data-flow.puml) - How data moves through the system
+> - [Bot Interactions](bot-interactions.puml) - API contracts and invocation patterns
+
 ## Structure
 
 ```
 BotsTeam/
-├── shared/          # Shared utilities and contracts
-├── bots/            # Individual bot implementations
-│   ├── gitbot/      # Git history analyzer
-│   ├── qabot/       # Test suggestion and execution
-│   └── orchestrator/ # Conversational bot orchestrator
-└── docs/            # Documentation
+├── shared/              # Shared utilities and contracts
+├── bots/                # Individual bot implementations
+│   ├── gitbot/          # Git history analyzer
+│   ├── qabot/           # Test suggestion and execution
+│   ├── project_manager/ # GitLab/GitHub issue analyzer and sprint planner
+│   └── orchestrator/    # Conversational bot orchestrator
+├── docs/                # Documentation
+│   ├── *.puml           # PlantUML architecture diagrams
+│   └── DIAGRAMS.md      # Diagram documentation
+└── data/                # Auto-generated reports (git-ignored)
 ```
 
 ## Shared Library
@@ -22,8 +32,11 @@ The `shared` package provides:
 
 - **config.py**: Environment configuration and .env loading
 - **llm.py**: Claude/Anthropic client factory
-- **models.py**: Bot collaboration contracts (BotResult, RepoContext, ChangeSet)
+- **models.py**: Bot collaboration contracts (BotResult, ChangeSet, Issue, IssueSet, WorkloadPlan)
 - **git_reader.py**: Git repository reading utilities
+- **data_manager.py**: Report and data storage management
+- **gitlab_client.py**: GitLab API client (normalizes to Issue model)
+- **github_client.py**: GitHub API client (normalizes to Issue model)
 
 ## Bot Contract
 
@@ -91,10 +104,36 @@ In chat mode, ask things like:
 
 The orchestrator uses Claude to understand your requests and routes them to the appropriate bot.
 
-## Future Bots
+### Project Manager (PMBot)
+Analyzes GitLab and GitHub issues, identifies patterns, and generates AI-powered sprint plans.
 
-### QABot (planned)
-Suggests tests based on recent changes and runs test suites.
+**Usage:**
+```bash
+# Analyze GitLab issues
+uv run pmbot analyze --project-id 12345
+
+# Analyze GitHub issues
+uv run pmbot analyze --github-repo owner/repo
+
+# Generate sprint plan
+uv run pmbot plan --project-id 12345
+```
+
+**Programmatic API:**
+```python
+from project_manager.analyzer import get_bot_result
+result = get_bot_result(project_id="12345", model="claude-sonnet-4-5-20250514")
+```
+
+## Bot Interactions
+
+All bots follow a uniform contract:
+1. Each bot exports a `get_bot_result()` function
+2. Returns a `BotResult` dataclass with standardized fields
+3. Can be invoked standalone (CLI) or through the orchestrator
+4. Bots can compose by sharing data models (e.g., GitBot's `ChangeSet` → QABot)
+
+See the [Bot Interactions diagram](bot-interactions.puml) for detailed API contracts.
 
 ## Development
 

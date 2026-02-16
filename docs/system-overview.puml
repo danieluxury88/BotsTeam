@@ -1,0 +1,138 @@
+@startuml
+!theme plain
+title DevBots - System Overview (Simple View)
+
+' Styling
+skinparam BackgroundColor white
+skinparam componentStyle rectangle
+skinparam roundcorner 10
+skinparam shadowing false
+
+' ============================================
+' USER INTERFACE
+' ============================================
+actor "Developer" as DEV #FFE0B2
+
+' ============================================
+' BOTS (4 MAIN BOTS)
+' ============================================
+package "DevBots System" {
+  
+  component "**Orchestrator**\n(chat interface)" as ORC #4A90E2 {
+    [Project Registry]
+    [Bot Router]
+    [Report Saver]
+  }
+  
+  component "**GitBot**\n(git analysis)" as GITBOT #50C878 {
+    [Commit Reader]
+    [AI Summary Generator]
+  }
+  
+  component "**QABot**\n(test assistant)" as QABOT #FFB84D {
+    [Test Suggester]
+    [Test Runner]
+    [Framework Detector]
+  }
+  
+  component "**PMBot**\n(issue planner)" as PMBOT #E57373 {
+    [Issue Analyzer]
+    [Sprint Planner]
+    [Workload Estimator]
+  }
+  
+  ' ============================================
+  ' SHARED LIBRARY
+  ' ============================================
+  package "Shared Library" #F5F5F5 {
+    component "Models" as MODELS {
+      [BotResult]
+      [ChangeSet]
+      [Issue/IssueSet]
+      [WorkloadPlan]
+    }
+    
+    component "Utilities" as UTILS {
+      [LLM Client]
+      [Git Reader]
+      [Config]
+      [Data Manager]
+    }
+    
+    component "API Clients" as CLIENTS {
+      [GitLab Client]
+      [GitHub Client]
+    }
+  }
+}
+
+' ============================================
+' EXTERNAL SYSTEMS
+' ============================================
+cloud "External Services" {
+  database "Git Repo" as GIT #FAFAFA
+  database "GitLab/GitHub" as ISSUES #FAFAFA
+  cloud "Claude AI" as CLAUDE #FAFAFA
+}
+
+database "Reports\ndata/{project}/\nreports/" as REPORTS #E8F5E9
+
+' ============================================
+' RELATIONSHIPS
+' ============================================
+
+' User interactions
+DEV --> ORC : orchestrator chat
+DEV --> GITBOT : gitbot /path
+DEV --> QABOT : qabot suggest
+DEV --> PMBOT : pmbot analyze
+
+' Orchestrator coordinates bots
+ORC --> GITBOT : invoke
+ORC --> QABOT : invoke
+ORC --> PMBOT : invoke
+
+' Bots use shared library
+GITBOT --> MODELS : uses
+GITBOT --> UTILS : uses
+QABOT --> MODELS : uses
+QABOT --> UTILS : uses
+PMBOT --> MODELS : uses
+PMBOT --> UTILS : uses
+PMBOT --> CLIENTS : uses
+ORC --> MODELS : uses
+ORC --> UTILS : uses
+
+' Shared library to external
+UTILS --> GIT : read
+UTILS --> CLAUDE : analyze
+CLIENTS --> ISSUES : fetch
+
+' Data flow
+GITBOT .right.> QABOT : ChangeSet
+note on link : optional composition
+
+' Reports
+ORC --> REPORTS : save
+GITBOT --> REPORTS : save
+QABOT --> REPORTS : save
+PMBOT --> REPORTS : save
+
+' ============================================
+' LEGEND
+' ============================================
+legend bottom
+  **Bot Purposes:**
+  • Orchestrator = Multi-bot coordinator & chat interface
+  • GitBot = Analyzes git history with AI summaries
+  • QABot = Suggests and runs tests based on changes
+  • PMBot = Plans sprints from GitLab/GitHub issues
+  
+  **Key Features:**
+  • All bots return BotResult (uniform contract)
+  • Shared LLM client (Claude) for all AI operations
+  • Auto-save reports to data/{project}/reports/
+  • Composable: bots can use each other's outputs
+end legend
+
+@enduml

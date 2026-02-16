@@ -106,13 +106,13 @@ BotsTeam/
 ├── bots/
 │   ├── gitbot/         # Git history analyzer
 │   ├── qabot/          # Test suggestion & execution
-│   ├── project_manager/ # GitLab issue analyzer & sprint planner
+│   ├── project_manager/ # GitLab/GitHub issue analyzer & sprint planner
 │   └── orchestrator/   # Conversational bot interface + project registry
 ├── data/                # Project data (auto-saved reports, cache)
 │   └── {project}/
 │       ├── reports/    # Bot reports (gitbot, qabot, pmbot)
 │       └── cache/      # Cached API responses
-└── docs/               # Documentation
+└── docs/               # Documentation + PlantUML diagrams
 ```
 
 Each bot:
@@ -125,7 +125,15 @@ Each bot:
 
 **Project Registry:** Projects are registered in `~/.devbot/projects.json` with paths, GitLab/GitHub metadata, and integration settings.
 
-See [docs/architecture.md](docs/architecture.md) for detailed design.
+### 📊 Visual Architecture
+
+See our [PlantUML diagrams](docs/DIAGRAMS.md) for visual representations:
+- **[System Overview](docs/system-overview.puml)** - High-level component view
+- **[Bot Architecture](docs/bot-architecture.puml)** - Detailed component structure  
+- **[Data Flow](docs/data-flow.puml)** - How data moves through bots
+- **[Bot Interactions](docs/bot-interactions.puml)** - API contracts and invocation patterns
+
+See [docs/architecture.md](docs/architecture.md) for detailed written documentation.
 
 ## ⚙️ Configuration
 
