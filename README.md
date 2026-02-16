@@ -212,6 +212,17 @@ Each bot has its own README with detailed usage:
 - [ ] Slack/Discord integration
 - [ ] Report viewing/management CLI commands
 
+### Visual Dashboard
+
+- [x] Design documentation and planning
+- [ ] HTML/CSS implementation
+- [ ] Data generation scripts
+- [ ] Touch-friendly UI
+- [ ] Dark mode support
+- [ ] Report viewer
+
+See [Dashboard Documentation](docs/DASHBOARD.md) for complete design specifications.
+
 ## 📄 License
 
 MIT
