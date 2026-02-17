@@ -2,9 +2,7 @@
 
 // Global function for viewing reports (called from components)
 function viewReport(path) {
-    // For now, open in a new window
-    // In future, could implement an in-page modal viewer
-    window.open(path, '_blank');
+    window.location.href = `report.html?path=${encodeURIComponent(path)}`;
 }
 
 // Initialize dashboard

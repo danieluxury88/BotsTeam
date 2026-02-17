@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="DevBots Dashboard - Report Viewer">
+    <title>Report - DevBots Dashboard</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/report-viewer.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" role="banner">
+        <div class="header-content">
+            <div class="header-brand">
+                <span class="header-logo">🤖</span>
+                <h1 class="header-title">DevBots Dashboard</h1>
+            </div>
+            <nav class="header-nav" role="navigation" aria-label="Main navigation">
+                <a href="index.html" class="nav-link">Dashboard</a>
+                <a href="projects.html" class="nav-link">Projects</a>
+                <a href="bots.html" class="nav-link">Bots</a>
+                <a href="activity.html" class="nav-link">Activity</a>
+            </nav>
+            <div class="header-actions">
+                <button class="btn-icon" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+                    <span class="icon">☀️</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main" role="main">
+        <div class="container">
+            <!-- Report header with metadata -->
+            <div class="report-viewer-header" id="report-header">
+                <a href="javascript:history.back()" class="back-link">← Back</a>
+                <div class="report-viewer-meta" id="report-meta"></div>
+            </div>
+
+            <!-- Rendered markdown content -->
+            <article class="report-viewer-content" id="report-content">
+                <div class="loading">Loading report...</div>
+            </article>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="footer-content">
+            <p>&copy; 2026 DevBots. Built with ❤️ and no frameworks.</p>
+        </div>
+    </footer>
+
+    <!-- marked.js for markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/report-viewer.js"></script>
+
+    <noscript>
+        <div class="no-js-message">
+            <p>This dashboard works best with JavaScript enabled.</p>
+        </div>
+    </noscript>
+</body>
+</html>

@@ -1,7 +1,7 @@
 // Reports page logic
 
 function viewReport(path) {
-    window.open(path, '_blank');
+    window.location.href = `report.html?path=${encodeURIComponent(path)}`;
 }
 
 let allReports = [];
