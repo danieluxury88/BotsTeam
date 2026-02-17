@@ -1,0 +1,228 @@
+@startuml
+!theme plain
+title DevBots - Bot Interaction & Invocation Patterns
+
+' Styling
+skinparam componentStyle rectangle
+skinparam BackgroundColor white
+skinparam roundcorner 10
+
+' Color definitions
+!define COLOR_BOT #4A90E2
+!define COLOR_MODEL #50C878
+!define COLOR_INTERFACE #FFB84D
+
+' ============================================
+' BOTS AND THEIR INTERFACES
+' ============================================
+
+' GitBot
+package "**GitBot**" as GITBOT_PKG #E3F2FD {
+  component "analyzer.py" as GITBOT_ANALYZER
+  component "cli.py" as GITBOT_CLI
+  
+  interface "get_bot_result()" as GITBOT_API
+  interface "get_changeset()" as GITBOT_CHANGESET_API
+  
+  GITBOT_ANALYZER -up- GITBOT_API
+  GITBOT_ANALYZER -up- GITBOT_CHANGESET_API
+  GITBOT_CLI --> GITBOT_ANALYZER
+  
+  note bottom of GITBOT_ANALYZER
+    **Exports:**
+    - get_bot_result(path, max_commits, model)
+    - get_changeset(path, max_commits)
+    
+    **Returns:**
+    - BotResult with ChangeSet
+  end note
+}
+
+' QABot
+package "**QABot**" as QABOT_PKG #E8F5E9 {
+  component "analyzer.py" as QABOT_ANALYZER
+  component "cli.py" as QABOT_CLI
+  
+  interface "get_bot_result()" as QABOT_API
+  interface "suggest_tests()" as QABOT_SUGGEST_API
+  interface "run_tests()" as QABOT_RUN_API
+  
+  QABOT_ANALYZER -up- QABOT_API
+  QABOT_ANALYZER -up- QABOT_SUGGEST_API
+  QABOT_ANALYZER -up- QABOT_RUN_API
+  QABOT_CLI --> QABOT_ANALYZER
+  
+  note bottom of QABOT_ANALYZER
+    **Exports:**
+    - get_bot_result(path, max_commits, model)
+    - suggest_tests(path, changeset?)
+    - run_tests(path, test_path?)
+    
+    **Returns:**
+    - BotResult with TestSuiteResult
+  end note
+}
+
+' PMBot
+package "**Project Manager (PMBot)**" as PMBOT_PKG #FFF9C4 {
+  component "analyzer.py" as PMBOT_ANALYZER
+  component "cli.py" as PMBOT_CLI
+  
+  interface "get_bot_result()" as PMBOT_API
+  interface "analyze_issues()" as PMBOT_ANALYZE_API
+  interface "plan_sprint()" as PMBOT_PLAN_API
+  
+  PMBOT_ANALYZER -up- PMBOT_API
+  PMBOT_ANALYZER -up- PMBOT_ANALYZE_API
+  PMBOT_ANALYZER -up- PMBOT_PLAN_API
+  PMBOT_CLI --> PMBOT_ANALYZER
+  
+  note bottom of PMBOT_ANALYZER
+    **Exports:**
+    - get_bot_result(project_id, model)
+    - analyze_issues(project_id)
+    - plan_sprint(project_id)
+    
+    **Returns:**
+    - BotResult with IssueSet + WorkloadPlan
+  end note
+}
+
+' Orchestrator
+package "**Orchestrator**" as ORC_PKG #FFE0B2 {
+  component "bot_invoker.py" as ORC_INVOKER
+  component "project_manager.py" as ORC_PROJ_MGR
+  component "chat.py" as ORC_CHAT
+  component "cli.py" as ORC_CLI
+  
+  interface "invoke_bot()" as ORC_INVOKE_API
+  
+  ORC_INVOKER -up- ORC_INVOKE_API
+  ORC_CHAT --> ORC_INVOKER
+  ORC_CHAT --> ORC_PROJ_MGR
+  ORC_CLI --> ORC_CHAT
+  ORC_CLI --> ORC_PROJ_MGR
+  
+  note bottom of ORC_INVOKER
+    **invoke_bot() signature:**
+    (bot_name, project, max_commits?, model?)
+    
+    **Supported bots:**
+    - gitbot, qabot, pmbot
+    
+    **Returns:**
+    - BotResult (auto-saved to reports)
+  end note
+}
+
+' ============================================
+' SHARED MODELS
+' ============================================
+package "**Shared Models**" as MODELS_PKG #F1F8E9 {
+  class "**BotResult**" as MODEL_RESULT COLOR_MODEL {
+    + bot_name: str
+    + status: BotStatus
+    + summary: str
+    + markdown_report: str
+    + data: dict
+    + errors: list[str]
+  }
+  
+  class "**ChangeSet**" as MODEL_CHANGESET COLOR_MODEL {
+    + summary: str
+    + files_touched: list[str]
+    + date_range: tuple
+    + raw_data: dict
+  }
+  
+  class "**IssueSet**" as MODEL_ISSUESET COLOR_MODEL {
+    + project_id: str
+    + issues: list[Issue]
+    + open_issues: list
+    + all_labels: list
+  }
+  
+  class "**WorkloadPlan**" as MODEL_PLAN COLOR_MODEL {
+    + project_name: str
+    + planned_issues: list
+    + summary: str
+    + by_week: dict
+  }
+  
+  class "**TestSuiteResult**" as MODEL_TEST COLOR_MODEL {
+    + framework: str
+    + total/passed/failed: int
+    + tests: list[TestResult]
+    + success_rate: float
+  }
+}
+
+' ============================================
+' BOT INVOCATION PATTERNS
+' ============================================
+
+' Pattern 1: Direct CLI usage
+actor "User (CLI)" as CLI_USER
+CLI_USER --> GITBOT_CLI : uv run gitbot /path
+CLI_USER --> QABOT_CLI : uv run qabot suggest /path
+CLI_USER --> PMBOT_CLI : uv run pmbot analyze --project-id X
+CLI_USER --> ORC_CLI : uv run orchestrator chat
+
+' Pattern 2: Orchestrator invocation
+ORC_INVOKER ..> GITBOT_API : dynamic import\ninvoke_bot("gitbot", ...)
+ORC_INVOKER ..> QABOT_API : dynamic import\ninvoke_bot("qabot", ...)
+ORC_INVOKER ..> PMBOT_API : dynamic import\ninvoke_bot("pmbot", ...)
+
+' Pattern 3: Inter-bot composition
+QABOT_ANALYZER ..> GITBOT_CHANGESET_API : can import & call\nget_changeset()
+note on link
+  QABot can optionally
+  use GitBot's ChangeSet
+  for richer context
+end note
+
+' Pattern 4: Model dependencies
+GITBOT_API --> MODEL_RESULT : returns
+GITBOT_API --> MODEL_CHANGESET : includes in data
+QABOT_API --> MODEL_RESULT : returns
+QABOT_API --> MODEL_TEST : includes in data
+PMBOT_API --> MODEL_RESULT : returns
+PMBOT_API --> MODEL_ISSUESET : includes in data
+PMBOT_API --> MODEL_PLAN : includes in data
+
+' ============================================
+' WORKFLOW ANNOTATIONS
+' ============================================
+note as N1
+  **Uniform Bot Contract:**
+  All bots expose get_bot_result()
+  returning BotResult for consistency
+end note
+
+note as N2
+  **CLI Layer:**
+  Each bot has its own CLI
+  built with Typer for
+  standalone usage
+end note
+
+note as N3
+  **Orchestration Layer:**
+  bot_invoker.py provides
+  unified bot invocation
+  with auto-report saving
+end note
+
+note as N4
+  **Composability:**
+  Bots can call each other
+  programmatically via
+  shared API functions
+end note
+
+N1 .up. MODEL_RESULT
+N2 .up. GITBOT_CLI
+N3 .up. ORC_INVOKER
+N4 .right. QABOT_ANALYZER
+
+@enduml

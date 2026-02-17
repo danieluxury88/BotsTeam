@@ -1,0 +1,182 @@
+@startuml
+!theme plain
+title DevBots Architecture - Bot Relationships and Components
+
+' Styling
+skinparam packageStyle rectangle
+skinparam BackgroundColor white
+skinparam defaultTextAlignment center
+skinparam roundcorner 10
+
+' Color palette
+!define COLOR_BOT #4A90E2
+!define COLOR_SHARED #50C878
+!define COLOR_DATA #FFB84D
+!define COLOR_EXTERNAL #E57373
+
+' ============================================
+' LAYER 1: External Systems & User Interface
+' ============================================
+package "External Systems" <<Rectangle>> #E8F5E9 {
+  rectangle "**Git Repository**\n(commits, branches, history)" as REPO COLOR_EXTERNAL
+  rectangle "**GitLab API**\n(issues, milestones, labels)" as GITLAB COLOR_EXTERNAL
+  rectangle "**GitHub API**\n(issues, pull requests)" as GITHUB COLOR_EXTERNAL
+  rectangle "**Anthropic Claude**\n(AI analysis & generation)" as CLAUDE COLOR_EXTERNAL
+}
+
+rectangle "**User / CLI**" as USER #FFE0B2 {
+  note right
+    - Direct bot commands
+    - Orchestrator chat
+    - Project registration
+  end note
+}
+
+' ============================================
+' LAYER 2: Bot Layer
+' ============================================
+package "Bots Layer" <<Rectangle>> #E3F2FD {
+  
+  ' GitBot
+  rectangle "**GitBot**" as GITBOT COLOR_BOT {
+    component "Git History\nAnalyzer" as GB_ANALYZER
+    component "Commit\nGrouping" as GB_GROUPER
+  }
+  
+  ' QABot
+  rectangle "**QABot**" as QABOT COLOR_BOT {
+    component "Test\nSuggester" as QB_SUGGEST
+    component "Test\nRunner" as QB_RUNNER
+    component "Framework\nDetector" as QB_DETECTOR
+  }
+  
+  ' Project Manager
+  rectangle "**Project Manager**\n(pmbot)" as PMBOT COLOR_BOT {
+    component "Issue\nAnalyzer" as PM_ANALYZER
+    component "Sprint\nPlanner" as PM_PLANNER
+    component "Workload\nEstimator" as PM_ESTIMATOR
+  }
+  
+  ' Orchestrator
+  rectangle "**Orchestrator**" as ORCHESTRATOR COLOR_BOT {
+    component "Project\nRegistry" as ORC_REGISTRY
+    component "Bot\nInvoker" as ORC_INVOKER
+    component "Claude\nRouter" as ORC_ROUTER
+    component "Report\nSaver" as ORC_SAVER
+  }
+}
+
+' ============================================
+' LAYER 3: Shared Library
+' ============================================
+package "Shared Library" <<Rectangle>> #F1F8E9 {
+  
+  rectangle "**Core Models**" as MODELS COLOR_SHARED {
+    component "BotResult" as MODEL_RESULT
+    component "ChangeSet" as MODEL_CHANGESET
+    component "Issue/IssueSet" as MODEL_ISSUE
+    component "WorkloadPlan" as MODEL_PLAN
+    component "TestSuiteResult" as MODEL_TEST
+  }
+  
+  rectangle "**Utilities**" as UTILS COLOR_SHARED {
+    component "LLM Client\n(llm.py)" as UTIL_LLM
+    component "Git Reader\n(git_reader.py)" as UTIL_GIT
+    component "Config\n(config.py)" as UTIL_CONFIG
+  }
+  
+  rectangle "**API Clients**" as CLIENTS COLOR_SHARED {
+    component "GitLab Client\n(gitlab_client.py)" as CLIENT_GITLAB
+    component "GitHub Client\n(github_client.py)" as CLIENT_GITHUB
+  }
+  
+  rectangle "**Data Manager**" as DATAMGR COLOR_SHARED {
+    component "Report Storage\n(data_manager.py)" as UTIL_DATA
+  }
+}
+
+' ============================================
+' LAYER 4: Data Storage
+' ============================================
+package "Data Storage" <<Rectangle>> #FFF9C4 {
+  database "**data/{project}/reports/**\n- gitbot/\n- qabot/\n- pmbot/" as REPORTS COLOR_DATA
+  database "**~/.devbot/projects.json**\nProject Registry" as PROJ_DB COLOR_DATA
+}
+
+' ============================================
+' RELATIONSHIPS
+' ============================================
+
+' User to Bots
+USER --> GITBOT : uv run gitbot
+USER --> QABOT : uv run qabot
+USER --> PMBOT : uv run pmbot
+USER --> ORCHESTRATOR : uv run orchestrator chat
+
+' Orchestrator to other bots
+ORCHESTRATOR --> GITBOT : invoke via bot_invoker
+ORCHESTRATOR --> QABOT : invoke via bot_invoker
+ORCHESTRATOR --> PMBOT : invoke via bot_invoker
+
+' Bots to Shared Library
+GITBOT --> MODELS : returns BotResult
+GITBOT --> UTIL_GIT : reads commits
+GITBOT --> UTIL_LLM : AI analysis
+
+QABOT --> MODELS : returns BotResult\nuses ChangeSet
+QABOT --> UTIL_GIT : reads recent changes
+QABOT --> UTIL_LLM : test suggestions
+
+PMBOT --> MODELS : returns BotResult\nuses IssueSet
+PMBOT --> CLIENT_GITLAB : fetch issues
+PMBOT --> CLIENT_GITHUB : fetch issues
+PMBOT --> UTIL_LLM : sprint planning
+
+ORCHESTRATOR --> MODELS : coordinates BotResults
+ORCHESTRATOR --> UTIL_CONFIG : project config
+ORCHESTRATOR --> UTIL_LLM : intent parsing
+ORCHESTRATOR --> UTIL_DATA : save reports
+
+' Shared Library to External
+UTIL_GIT --> REPO : git operations
+UTIL_LLM --> CLAUDE : API calls
+CLIENT_GITLAB --> GITLAB : API requests
+CLIENT_GITHUB --> GITHUB : API requests
+
+' Data flows
+ORCHESTRATOR --> REPORTS : save bot outputs
+ORCHESTRATOR --> PROJ_DB : read/write projects
+UTIL_DATA --> REPORTS : manage reports
+
+' Inter-bot data flow
+GITBOT .down.> QABOT : ChangeSet\n(files touched)
+note on link
+  QABot can consume
+  GitBot's ChangeSet
+  for test suggestions
+end note
+
+' ============================================
+' NOTES
+' ============================================
+note bottom of MODELS
+  **Uniform Contract**
+  All bots return BotResult
+  enabling composition
+end note
+
+note right of ORCHESTRATOR
+  **Central Hub**
+  - Manages projects
+  - Routes user requests
+  - Invokes bots
+  - Saves reports
+end note
+
+note bottom of UTIL_LLM
+  **Anthropic Claude**
+  Single client factory
+  used by all bots
+end note
+
+@enduml

@@ -1,0 +1,200 @@
+@startuml
+!theme plain
+title DevBots - Data Flow & Model Transformations
+
+' Styling
+skinparam BackgroundColor white
+skinparam sequenceMessageAlign center
+skinparam roundcorner 10
+skinparam maxMessageSize 200
+
+' Actors and participants
+actor "User" as USER
+participant "**Orchestrator**" as ORC #4A90E2
+participant "**GitBot**" as GITBOT #4A90E2
+participant "**QABot**" as QABOT #4A90E2
+participant "**PMBot**" as PMBOT #4A90E2
+database "Git Repository" as REPO #FFB84D
+database "GitLab/GitHub" as ISSUES #FFB84D
+participant "Claude AI" as CLAUDE #50C878
+database "Reports Storage" as STORAGE #FFE0B2
+
+' ============================================
+' SCENARIO 1: GitBot Analysis
+' ============================================
+group GitBot - Analyze Git History
+  USER -> GITBOT : run gitbot /path/to/repo
+  activate GITBOT
+  
+  GITBOT -> REPO : read commit history
+  REPO --> GITBOT : raw commits
+  
+  GITBOT -> GITBOT : group commits by day/author
+  note right
+    Creates CommitGroup objects
+  end note
+  
+  GITBOT -> CLAUDE : send grouped commits\nfor AI summary
+  CLAUDE --> GITBOT : markdown analysis
+  
+  GITBOT -> GITBOT : build ChangeSet
+  note right
+    **ChangeSet contains:**
+    - summary (AI-generated)
+    - files_touched
+    - date_range
+  end note
+  
+  GITBOT --> USER : **BotResult**\n+ markdown_report\n+ data: {changeset}
+  deactivate GITBOT
+end
+
+' ============================================
+' SCENARIO 2: QABot Test Suggestions
+' ============================================
+group QABot - Test Suggestion Workflow
+  USER -> QABOT : run qabot suggest /path/to/repo
+  activate QABOT
+  
+  QABOT -> REPO : read recent commits
+  REPO --> QABOT : recent changes
+  
+  QABOT -> QABOT : detect test framework
+  note right
+    Checks for:
+    - pytest
+    - unittest
+    - etc.
+  end note
+  
+  ' Optional: QABot can use GitBot's output
+  QABOT -> GITBOT : get_changeset() [optional]
+  GITBOT --> QABOT : **ChangeSet**\n(files touched)
+  note right
+    QABot can leverage
+    GitBot's analysis
+  end note
+  
+  QABOT -> CLAUDE : send code changes\n+ context for suggestions
+  CLAUDE --> QABOT : test recommendations
+  
+  QABOT --> USER : **BotResult**\n+ test suggestions\n+ affected files
+  deactivate QABOT
+end
+
+' ============================================
+' SCENARIO 3: PMBot Issue Analysis
+' ============================================
+group PMBot - Issue Analysis & Planning
+  USER -> PMBOT : run pmbot analyze --project-id X
+  activate PMBOT
+  
+  PMBOT -> ISSUES : fetch issues via API
+  ISSUES --> PMBOT : raw API response
+  
+  PMBOT -> PMBOT : normalize to Issue model
+  note right
+    **Issue fields:**
+    - iid, title, state
+    - author, assignees
+    - labels, milestone
+    - dates, weight
+  end note
+  
+  PMBOT -> PMBOT : build IssueSet
+  note right
+    Groups issues by:
+    - state, label
+    - assignee
+    - staleness
+  end note
+  
+  PMBOT -> CLAUDE : analyze issues\n+ workload patterns
+  CLAUDE --> PMBOT : insights + priorities
+  
+  PMBOT -> PMBOT : create WorkloadPlan
+  note right
+    **WorkloadPlan contains:**
+    - PlannedIssue (priority, effort)
+    - week assignment
+    - rationale
+  end note
+  
+  PMBOT --> USER : **BotResult**\n+ sprint plan\n+ workload estimate
+  deactivate PMBOT
+end
+
+' ============================================
+' SCENARIO 4: Orchestrator Multi-Bot Flow
+' ============================================
+group Orchestrator - Coordinated Workflow
+  USER -> ORC : chat: "analyze project X"
+  activate ORC
+  
+  ORC -> CLAUDE : parse user intent
+  CLAUDE --> ORC : route to: gitbot + qabot + pmbot
+  
+  ' Invoke GitBot
+  ORC -> GITBOT : invoke(project_path)
+  activate GITBOT
+  GITBOT -> REPO : analyze
+  REPO --> GITBOT : commits
+  GITBOT -> CLAUDE : summarize
+  CLAUDE --> GITBOT : analysis
+  GITBOT --> ORC : **BotResult** (gitbot)
+  deactivate GITBOT
+  
+  ORC -> STORAGE : save gitbot report
+  
+  ' Invoke QABot
+  ORC -> QABOT : invoke(project_path)
+  activate QABOT
+  QABOT -> GITBOT : reuse ChangeSet
+  GITBOT --> QABOT : ChangeSet
+  QABOT -> CLAUDE : suggest tests
+  CLAUDE --> QABOT : recommendations
+  QABOT --> ORC : **BotResult** (qabot)
+  deactivate QABOT
+  
+  ORC -> STORAGE : save qabot report
+  
+  ' Invoke PMBot
+  ORC -> PMBOT : invoke(project_id)
+  activate PMBOT
+  PMBOT -> ISSUES : fetch
+  ISSUES --> PMBOT : issues
+  PMBOT -> CLAUDE : plan sprint
+  CLAUDE --> PMBOT : workload plan
+  PMBOT --> ORC : **BotResult** (pmbot)
+  deactivate PMBOT
+  
+  ORC -> STORAGE : save pmbot report
+  
+  ' Final aggregation
+  ORC -> ORC : aggregate all BotResults
+  ORC --> USER : combined analysis\n+ all reports saved
+  deactivate ORC
+end
+
+' ============================================
+' NOTES
+' ============================================
+note over GITBOT, QABOT
+  **Composability:**
+  QABot can consume GitBot's ChangeSet
+  for richer test suggestions
+end note
+
+note over ORC, STORAGE
+  **Report Storage:**
+  data/{project}/reports/{bot}/latest.md
+  + timestamped backups
+end note
+
+note over CLAUDE
+  **Single AI Client:**
+  All bots use shared llm.py
+  factory for consistency
+end note
+
+@enduml
