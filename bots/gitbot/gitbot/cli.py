@@ -16,6 +16,7 @@ from rich.table import Table
 from gitbot.analyzer import analyze_history
 from shared.data_manager import save_report
 from shared.git_reader import (
+    filter_commits,
     format_groups_for_llm,
     group_commits_auto,
     group_commits_by_author,
@@ -101,7 +102,7 @@ def review(
     max_commits: Annotated[
         int,
         typer.Option("--max-commits", "-n", help="Maximum number of commits to read"),
-    ] = 100,
+    ] = 300,
     group_by: Annotated[
         str,
         typer.Option(
@@ -117,6 +118,10 @@ def review(
         str | None,
         typer.Option("--model", "-m", help="Claude model to use (overrides .env)"),
     ] = None,
+    no_filter: Annotated[
+        bool,
+        typer.Option("--no-filter", help="Skip filtering of merge/bot/duplicate commits"),
+    ] = False,
     raw: Annotated[
         bool,
         typer.Option("--raw", help="Print raw grouped commits without AI analysis"),
@@ -159,12 +164,28 @@ def review(
     ) as progress:
         progress.add_task("Reading commit history...", total=None)
         try:
-            commits = read_commits(repo_path, branch=branch, max_commits=max_commits)
+            result = read_commits(repo_path, branch=branch, max_commits=max_commits)
+            commits = result.commits
         except Exception as e:
             rprint(f"[red]Failed to read repository:[/red] {e}")
             raise typer.Exit(1)
 
     console.print(f"[green]✓[/green] Read [bold]{len(commits)}[/bold] commits")
+
+    if result.truncated:
+        console.print(
+            f"[yellow]⚠[/yellow] Branch has more than {max_commits} commits. "
+            "Showing most recent. Use --max-commits to increase."
+        )
+
+    if not no_filter:
+        filter_result = filter_commits(commits)
+        if filter_result.removed_count > 0:
+            console.print(
+                f"[green]✓[/green] Filtered out [bold]{filter_result.removed_count}[/bold] "
+                "irrelevant commits (merges, bots, duplicates)"
+            )
+        commits = filter_result.commits
 
     if not commits:
         rprint("[yellow]No commits found in this repository/branch.[/yellow]")
@@ -231,7 +252,9 @@ def review(
     ) as progress:
         progress.add_task("Asking Claude to analyze the history...", total=None)
         try:
-            summary = analyze_history(formatted, repo_name=repo_name, model=model)
+            summary = analyze_history(
+                formatted, repo_name=repo_name, model=model, truncated=result.truncated
+            )
         except EnvironmentError as e:
             rprint(f"[red]Configuration error:[/red] {e}")
             raise typer.Exit(1)

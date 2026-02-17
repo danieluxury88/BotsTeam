@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from shared.config import get_anthropic_api_key, get_default_model, load_env
-from shared.git_reader import read_commits, group_commits_auto, format_groups_for_llm
+from shared.git_reader import read_commits, filter_commits, group_commits_auto, format_groups_for_llm
 from shared.llm import create_client
 from shared.models import ChangeSet, BotResult
 
@@ -33,15 +33,20 @@ def analyze_history(
     formatted_history: str,
     repo_name: str = "repository",
     model: str | None = None,
+    truncated: bool = False,
 ) -> str:
     """Send commit history to Claude and return a markdown summary."""
 
     effective_model = model or get_default_model()
+    truncation_note = (
+        "\n**Note:** This is a partial history — the repository has more commits than were analyzed.\n"
+        if truncated else ""
+    )
     client = create_client()
 
     user_message = f"""\
 Please analyze the following git history for the **{repo_name}** repository and provide a high-level summary.
-
+{truncation_note}
 {formatted_history}
 
 Produce a structured report with:
@@ -64,7 +69,7 @@ Produce a structured report with:
 def get_changeset(
     repo_path: Path | str,
     branch: str = "HEAD",
-    max_commits: int = 100,
+    max_commits: int = 300,
     model: str | None = None,
 ) -> ChangeSet:
     """
@@ -76,7 +81,12 @@ def get_changeset(
     repo_path = Path(repo_path).resolve()
 
     # Read and group commits
-    commits = read_commits(repo_path, branch=branch, max_commits=max_commits)
+    read_result = read_commits(repo_path, branch=branch, max_commits=max_commits)
+    commits = read_result.commits
+
+    # Filter irrelevant commits
+    filter_result = filter_commits(commits)
+    commits = filter_result.commits
 
     if not commits:
         return ChangeSet(
@@ -90,7 +100,9 @@ def get_changeset(
     formatted = format_groups_for_llm(groups)
 
     # Get AI summary
-    summary = analyze_history(formatted, repo_name=repo_path.name, model=model)
+    summary = analyze_history(
+        formatted, repo_name=repo_path.name, model=model, truncated=read_result.truncated
+    )
 
     # Collect all touched files
     files_touched = []
@@ -111,6 +123,8 @@ def get_changeset(
         date_range=date_range,
         raw_data={
             "commit_count": len(commits),
+            "filtered_count": filter_result.removed_count,
+            "truncated": read_result.truncated,
             "groups": len(groups),
             "branch": branch,
         }
@@ -120,7 +134,7 @@ def get_changeset(
 def get_bot_result(
     repo_path: Path | str,
     branch: str = "HEAD",
-    max_commits: int = 100,
+    max_commits: int = 300,
     model: str | None = None,
     project_name: str | None = None,
 ) -> BotResult:

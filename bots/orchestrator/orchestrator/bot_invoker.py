@@ -19,7 +19,7 @@ def invoke_bot(
     project: "Project | None" = None,
     repo_path: Path | str | None = None,  # Legacy
     project_id: str | None = None,  # Legacy
-    max_commits: int = 100,
+    max_commits: int = 300,
     model: str | None = None,
     pmbot_mode: str = "analyze",
 ) -> BotResult:
@@ -163,7 +163,7 @@ def invoke_bot(
 
 
 
-def invoke_gitbot(repo_path: Path | str, max_commits: int = 100) -> BotResult:
+def invoke_gitbot(repo_path: Path | str, max_commits: int = 300) -> BotResult:
     """Convenience function to invoke gitbot."""
     return invoke_bot("gitbot", repo_path=repo_path, max_commits=max_commits)
 

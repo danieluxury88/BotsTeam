@@ -1,5 +1,6 @@
 """Git repository reader — extracts and groups commit history."""
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,6 +15,20 @@ class CommitInfo:
     author: str
     date: datetime
     files_changed: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ReadCommitsResult:
+    """Result from read_commits() including truncation info."""
+    commits: list[CommitInfo]
+    truncated: bool
+
+
+@dataclass
+class FilterResult:
+    """Result from filter_commits() including stats."""
+    commits: list[CommitInfo]
+    removed_count: int
 
 
 @dataclass
@@ -43,16 +58,35 @@ class CommitGroup:
         return files
 
 
+# Patterns for merge commits with generic messages
+_MERGE_RE = re.compile(r"^Merge (branch|pull request|remote)", re.IGNORECASE)
+
+# Known bot authors
+_BOT_AUTHORS = frozenset({
+    "dependabot", "dependabot[bot]",
+    "renovate", "renovate[bot]",
+    "greenkeeper[bot]",
+    "snyk-bot",
+    "github-actions[bot]",
+    "codecov[bot]",
+})
+
+
 def read_commits(
     repo_path: str | Path,
     branch: str = "HEAD",
-    max_commits: int = 200,
-) -> list[CommitInfo]:
-    """Read commits from a git repository."""
+    max_commits: int = 300,
+) -> ReadCommitsResult:
+    """Read commits from a git repository.
+
+    Returns a ReadCommitsResult with the commits list and a flag indicating
+    whether the branch has more commits than max_commits.
+    """
     repo = git.Repo(str(repo_path), search_parent_directories=True)
     commits = []
 
-    for commit in repo.iter_commits(branch, max_count=max_commits):
+    # Read one extra to detect truncation
+    for commit in repo.iter_commits(branch, max_count=max_commits + 1):
         try:
             files = list(commit.stats.files.keys())
         except Exception:
@@ -68,7 +102,43 @@ def read_commits(
             )
         )
 
-    return commits
+    truncated = len(commits) > max_commits
+    if truncated:
+        commits = commits[:max_commits]
+
+    return ReadCommitsResult(commits=commits, truncated=truncated)
+
+
+def filter_commits(commits: list[CommitInfo]) -> FilterResult:
+    """Filter out irrelevant/repetitive commits.
+
+    Removes:
+    - Merge commits with generic messages (e.g. "Merge branch ...", "Merge pull request ...")
+    - Duplicate messages (keeps first occurrence based on first line)
+    - Bot/auto commits (dependabot, renovate, etc.)
+    """
+    seen_messages: set[str] = set()
+    filtered: list[CommitInfo] = []
+
+    for commit in commits:
+        first_line = commit.message.splitlines()[0] if commit.message else ""
+
+        # Skip generic merge commits
+        if _MERGE_RE.match(first_line):
+            continue
+
+        # Skip bot commits
+        if commit.author.lower() in _BOT_AUTHORS:
+            continue
+
+        # Skip duplicate first-line messages
+        if first_line in seen_messages:
+            continue
+        seen_messages.add(first_line)
+
+        filtered.append(commit)
+
+    return FilterResult(commits=filtered, removed_count=len(commits) - len(filtered))
 
 
 def group_commits_by_day(commits: list[CommitInfo]) -> list[CommitGroup]:

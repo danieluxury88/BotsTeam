@@ -257,7 +257,7 @@ def chat(
                     result = invoke_bot(bot_name, project=project, pmbot_mode=pmbot_mode)
                 else:
                     # gitbot/qabot
-                    max_commits = params.get("max_commits", 50)
+                    max_commits = params.get("max_commits", 300)
                     result = invoke_bot(bot_name, project=project, max_commits=max_commits)
 
                 if result.status == "success":
