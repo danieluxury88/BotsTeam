@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="DevBots Dashboard - Projects">
+    <title>Projects - DevBots Dashboard</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" role="banner">
+        <div class="header-content">
+            <div class="header-brand">
+                <span class="header-logo">🤖</span>
+                <h1 class="header-title">DevBots Dashboard</h1>
+            </div>
+            <nav class="header-nav" role="navigation" aria-label="Main navigation">
+                <a href="index.html" class="nav-link">Dashboard</a>
+                <a href="projects.html" class="nav-link active" aria-current="page">Projects</a>
+                <a href="bots.html" class="nav-link">Bots</a>
+                <a href="activity.html" class="nav-link">Activity</a>
+            </nav>
+            <div class="header-actions">
+                <button class="btn-icon" id="refresh-btn" aria-label="Refresh data" title="Refresh">
+                    <span class="icon">🔄</span>
+                </button>
+                <button class="btn-icon" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+                    <span class="icon">☀️</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main" role="main">
+        <div class="container">
+            <section class="page-section" aria-label="Projects">
+                <div class="section-header">
+                    <h2 class="section-title">All Projects</h2>
+                    <div class="section-actions">
+                        <input type="search" id="project-search" class="search-input" placeholder="Search projects..." aria-label="Search projects">
+                    </div>
+                </div>
+                <div class="projects-grid" id="projects-grid">
+                    <div class="loading">Loading projects...</div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="footer-content">
+            <p>&copy; 2026 DevBots. Built with ❤️ and no frameworks.</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/components.js"></script>
+    <script src="js/projects.js"></script>
+
+    <noscript>
+        <div class="no-js-message">
+            <p>This dashboard works best with JavaScript enabled.</p>
+        </div>
+    </noscript>
+</body>
+</html>

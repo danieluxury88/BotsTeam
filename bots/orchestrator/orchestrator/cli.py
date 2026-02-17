@@ -333,7 +333,8 @@ def dashboard(
         f"  • Main Dashboard: http://localhost:{port}/\n"
         f"  • Projects:       http://localhost:{port}/projects.html\n"
         f"  • Bots:           http://localhost:{port}/bots.html\n"
-        f"  • Activity:       http://localhost:{port}/activity.html\n\n"
+        f"  • Activity:       http://localhost:{port}/activity.html\n"
+        f"  • Reports:        http://localhost:{port}/reports.html\n\n"
         f"[yellow]Press Ctrl+C to stop the server[/yellow]",
         border_style="cyan",
     ))

@@ -10,6 +10,7 @@ This workspace contains multiple specialized bots that share common infrastructu
 - **[QABot](bots/qabot/README.md)** — Suggests tests based on code changes and runs test suites
 - **[Project Manager](bots/project_manager/README.md)** — GitLab issue analyzer and AI-powered sprint planner
 - **[Orchestrator](bots/orchestrator/README.md)** — Conversational interface that knows your projects and calls other bots
+- **[Dashboard](docs/DASHBOARD.md)** — Web-based visual dashboard for projects and reports
 
 All bots use **Claude (Anthropic)** for AI analysis and share utilities for git reading, LLM access, and configuration.
 
@@ -92,6 +93,14 @@ uv run orchestrator chat
 # > show me gitbot analysis of myproject
 # > analyze issues for uni.li  # Uses GitLab integration
 # > what projects do you know?
+
+# Launch the visual dashboard (standalone)
+uv run dashboard
+uv run dashboard --port 3000     # Custom port
+uv run dashboard generate        # Regenerate data only
+
+# Or via orchestrator
+uv run orchestrator dashboard
 ```
 
 **✨ Reports are automatically saved to `data/{project}/reports/{bot}/`**
@@ -107,7 +116,12 @@ BotsTeam/
 │   ├── gitbot/         # Git history analyzer
 │   ├── qabot/          # Test suggestion & execution
 │   ├── project_manager/ # GitLab/GitHub issue analyzer & sprint planner
-│   └── orchestrator/   # Conversational bot interface + project registry
+│   ├── orchestrator/   # Conversational bot interface + project registry
+│   └── dashboard/      # Standalone dashboard CLI (uv run dashboard)
+├── dashboard/           # Web dashboard (static HTML/CSS/JS + data generator)
+│   ├── data/           # Generated JSON files (gitignored)
+│   ├── css/            # Modular CSS (variables, components, responsive)
+│   └── js/             # JavaScript modules (api, components, dashboard)
 ├── data/                # Project data (auto-saved reports, cache)
 │   └── {project}/
 │       ├── reports/    # Bot reports (gitbot, qabot, pmbot)
@@ -223,10 +237,10 @@ Each bot has its own README with detailed usage:
 ### Visual Dashboard
 
 - [x] Design documentation and planning
-- [ ] HTML/CSS implementation
-- [ ] Data generation scripts
-- [ ] Touch-friendly UI
-- [ ] Dark mode support
+- [x] HTML/CSS implementation
+- [x] Data generation scripts
+- [x] Touch-friendly UI
+- [x] Dark mode support
 - [ ] Report viewer
 
 See [Dashboard Documentation](docs/DASHBOARD.md) for complete design specifications.

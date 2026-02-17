@@ -132,6 +132,21 @@
     font-weight: var(--font-weight-medium);
 }
 
+/* Bots Grid */
+.bots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-lg);
+    margin-bottom: var(--space-2xl);
+}
+
+/* Section Actions */
+.section-actions {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+}
+
 /* Reports List */
 .reports-list {
     display: flex;

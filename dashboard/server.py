@@ -48,6 +48,7 @@ def run_server(port=PORT):
         print(f"   • Projects:       http://localhost:{port}/projects.html")
         print(f"   • Bots:           http://localhost:{port}/bots.html")
         print(f"   • Activity:       http://localhost:{port}/activity.html")
+        print(f"   • Reports:        http://localhost:{port}/reports.html")
         print()
         print("Press Ctrl+C to stop the server")
         print("=" * 60)

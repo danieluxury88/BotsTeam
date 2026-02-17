@@ -21,6 +21,10 @@ uv run qabot run /path/to/repo   # Execute tests
 uv run pmbot analyze --project-id ID  # Analyze GitLab issues
 uv run pmbot analyze --github-repo owner/repo  # Analyze GitHub issues
 uv run orchestrator chat         # Interactive multi-bot chat
+uv run dashboard                 # Launch web dashboard (standalone CLI)
+uv run dashboard --port 3000     # Custom port
+uv run dashboard generate        # Regenerate data only (no server)
+uv run orchestrator dashboard    # Launch web dashboard (via orchestrator)
 ```
 
 ## Architecture
@@ -41,6 +45,8 @@ uv run orchestrator chat         # Interactive multi-bot chat
 **Bot routing** (orchestrator): Claude parses user intent and dispatches to the correct bot via `bot_invoker.py`. Projects are registered in `~/.devbot/projects.json` with paths, GitLab/GitHub IDs, and optional per-project tokens.
 
 **Data storage**: Reports auto-save to `data/{project}/reports/{botname}/` with both `latest.md` and timestamped copies. The `data/` directory is git-ignored.
+
+**Dashboard** (`dashboard/`): A static HTML/CSS/JS web interface served via a simple Python HTTP server. The orchestrator CLI command `dashboard` runs `generate_data.py` to read `~/.devbot/projects.json` and scan `data/` for bot reports, producing three JSON files (`dashboard/data/{dashboard,projects,index}.json`) that the frontend loads via fetch. No framework dependencies.
 
 ## Configuration
 

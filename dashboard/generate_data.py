@@ -28,16 +28,32 @@ class DashboardDataGenerator:
         self.bots = ["gitbot", "qabot", "pmbot", "orchestrator"]
     
     def load_projects(self) -> List[Dict[str, Any]]:
-        """Load projects from ~/.devbot/projects.json"""
+        """Load projects from ~/.devbot/projects.json
+
+        The registry stores projects as a flat dict keyed by project name:
+        {"my-project": {"name": "...", "path": "...", ...}, ...}
+
+        We convert each entry into a dict with an "id" field derived from the key.
+        """
         if not PROJECTS_JSON.exists():
             print(f"⚠️  Projects file not found: {PROJECTS_JSON}")
             print("   Using empty project list.")
             return []
-        
+
         try:
             with open(PROJECTS_JSON, 'r') as f:
                 data = json.load(f)
-                return data.get('projects', [])
+                # Registry format: flat dict keyed by project name
+                projects = []
+                for key, proj in data.items():
+                    proj["id"] = key
+                    if "name" not in proj:
+                        proj["name"] = key
+                    # Map registry field names to dashboard field names
+                    if "gitlab_project_id" in proj and "gitlab_id" not in proj:
+                        proj["gitlab_id"] = proj["gitlab_project_id"]
+                    projects.append(proj)
+                return projects
         except Exception as e:
             print(f"❌ Error loading projects: {e}")
             return []

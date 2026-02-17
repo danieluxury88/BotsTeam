@@ -1,0 +1,1 @@
+"""DevBots Dashboard CLI."""
