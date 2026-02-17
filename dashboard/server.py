@@ -13,20 +13,36 @@ from pathlib import Path
 # Default port
 PORT = 8080
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = REPO_ROOT / "data"
+
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
-    """Custom handler with CORS support and proper MIME types"""
-    
+    """Custom handler with CORS support and report file serving"""
+
+    def translate_path(self, path):
+        # Strip query string and fragment before matching
+        path = path.split('?', 1)[0].split('#', 1)[0]
+
+        # Serve /reports/... from the repo root data/ directory
+        if path.startswith('/reports/'):
+            # /reports/project/bot/file.md -> DATA_DIR/project/reports/bot/file.md
+            parts = path[len('/reports/'):].split('/', 2)
+            if len(parts) == 3:
+                project, bot, filename = parts
+                return str(DATA_DIR / project / "reports" / bot / filename)
+        return super().translate_path(path)
+
     def end_headers(self):
         # Add CORS headers for local development
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
         self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
         super().end_headers()
-    
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.end_headers()
-    
+
     def log_message(self, format, *args):
         # Custom logging format
         sys.stderr.write("%s - %s\n" % (self.address_string(), format % args))

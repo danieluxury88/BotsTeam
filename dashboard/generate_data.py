@@ -110,9 +110,9 @@ class DashboardDataGenerator:
             # Generate report ID
             report_id = f"{bot}-{project_id}-{timestamp_str}"
             
-            # Get relative path from dashboard
-            rel_path = os.path.relpath(report_path, DASHBOARD_DIR.parent)
-            
+            # Build URL path served by the dashboard server
+            url_path = f"reports/{project_id}/{bot}/{report_path.name}"
+
             return {
                 "id": report_id,
                 "bot": bot,
@@ -120,7 +120,7 @@ class DashboardDataGenerator:
                 "timestamp": timestamp.isoformat(),
                 "status": status,
                 "summary": summary,
-                "path": rel_path,
+                "path": url_path,
                 "size_bytes": stat.st_size
             }
         
