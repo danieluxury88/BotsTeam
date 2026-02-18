@@ -29,6 +29,44 @@ const API = {
         return await this.fetchJSON(CONFIG.API.REPORTS_INDEX);
     },
     
+    // Mutate helper for POST/PUT/DELETE
+    async _mutate(url, method, body) {
+        try {
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: body != null ? JSON.stringify(body) : undefined
+            });
+            const contentType = response.headers.get('Content-Type') || '';
+            if (!contentType.includes('application/json')) {
+                return { error: `Server error (HTTP ${response.status})`, status: response.status };
+            }
+            const data = await response.json();
+            if (!response.ok) {
+                return { error: data.error || `HTTP ${response.status}`, status: response.status };
+            }
+            return { data, status: response.status };
+        } catch (error) {
+            console.error(`Error in ${method} ${url}:`, error);
+            return { error: error.message, status: 0 };
+        }
+    },
+
+    // Create a new project
+    async createProject(body) {
+        return await this._mutate(CONFIG.API.PROJECTS_API, 'POST', body);
+    },
+
+    // Update an existing project
+    async updateProject(name, body) {
+        return await this._mutate(`${CONFIG.API.PROJECTS_API}/${encodeURIComponent(name)}`, 'PUT', body);
+    },
+
+    // Delete a project
+    async deleteProject(name) {
+        return await this._mutate(`${CONFIG.API.PROJECTS_API}/${encodeURIComponent(name)}`, 'DELETE');
+    },
+
     // Load a specific markdown report
     async getReport(path) {
         try {

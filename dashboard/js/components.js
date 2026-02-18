@@ -26,6 +26,12 @@ const Components = {
                     <a href="reports.html?project=${encodeURIComponent(project.id)}" class="btn btn-primary">
                         View Reports
                     </a>
+                    <button class="btn btn-secondary" onclick="ProjectAdmin.openEditModal('${Utils.escapeHtml(project.id)}')">
+                        Edit
+                    </button>
+                    <button class="btn btn-danger" onclick="ProjectAdmin.confirmDelete('${Utils.escapeHtml(project.id)}')">
+                        Delete
+                    </button>
                 </div>
             </article>
         `;

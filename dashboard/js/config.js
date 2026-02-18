@@ -4,7 +4,8 @@ const CONFIG = {
     API: {
         DASHBOARD: 'data/dashboard.json',
         PROJECTS: 'data/projects.json',
-        REPORTS_INDEX: 'data/index.json'
+        REPORTS_INDEX: 'data/index.json',
+        PROJECTS_API: '/api/projects'
     },
     
     // UI settings

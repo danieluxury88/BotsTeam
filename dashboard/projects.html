@@ -47,6 +47,7 @@
                     <h2 class="section-title">All Projects</h2>
                     <div class="section-actions">
                         <input type="search" id="project-search" class="search-input" placeholder="Search projects..." aria-label="Search projects">
+                        <button class="btn btn-primary" onclick="ProjectAdmin.openAddModal()">+ Add Project</button>
                     </div>
                 </div>
                 <div class="projects-grid" id="projects-grid">
@@ -63,6 +64,64 @@
         </div>
     </footer>
 
+    <!-- Project Modal -->
+    <div class="modal-backdrop" id="project-modal" hidden>
+        <div class="modal" role="dialog" aria-labelledby="modal-title">
+            <div class="modal-header">
+                <h3 id="modal-title">Add Project</h3>
+                <button class="btn-icon" onclick="ProjectAdmin.closeModal()" aria-label="Close">&times;</button>
+            </div>
+            <form id="project-form" onsubmit="ProjectAdmin.handleSubmit(event)">
+                <div class="form-group">
+                    <label for="field-name">Name</label>
+                    <input type="text" id="field-name" class="form-input" required placeholder="my-project">
+                    <span class="form-hint">Letters, digits, hyphens, underscores</span>
+                </div>
+                <div class="form-group">
+                    <label for="field-path">Path</label>
+                    <input type="text" id="field-path" class="form-input" required placeholder="/home/user/projects/my-project">
+                    <span class="form-hint">Absolute path to the project directory</span>
+                </div>
+                <div class="form-group">
+                    <label for="field-description">Description</label>
+                    <input type="text" id="field-description" class="form-input" placeholder="Short description">
+                </div>
+                <div class="form-group">
+                    <label for="field-language">Language</label>
+                    <select id="field-language" class="form-input">
+                        <option value="python">Python</option>
+                        <option value="javascript">JavaScript</option>
+                        <option value="typescript">TypeScript</option>
+                        <option value="go">Go</option>
+                        <option value="rust">Rust</option>
+                        <option value="java">Java</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <fieldset class="form-fieldset">
+                    <legend>Integrations (optional)</legend>
+                    <div class="form-group">
+                        <label for="field-gitlab-id">GitLab Project ID</label>
+                        <input type="text" id="field-gitlab-id" class="form-input" placeholder="12345">
+                    </div>
+                    <div class="form-group">
+                        <label for="field-gitlab-url">GitLab URL</label>
+                        <input type="text" id="field-gitlab-url" class="form-input" placeholder="https://gitlab.example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="field-github-repo">GitHub Repo</label>
+                        <input type="text" id="field-github-repo" class="form-input" placeholder="owner/repo">
+                    </div>
+                </fieldset>
+                <p class="form-error" id="form-error"></p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="ProjectAdmin.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
@@ -70,6 +129,7 @@
     <script src="js/ui.js"></script>
     <script src="js/components.js"></script>
     <script src="js/projects.js"></script>
+    <script src="js/project-admin.js"></script>
 
     <noscript>
         <div class="no-js-message">
