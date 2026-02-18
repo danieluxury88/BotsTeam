@@ -125,8 +125,8 @@ class ProjectRegistry:
 
     def __init__(self, registry_file: Path | None = None):
         if registry_file is None:
-            # Default to .devbot/projects.json in home directory
-            registry_file = Path.home() / ".devbot" / "projects.json"
+            from shared.data_manager import get_registry_path
+            registry_file = get_registry_path()
 
         self.registry_file = registry_file
         self.projects: dict[str, Project] = {}

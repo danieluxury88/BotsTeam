@@ -5,18 +5,14 @@ Scans the data/ directory and projects registry to create index files
 """
 
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-import re
 
 # Paths
-HOME = Path.home()
-DEVBOT_DIR = HOME / ".devbot"
-PROJECTS_JSON = DEVBOT_DIR / "projects.json"
 REPO_ROOT = Path(__file__).parent.parent
 DATA_DIR = REPO_ROOT / "data"
+PROJECTS_JSON = DATA_DIR / "projects.json"
 DASHBOARD_DIR = REPO_ROOT / "dashboard" / "data"
 
 class DashboardDataGenerator:

@@ -22,6 +22,11 @@ def get_data_root() -> Path:
     return get_workspace_root() / "data"
 
 
+def get_registry_path() -> Path:
+    """Get the path to the project registry file (data/projects.json)."""
+    return get_data_root() / "projects.json"
+
+
 def get_project_data_dir(project_name: str) -> Path:
     """Get the data directory for a specific project."""
     return get_data_root() / project_name
