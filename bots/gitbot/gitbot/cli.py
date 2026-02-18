@@ -130,6 +130,14 @@ def review(
         Path | None,
         typer.Option("--output", "-o", help="Save report to markdown file"),
     ] = None,
+    since: Annotated[
+        str | None,
+        typer.Option("--since", "-s", help='Only commits after this date (e.g. "2025-02-10", "1 week ago")'),
+    ] = None,
+    until: Annotated[
+        str | None,
+        typer.Option("--until", "-u", help='Only commits before this date (e.g. "2025-02-17", "yesterday")'),
+    ] = None,
 ):
     """
     Analyze a git repository's commit history and produce an AI-powered summary.
@@ -137,7 +145,9 @@ def review(
     Examples:\n
       gitbot /path/to/my-project\n
       gitbot . --max-commits 50 --group-by day\n
-      gitbot /path/to/repo --branch main --output report.md
+      gitbot /path/to/repo --branch main --output report.md\n
+      gitbot . --since "1 week ago"\n
+      gitbot . --since 2025-02-01 --until 2025-02-14
     """
     repo_path = repo_path.resolve()
 
@@ -148,9 +158,15 @@ def review(
     repo_name = _get_repo_name(repo_path)
 
     console.print()
+    date_info = ""
+    if since:
+        date_info += f"  •  Since: {since}"
+    if until:
+        date_info += f"  •  Until: {until}"
+
     console.print(Panel(
         f"[bold cyan]GitBot[/bold cyan] analyzing [bold]{repo_name}[/bold]\n"
-        f"[dim]Path: {repo_path}  •  Branch: {branch}  •  Max commits: {max_commits}[/dim]",
+        f"[dim]Path: {repo_path}  •  Branch: {branch}  •  Max commits: {max_commits}{date_info}[/dim]",
         border_style="cyan",
     ))
     console.print()
@@ -164,7 +180,7 @@ def review(
     ) as progress:
         progress.add_task("Reading commit history...", total=None)
         try:
-            result = read_commits(repo_path, branch=branch, max_commits=max_commits)
+            result = read_commits(repo_path, branch=branch, max_commits=max_commits, since=since, until=until)
             commits = result.commits
         except Exception as e:
             rprint(f"[red]Failed to read repository:[/red] {e}")

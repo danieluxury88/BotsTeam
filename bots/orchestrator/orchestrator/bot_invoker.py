@@ -22,6 +22,8 @@ def invoke_bot(
     max_commits: int = 300,
     model: str | None = None,
     pmbot_mode: str = "analyze",
+    since: str | None = None,
+    until: str | None = None,
 ) -> BotResult:
     """
     Invoke a bot programmatically.
@@ -34,6 +36,8 @@ def invoke_bot(
         max_commits: Max commits to analyze (gitbot/qabot)
         model: Optional Claude model override
         pmbot_mode: Mode for pmbot - "analyze" or "plan"
+        since: Only commits after this date (gitbot)
+        until: Only commits before this date (gitbot)
 
     Returns:
         BotResult with the bot's analysis
@@ -66,6 +70,8 @@ def invoke_bot(
                 max_commits=max_commits,
                 model=model,
                 project_name=project.name if project else None,
+                since=since,
+                until=until,
             )
         elif bot_name == "qabot":
             return qabot_get_result(

@@ -71,6 +71,8 @@ def get_changeset(
     branch: str = "HEAD",
     max_commits: int = 300,
     model: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
 ) -> ChangeSet:
     """
     Programmatic API for gitbot — returns structured ChangeSet.
@@ -81,7 +83,7 @@ def get_changeset(
     repo_path = Path(repo_path).resolve()
 
     # Read and group commits
-    read_result = read_commits(repo_path, branch=branch, max_commits=max_commits)
+    read_result = read_commits(repo_path, branch=branch, max_commits=max_commits, since=since, until=until)
     commits = read_result.commits
 
     # Filter irrelevant commits
@@ -137,6 +139,8 @@ def get_bot_result(
     max_commits: int = 300,
     model: str | None = None,
     project_name: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
 ) -> BotResult:
     """
     Return gitbot analysis as a BotResult for orchestrator integration.
@@ -147,12 +151,14 @@ def get_bot_result(
         max_commits: Maximum number of commits to analyze
         model: Optional Claude model override
         project_name: Optional project name for auto-saving reports
+        since: Only commits after this date
+        until: Only commits before this date
 
     Returns:
         BotResult with analysis and markdown report
     """
     try:
-        changeset = get_changeset(repo_path, branch, max_commits, model)
+        changeset = get_changeset(repo_path, branch, max_commits, model, since=since, until=until)
 
         result = BotResult(
             bot_name="gitbot",

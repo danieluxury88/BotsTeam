@@ -76,8 +76,17 @@ def read_commits(
     repo_path: str | Path,
     branch: str = "HEAD",
     max_commits: int = 300,
+    since: str | None = None,
+    until: str | None = None,
 ) -> ReadCommitsResult:
     """Read commits from a git repository.
+
+    Args:
+        repo_path: Path to the git repository.
+        branch: Branch or ref to analyze.
+        max_commits: Maximum number of commits to read.
+        since: Only commits after this date (ISO date or git-style like "1 week ago").
+        until: Only commits before this date (ISO date or git-style like "yesterday").
 
     Returns a ReadCommitsResult with the commits list and a flag indicating
     whether the branch has more commits than max_commits.
@@ -85,8 +94,14 @@ def read_commits(
     repo = git.Repo(str(repo_path), search_parent_directories=True)
     commits = []
 
+    iter_kwargs: dict = {"max_count": max_commits + 1}
+    if since:
+        iter_kwargs["since"] = since
+    if until:
+        iter_kwargs["until"] = until
+
     # Read one extra to detect truncation
-    for commit in repo.iter_commits(branch, max_count=max_commits + 1):
+    for commit in repo.iter_commits(branch, **iter_kwargs):
         try:
             files = list(commit.stats.files.keys())
         except Exception:
