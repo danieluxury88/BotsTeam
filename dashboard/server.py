@@ -22,7 +22,7 @@ DASHBOARD_DIR = Path(__file__).resolve().parent
 if str(DASHBOARD_DIR) not in sys.path:
     sys.path.insert(0, str(DASHBOARD_DIR))
 
-from api import list_projects, get_project, create_project, update_project, delete_project  # noqa: E402
+from api import list_projects, get_project, create_project, update_project, delete_project, generate_reports  # noqa: E402
 
 
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
@@ -64,7 +64,24 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         path = self._clean_path()
         api = self._parse_api_path(path)
-        if api is None or api != "":
+        if api is None:
+            self._send_json({"error": "Not found"}, 404)
+            return
+
+        # POST /api/projects/{name}/reports — generate reports
+        if '/' in api:
+            name, action = api.split('/', 1)
+            if action == 'reports' and name:
+                body = self._read_json_body()
+                if body is None:
+                    return
+                self._call_api(generate_reports, name, body)
+                return
+            self._send_json({"error": "Not found"}, 404)
+            return
+
+        # POST /api/projects — create project
+        if api != "":
             self._send_json({"error": "Not found"}, 404)
             return
         body = self._read_json_body()

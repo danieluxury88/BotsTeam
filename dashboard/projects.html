@@ -122,6 +122,84 @@
         </div>
     </div>
 
+    <!-- Report Generator Modal -->
+    <div class="modal-backdrop" id="report-modal" hidden>
+        <div class="modal" role="dialog" aria-labelledby="report-modal-title">
+            <div class="modal-header">
+                <h3 id="report-modal-title">Generate Reports</h3>
+                <button class="btn-icon" onclick="ReportGenerator.closeModal()" aria-label="Close">&times;</button>
+            </div>
+
+            <!-- Form section -->
+            <div id="rg-form-section">
+                <form id="report-form" onsubmit="ReportGenerator.handleSubmit(event)">
+                    <fieldset class="form-fieldset">
+                        <legend>Select Bots</legend>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="rg-gitbot"> GitBot — Git history analysis
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="rg-qabot"> QABot — Test suggestions
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="rg-pmbot"> PMBot — Issue analysis
+                                <span class="form-hint" id="rg-pmbot-hint"></span>
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="form-fieldset">
+                        <legend>GitBot Options</legend>
+                        <div class="form-group">
+                            <label for="rg-since">Since</label>
+                            <input type="text" id="rg-since" class="form-input" placeholder="e.g. 1 week ago, 2026-01-01">
+                        </div>
+                        <div class="form-group">
+                            <label for="rg-until">Until</label>
+                            <input type="text" id="rg-until" class="form-input" placeholder="e.g. today, 2026-02-01">
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="form-fieldset">
+                        <legend>PMBot Options</legend>
+                        <div class="form-group">
+                            <label for="rg-pmbot-mode">Mode</label>
+                            <select id="rg-pmbot-mode" class="form-input">
+                                <option value="analyze">Analyze</option>
+                                <option value="plan">Plan Sprint</option>
+                            </select>
+                        </div>
+                    </fieldset>
+
+                    <p class="form-error" id="report-error"></p>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="ReportGenerator.closeModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Generate</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Progress section -->
+            <div id="rg-progress-section" hidden>
+                <div class="progress-container">
+                    <div class="progress-spinner"></div>
+                    <p id="rg-progress-message">Running bots...</p>
+                </div>
+            </div>
+
+            <!-- Results section -->
+            <div id="rg-results-section" hidden>
+                <div id="rg-results-list"></div>
+                <p class="rg-results-summary" id="rg-results-summary"></p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="ReportGenerator.backToForm()">Try Again</button>
+                    <button class="btn btn-primary" onclick="ReportGenerator.closeModal(); loadAllProjects();">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
@@ -130,6 +208,7 @@
     <script src="js/components.js"></script>
     <script src="js/projects.js"></script>
     <script src="js/project-admin.js"></script>
+    <script src="js/report-generator.js"></script>
 
     <noscript>
         <div class="no-js-message">

@@ -1,5 +1,6 @@
 """REST API handlers for project CRUD operations."""
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -123,3 +124,63 @@ def delete_project(name):
     registry.remove_project(name)
     _regenerate_dashboard()
     return {"deleted": name}, 200
+
+
+def generate_reports(name, data):
+    """Run selected bots for a project and return results."""
+    from orchestrator.bot_invoker import invoke_bot
+
+    registry = _registry()
+    if name not in registry.projects:
+        return {"error": f"Project '{name}' not found."}, 404
+
+    project = registry.projects[name]
+
+    bots = data.get("bots", [])
+    if not bots:
+        return {"error": "No bots selected."}, 400
+
+    valid_bots = {"gitbot", "qabot", "pmbot"}
+    invalid = [b for b in bots if b not in valid_bots]
+    if invalid:
+        return {"error": f"Unknown bots: {', '.join(invalid)}"}, 400
+
+    # Pre-flight: check API key before spending time on git reads
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return {
+            "error": "ANTHROPIC_API_KEY is not set. Add it to your .env file and restart the server."
+        }, 400
+
+    since = data.get("since") or None
+    until = data.get("until") or None
+    pmbot_mode = data.get("pmbot_mode", "analyze")
+
+    results = {}
+    completed = 0
+    failed = 0
+
+    for bot_name in bots:
+        try:
+            kwargs = {"bot_name": bot_name, "project": project}
+            if bot_name == "gitbot":
+                kwargs["since"] = since
+                kwargs["until"] = until
+            elif bot_name == "pmbot":
+                kwargs["pmbot_mode"] = pmbot_mode
+
+            result = invoke_bot(**kwargs)
+            status_str = str(result.status.value) if hasattr(result.status, 'value') else str(result.status)
+            results[bot_name] = {
+                "status": status_str,
+                "summary": result.summary,
+            }
+            if status_str in ("error", "failed"):
+                failed += 1
+            else:
+                completed += 1
+        except Exception as e:
+            results[bot_name] = {"status": "error", "summary": str(e)}
+            failed += 1
+
+    _regenerate_dashboard()
+    return {"results": results, "completed": completed, "failed": failed}, 200

@@ -26,6 +26,9 @@ const Components = {
                     <a href="reports.html?project=${encodeURIComponent(project.id)}" class="btn btn-primary">
                         View Reports
                     </a>
+                    <button class="btn btn-success" onclick="ReportGenerator.openModal('${Utils.escapeHtml(project.id)}')">
+                        Generate Reports
+                    </button>
                     <button class="btn btn-secondary" onclick="ProjectAdmin.openEditModal('${Utils.escapeHtml(project.id)}')">
                         Edit
                     </button>

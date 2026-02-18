@@ -67,6 +67,37 @@ const API = {
         return await this._mutate(`${CONFIG.API.PROJECTS_API}/${encodeURIComponent(name)}`, 'DELETE');
     },
 
+    // Generate reports for a project (longer timeout for bot execution)
+    async generateReports(name, options) {
+        const url = `${CONFIG.API.PROJECTS_API}/${encodeURIComponent(name)}/reports`;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(options),
+                signal: controller.signal
+            });
+            clearTimeout(timeout);
+            const contentType = response.headers.get('Content-Type') || '';
+            if (!contentType.includes('application/json')) {
+                return { error: `Server error (HTTP ${response.status})`, status: response.status };
+            }
+            const data = await response.json();
+            if (!response.ok) {
+                return { error: data.error || `HTTP ${response.status}`, status: response.status };
+            }
+            return { data, status: response.status };
+        } catch (error) {
+            clearTimeout(timeout);
+            if (error.name === 'AbortError') {
+                return { error: 'Request timed out. The bots may still be running on the server.', status: 0 };
+            }
+            return { error: error.message, status: 0 };
+        }
+    },
+
     // Load a specific markdown report
     async getReport(path) {
         try {
