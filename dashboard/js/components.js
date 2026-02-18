@@ -4,12 +4,46 @@ const Components = {
     renderProjectCard(project) {
         const statusClass = project.last_activity ? 'status-active' : 'status-idle';
         const statusText = project.last_activity ? 'Active' : 'Idle';
+        const projectIdEscaped = Utils.escapeHtml(project.id);
+        const projectIdUrl = encodeURIComponent(project.id);
         const integration = project.gitlab_id ? `GitLab #${project.gitlab_id}` :
                           project.github_repo ? `GitHub: ${project.github_repo}` :
                           'No integration';
+
+        const actions = [
+            `
+                <a href="reports.html?project=${projectIdUrl}" class="btn btn-primary">
+                    View Reports
+                </a>
+            `
+        ];
+
+        if (window.ReportGenerator && typeof window.ReportGenerator.openModal === 'function') {
+            actions.push(`
+                <button class="btn btn-success" onclick="ReportGenerator.openModal('${projectIdEscaped}')">
+                    Generate Reports
+                </button>
+            `);
+        }
+
+        if (window.ProjectAdmin && typeof window.ProjectAdmin.openEditModal === 'function') {
+            actions.push(`
+                <button class="btn btn-secondary" onclick="ProjectAdmin.openEditModal('${projectIdEscaped}')">
+                    Edit
+                </button>
+            `);
+        }
+
+        if (window.ProjectAdmin && typeof window.ProjectAdmin.confirmDelete === 'function') {
+            actions.push(`
+                <button class="btn btn-danger" onclick="ProjectAdmin.confirmDelete('${projectIdEscaped}')">
+                    Delete
+                </button>
+            `);
+        }
         
         return `
-            <article class="card project-card" data-project-id="${Utils.escapeHtml(project.id)}">
+            <article class="card project-card" data-project-id="${projectIdEscaped}">
                 <div class="card-header">
                     <h3 class="card-title">📁 ${Utils.escapeHtml(project.name)}</h3>
                     <span class="card-status ${statusClass}">${statusText}</span>
@@ -23,18 +57,7 @@ const Components = {
                     </ul>
                 </div>
                 <div class="card-actions">
-                    <a href="reports.html?project=${encodeURIComponent(project.id)}" class="btn btn-primary">
-                        View Reports
-                    </a>
-                    <button class="btn btn-success" onclick="ReportGenerator.openModal('${Utils.escapeHtml(project.id)}')">
-                        Generate Reports
-                    </button>
-                    <button class="btn btn-secondary" onclick="ProjectAdmin.openEditModal('${Utils.escapeHtml(project.id)}')">
-                        Edit
-                    </button>
-                    <button class="btn btn-danger" onclick="ProjectAdmin.confirmDelete('${Utils.escapeHtml(project.id)}')">
-                        Delete
-                    </button>
+                    ${actions.join('')}
                 </div>
             </article>
         `;
