@@ -40,7 +40,8 @@ async function loadReports() {
     try {
         const [reportsData, projectsData] = await Promise.all([
             API.getReportsIndex(),
-            API.getProjects()
+            API.getProjects(),
+            API.getBots()
         ]);
 
         allReports = (reportsData && reportsData.reports) ? reportsData.reports : [];

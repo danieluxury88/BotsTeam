@@ -34,11 +34,16 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
         # Serve /reports/... from the repo root data/ directory
         if path.startswith('/reports/'):
-            # /reports/project/bot/file.md -> DATA_DIR/project/reports/bot/file.md
-            parts = path[len('/reports/'):].split('/', 2)
+            remaining = path[len('/reports/'):]
+            parts = remaining.split('/')
             if len(parts) == 3:
+                # /reports/{project}/{bot}/{file} -> DATA_DIR/{project}/reports/{bot}/{file}
                 project, bot, filename = parts
                 return str(DATA_DIR / project / "reports" / bot / filename)
+            elif len(parts) == 4 and parts[0] == 'personal':
+                # /reports/personal/{project}/{bot}/{file} -> DATA_DIR/personal/{project}/reports/{bot}/{file}
+                _, project, bot, filename = parts
+                return str(DATA_DIR / "personal" / project / "reports" / bot / filename)
         return super().translate_path(path)
 
     def end_headers(self):

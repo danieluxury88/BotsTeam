@@ -6,9 +6,13 @@ const Components = {
         const statusText = project.last_activity ? 'Active' : 'Idle';
         const projectIdEscaped = Utils.escapeHtml(project.id);
         const projectIdUrl = encodeURIComponent(project.id);
+        const isPersonal = project.scope === 'personal';
+        const scopeBadge = isPersonal
+            ? '<span class="scope-badge scope-personal" title="Personal project">👤 Personal</span>'
+            : '<span class="scope-badge scope-team" title="Team project">👥 Team</span>';
         const integration = project.gitlab_id ? `GitLab #${project.gitlab_id}` :
                           project.github_repo ? `GitHub: ${project.github_repo}` :
-                          'No integration';
+                          isPersonal ? 'Local files' : 'No integration';
 
         const actions = [
             `
@@ -43,10 +47,13 @@ const Components = {
         }
         
         return `
-            <article class="card project-card" data-project-id="${projectIdEscaped}">
+            <article class="card project-card" data-project-id="${projectIdEscaped}" data-scope="${Utils.escapeHtml(project.scope || 'team')}">
                 <div class="card-header">
                     <h3 class="card-title">📁 ${Utils.escapeHtml(project.name)}</h3>
-                    <span class="card-status ${statusClass}">${statusText}</span>
+                    <div class="card-header-right">
+                        ${scopeBadge}
+                        <span class="card-status ${statusClass}">${statusText}</span>
+                    </div>
                 </div>
                 <div class="card-body">
                     <p class="card-description">${Utils.escapeHtml(project.description || 'No description')}</p>

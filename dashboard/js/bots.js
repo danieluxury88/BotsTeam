@@ -24,7 +24,8 @@ async function loadBots() {
     try {
         const [reportsData, dashboardData] = await Promise.all([
             API.getReportsIndex(),
-            API.getDashboard()
+            API.getDashboard(),
+            API.getBots()
         ]);
 
         const reports = (reportsData && reportsData.reports) ? reportsData.reports : [];

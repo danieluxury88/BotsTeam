@@ -10,7 +10,8 @@ from typing import Literal
 
 from shared.models import ProjectScope
 
-BotType = Literal["gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot", "orchestrator"]
+# BotType is any registered bot id — see shared.bot_registry.BOTS for the full list.
+BotType = str
 
 
 def get_workspace_root() -> Path:

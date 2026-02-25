@@ -5,6 +5,7 @@ const CONFIG = {
         DASHBOARD: 'data/dashboard.json',
         PROJECTS: 'data/projects.json',
         REPORTS_INDEX: 'data/index.json',
+        BOTS: 'data/bots.json',
         PROJECTS_API: '/api/projects'
     },
     
@@ -21,33 +22,9 @@ const CONFIG = {
         SETTINGS: 'devbots-settings'
     },
     
-    // Bot configuration
-    BOTS: [
-        {
-            id: 'gitbot',
-            name: 'GitBot',
-            icon: '🔍',
-            description: 'Git history analyzer'
-        },
-        {
-            id: 'qabot',
-            name: 'QABot',
-            icon: '🧪',
-            description: 'Test suggestion and execution'
-        },
-        {
-            id: 'pmbot',
-            name: 'PMBot',
-            icon: '📊',
-            description: 'Issue analyzer and sprint planner'
-        },
-        {
-            id: 'orchestrator',
-            name: 'Orchestrator',
-            icon: '🎭',
-            description: 'Conversational bot interface'
-        }
-    ],
+    // Bot configuration — loaded at runtime from data/bots.json (generated from shared/bot_registry.py).
+    // Pages call API.getBots() at init and set CONFIG.BOTS = await API.getBots().
+    BOTS: [],
     
     // Status configuration
     STATUS: {

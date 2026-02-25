@@ -2,6 +2,55 @@
 const ReportGenerator = {
     _projectName: null,
 
+    // Build the bot checkbox list from CONFIG.BOTS for the given project scope.
+    _renderBotList(project) {
+        const isPersonal = project.scope === 'personal';
+        const scopeBots = CONFIG.BOTS.filter(b =>
+            b.scope === (isPersonal ? 'personal' : 'team') || b.scope === 'both'
+        );
+
+        if (scopeBots.length === 0) {
+            return '<p class="form-hint">No bots available for this project type.</p>';
+        }
+
+        const legend = isPersonal ? '👤 Personal Bots' : '👥 Team Bots';
+        const items = scopeBots.map(bot => {
+            const cbId = `rg-bot-${bot.id}`;
+            let enabled = true;
+            let hint = '';
+            let checked = true;
+
+            if (isPersonal && bot.requires_field) {
+                const value = project[bot.requires_field];
+                enabled = !!value;
+                checked = !!value;
+                hint = value ? value : `No ${bot.requires_field} configured`;
+            } else if (bot.id === 'pmbot') {
+                const hasPmIntegration = project.gitlab_id || project.github_repo;
+                enabled = !!hasPmIntegration;
+                checked = false;
+                hint = hasPmIntegration
+                    ? (project.gitlab_id ? `GitLab #${project.gitlab_id}` : `GitHub: ${project.github_repo}`)
+                    : 'No GitLab/GitHub integration configured';
+            }
+
+            return `
+                <label class="checkbox-label">
+                    <input type="checkbox" id="${cbId}"
+                        ${checked ? 'checked' : ''}
+                        ${enabled ? '' : 'disabled'}>
+                    ${Utils.escapeHtml(bot.icon)} ${Utils.escapeHtml(bot.name)} — ${Utils.escapeHtml(bot.description)}
+                    ${hint ? `<span class="form-hint">${Utils.escapeHtml(hint)}</span>` : ''}
+                </label>`;
+        }).join('');
+
+        return `
+            <fieldset class="form-fieldset">
+                <legend>${legend}</legend>
+                <div class="checkbox-group">${items}</div>
+            </fieldset>`;
+    },
+
     openModal(projectName) {
         try {
             this._projectName = projectName;
@@ -19,21 +68,13 @@ const ReportGenerator = {
 
             document.getElementById('report-modal-title').textContent = `Generate Reports: ${project.name}`;
 
-            // Reset form
+            // Reset form and render bot checkboxes from registry
             const form = document.getElementById('report-form');
             if (form) form.reset();
-            document.getElementById('rg-gitbot').checked = true;
             document.getElementById('report-error').textContent = '';
 
-            // Enable/disable pmbot based on integration
-            const pmbotCheckbox = document.getElementById('rg-pmbot');
-            const pmbotHint = document.getElementById('rg-pmbot-hint');
-            const hasPmIntegration = project.gitlab_id || project.github_repo;
-            pmbotCheckbox.disabled = !hasPmIntegration;
-            pmbotCheckbox.checked = false;
-            pmbotHint.textContent = hasPmIntegration
-                ? (project.gitlab_id ? `GitLab #${project.gitlab_id}` : `GitHub: ${project.github_repo}`)
-                : 'No GitLab/GitHub integration configured';
+            const botList = document.getElementById('rg-bot-list');
+            if (botList) botList.innerHTML = this._renderBotList(project);
 
             // Show form, hide progress/results
             document.getElementById('rg-form-section').hidden = false;
@@ -58,11 +99,13 @@ const ReportGenerator = {
         const errorEl = document.getElementById('report-error');
         errorEl.textContent = '';
 
-        // Collect selected bots
-        const bots = [];
-        if (document.getElementById('rg-gitbot').checked) bots.push('gitbot');
-        if (document.getElementById('rg-qabot').checked) bots.push('qabot');
-        if (document.getElementById('rg-pmbot').checked) bots.push('pmbot');
+        // Collect all checked bot checkboxes dynamically
+        const bots = CONFIG.BOTS
+            .filter(b => {
+                const cb = document.getElementById(`rg-bot-${b.id}`);
+                return cb && cb.checked;
+            })
+            .map(b => b.id);
 
         if (bots.length === 0) {
             errorEl.textContent = 'Select at least one bot.';
@@ -110,7 +153,7 @@ const ReportGenerator = {
 
         const botNames = bots.map(b => {
             const info = CONFIG.BOTS.find(x => x.id === b);
-            return info ? info.name : b;
+            return info ? `${info.icon} ${info.name}` : b;
         });
         document.getElementById('rg-progress-message').textContent =
             `Running ${botNames.join(', ')}... This may take a minute.`;
@@ -134,7 +177,7 @@ const ReportGenerator = {
             const statusClass = isError ? 'bot-result-error' : 'bot-result-success';
             const icon = isError ? '&#10060;' : '&#9989;';
             const botInfo = CONFIG.BOTS.find(b => b.id === bot);
-            const botName = botInfo ? botInfo.name : bot;
+            const botName = botInfo ? `${botInfo.icon} ${botInfo.name}` : bot;
             return `
                 <div class="bot-result ${statusClass}">
                     <span class="bot-result-icon">${icon}</span>

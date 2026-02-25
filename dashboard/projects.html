@@ -133,21 +133,8 @@
             <!-- Form section -->
             <div id="rg-form-section">
                 <form id="report-form" onsubmit="ReportGenerator.handleSubmit(event)">
-                    <fieldset class="form-fieldset">
-                        <legend>Select Bots</legend>
-                        <div class="checkbox-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="rg-gitbot"> GitBot — Git history analysis
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="rg-qabot"> QABot — Test suggestions
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="rg-pmbot"> PMBot — Issue analysis
-                                <span class="form-hint" id="rg-pmbot-hint"></span>
-                            </label>
-                        </div>
-                    </fieldset>
+                    <!-- Bot checkboxes are rendered dynamically by report-generator.js -->
+                    <div id="rg-bot-list"></div>
 
                     <fieldset class="form-fieldset">
                         <legend>GitBot Options</legend>

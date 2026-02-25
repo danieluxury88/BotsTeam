@@ -17,7 +17,7 @@ async function initProjects() {
         searchInput.addEventListener('input', (e) => filterProjects(e.target.value));
     }
 
-    await loadAllProjects();
+    await Promise.all([API.getBots(), loadAllProjects()]);
 }
 
 let allProjects = [];

@@ -28,6 +28,14 @@ const API = {
     async getReportsIndex() {
         return await this.fetchJSON(CONFIG.API.REPORTS_INDEX);
     },
+
+    // Load bot registry from data/bots.json and populate CONFIG.BOTS
+    async getBots() {
+        const data = await this.fetchJSON(CONFIG.API.BOTS);
+        const bots = (data && data.bots) ? data.bots : [];
+        CONFIG.BOTS = bots;
+        return bots;
+    },
     
     // Mutate helper for POST/PUT/DELETE
     async _mutate(url, method, body) {

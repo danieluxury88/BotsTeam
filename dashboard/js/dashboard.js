@@ -23,6 +23,7 @@ async function initDashboard() {
 // Load all dashboard data
 async function loadDashboard() {
     await Promise.all([
+        API.getBots(),
         loadSummary(),
         loadProjects(),
         loadReports()

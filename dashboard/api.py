@@ -5,14 +5,17 @@ import re
 import sys
 from pathlib import Path
 
-# Ensure orchestrator package is importable
+# Ensure orchestrator and shared packages are importable
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ORCHESTRATOR_PKG = REPO_ROOT / "bots" / "orchestrator"
-if str(ORCHESTRATOR_PKG) not in sys.path:
-    sys.path.insert(0, str(ORCHESTRATOR_PKG))
+SHARED_PKG = REPO_ROOT / "shared"
+for _pkg in (ORCHESTRATOR_PKG, SHARED_PKG):
+    if str(_pkg) not in sys.path:
+        sys.path.insert(0, str(_pkg))
 
 from orchestrator.registry import ProjectRegistry  # noqa: E402
 from generate_data import DashboardDataGenerator  # noqa: E402
+from shared.bot_registry import all_bots as _all_bots  # noqa: E402
 
 NAME_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*$')
 
@@ -140,7 +143,7 @@ def generate_reports(name, data):
     if not bots:
         return {"error": "No bots selected."}, 400
 
-    valid_bots = {"gitbot", "qabot", "pmbot"}
+    valid_bots = set(_all_bots())
     invalid = [b for b in bots if b not in valid_bots]
     if invalid:
         return {"error": f"Unknown bots: {', '.join(invalid)}"}, 400
