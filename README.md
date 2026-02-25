@@ -6,11 +6,20 @@
 
 This workspace contains multiple specialized bots that share common infrastructure:
 
+**Team bots** (code & issues):
+
 - **[GitBot](bots/gitbot/README.md)** — Analyzes git history and generates AI-powered summaries
 - **[QABot](bots/qabot/README.md)** — Suggests tests based on code changes and runs test suites
-- **[Project Manager](bots/project_manager/README.md)** — GitLab issue analyzer and AI-powered sprint planner
+- **[Project Manager](bots/project_manager/README.md)** — GitLab/GitHub issue analyzer and AI-powered sprint planner
 - **[Orchestrator](bots/orchestrator/README.md)** — Conversational interface that knows your projects and calls other bots
-- **[Dashboard](docs/DASHBOARD.md)** — Web-based visual dashboard for projects and reports
+
+**Personal bots** (local files):
+
+- **JournalBot** — Analyzes personal notes and journal entries (markdown directories)
+- **TaskBot** — Analyzes personal task lists and todo files
+- **HabitBot** — Analyzes habit tracking logs (CSV or markdown)
+
+**[Dashboard](docs/DASHBOARD.md)** — Web-based visual interface for all projects and reports
 
 All bots use **Claude (Anthropic)** for AI analysis and share utilities for git reading, LLM access, and configuration.
 
@@ -114,21 +123,29 @@ This is a **uv workspace monorepo** with:
 
 ```
 BotsTeam/
-├── shared/              # Shared utilities (git_reader, llm, models, config, data_manager)
+├── shared/              # Core library (models, bot_registry, git_reader, file_reader, llm, data_manager)
 ├── bots/
 │   ├── gitbot/         # Git history analyzer
 │   ├── qabot/          # Test suggestion & execution
 │   ├── project_manager/ # GitLab/GitHub issue analyzer & sprint planner
+│   ├── journalbot/     # Personal journal/notes analyzer
+│   ├── taskbot/        # Personal task list analyzer
+│   ├── habitbot/       # Personal habit tracking analyzer
 │   ├── orchestrator/   # Conversational bot interface + project registry
 │   └── dashboard/      # Standalone dashboard CLI (uv run dashboard)
 ├── dashboard/           # Web dashboard (static HTML/CSS/JS + data generator)
-│   ├── data/           # Generated JSON files (gitignored)
+│   ├── data/           # Generated JSON files (gitignored): bots, projects, index, dashboard
 │   ├── css/            # Modular CSS (variables, components, responsive)
-│   └── js/             # JavaScript modules (api, components, dashboard)
+│   └── js/             # JavaScript modules (api, components, config, bots)
 ├── data/                # Project data (auto-saved reports, cache)
-│   └── {project}/
-│       ├── reports/    # Bot reports (gitbot, qabot, pmbot)
-│       └── cache/      # Cached API responses
+│   ├── projects.json   # Team project registry
+│   ├── {project}/
+│   │   ├── reports/    # Bot reports (gitbot, qabot, pmbot, orchestrator)
+│   │   └── cache/
+│   └── personal/       # Personal project data
+│       ├── projects.json
+│       └── {project}/
+│           └── reports/ # Personal bot reports (journalbot, taskbot, habitbot)
 └── docs/               # Documentation + PlantUML diagrams
 ```
 
@@ -232,12 +249,20 @@ Each bot has its own README with detailed usage:
 - [x] Project registry with multi-project support
 - [x] GitLab/GitHub metadata per project
 - [x] Conversational interface with Claude
-- [x] Bot invocation (gitbot, qabot, pmbot)
+- [x] Bot invocation (gitbot, qabot, pmbot, journalbot, taskbot, habitbot)
 - [x] Auto-saving reports to project data directories
 - [x] Project CRUD via REST API and dashboard UI
+- [x] Personal context / scoped workspaces (team vs personal)
 - [ ] Multi-bot workflows (gitbot → qabot pipeline)
 - [ ] Slack/Discord integration
-- [ ] Personal context / scoped workspaces
+
+### Personal Bots
+
+- [x] JournalBot — journal/notes analysis
+- [x] TaskBot — task list analysis
+- [x] HabitBot — habit tracking analysis
+- [x] Scoped data storage (`data/personal/{project}/`)
+- [x] Dual project registry (team + personal)
 
 ### Visual Dashboard
 
@@ -247,7 +272,9 @@ Each bot has its own README with detailed usage:
 - [x] Dark mode support
 - [x] In-page markdown report viewer
 - [x] Per-project report generation from Projects page
-- [ ] Context filter (personal / team)
+- [x] Personal and team projects with scope badges
+- [x] Bot registry auto-loaded from `data/bots.json` (no hardcoding)
+- [x] Personal bot support in generate modal (journalbot, taskbot, habitbot)
 
 See [Dashboard Documentation](docs/DASHBOARD.md) for details.
 

@@ -16,15 +16,22 @@ BotsTeam/
 ├── bots/
 │   ├── gitbot/                 # Git history analyzer
 │   ├── qabot/                  # Test suggestion & execution
-│   ├── project_manager/        # GitLab/GitHub issue analyzer & sprint planner
+│   ├── project_manager/        # GitLab/GitHub issue analyzer & sprint planner (pmbot)
+│   ├── journalbot/             # Personal journal/notes analyzer
+│   ├── taskbot/                # Personal task list analyzer
+│   ├── habitbot/               # Personal habit tracking analyzer
 │   ├── orchestrator/           # Conversational bot router + project registry
 │   └── dashboard/              # Standalone dashboard CLI (uv run dashboard)
 ├── dashboard/                  # Web dashboard (static HTML/CSS/JS + Python server)
 ├── data/                       # Auto-saved reports and project registry (git-ignored)
-│   ├── projects.json           # Project registry
-│   └── {project_name}/
-│       ├── reports/{bot}/      # latest.md + timestamped archives
-│       └── cache/
+│   ├── projects.json           # Team project registry
+│   ├── {project_name}/
+│   │   ├── reports/{bot}/      # latest.md + timestamped archives
+│   │   └── cache/
+│   └── personal/               # Personal project data
+│       ├── projects.json       # Personal project registry
+│       └── {project_name}/
+│           └── reports/{bot}/  # Personal bot reports
 └── docs/                       # Architecture docs, PlantUML diagrams
 ```
 
@@ -34,6 +41,23 @@ BotsTeam/
 
 The `shared` package is the foundation for all bots. It provides:
 
+### `bot_registry.py` — Bot Metadata Registry
+
+Single source of truth for all bot metadata. When adding a new bot, add one entry here — the dashboard, API validator, and data generator all pick it up automatically.
+
+```python
+@dataclass(frozen=True)
+class BotMeta:
+    id: str           # e.g. "gitbot"
+    name: str         # e.g. "GitBot"
+    icon: str         # emoji
+    description: str
+    scope: BotScope   # "team" | "personal" | "both"
+    requires_field: str | None  # personal bots: "notes_dir", "task_file", "habit_file"
+```
+
+Helper functions: `team_bots()`, `personal_bots()`, `all_bots()`, `to_json()`.
+
 ### `models.py` — Data Contracts
 
 All inter-bot data is typed with dataclasses:
@@ -42,6 +66,7 @@ All inter-bot data is typed with dataclasses:
 | --- | --- |
 | `BotResult` | Universal bot output: `bot_name`, `status`, `summary`, `markdown_report`, `data` |
 | `BotStatus` | Enum: `SUCCESS`, `PARTIAL`, `FAILED`, `SKIPPED`, `ERROR`, `WARNING` |
+| `ProjectScope` | Enum: `TEAM`, `PERSONAL` — controls data directory and bot routing |
 | `ChangeSet` | gitbot output; consumed by qabot and orchestrator |
 | `CommitInfo`, `CommitGroup` | Git commit structures |
 | `Issue`, `IssueSet` | Platform-agnostic issue representation (GitLab + GitHub normalize to these) |
@@ -99,21 +124,37 @@ group_commits_by_author(commits) → CommitGroup[]
 format_groups_for_llm(groups) → str
 ```
 
-### `data_manager.py` — Report Storage
+### `file_reader.py` — Local File Reader
+
+Reads local markdown directories, task files, and CSV/markdown habit logs for personal bots. Analogous to `git_reader.py` for git-based bots.
 
 ```python
-get_data_root() → Path                          # BotsTeam/data/
-get_registry_path() → Path                      # BotsTeam/data/projects.json
-get_project_data_dir(project_name) → Path       # data/{project}/
-get_reports_dir(project_name, bot=None) → Path  # data/{project}/reports/{bot}/
-save_report(project_name, bot, content, save_latest=True, save_timestamped=True)
-list_reports(project_name, bot=None) → list[Path]
+read_markdown_files(directory, since, until, max_files) → FileReadResult
+read_task_file(path) → FileReadResult
+read_habit_file(path) → FileReadResult          # supports .csv and .md
+format_files_for_llm(entries, max_chars) → str
+```
+
+### `data_manager.py` — Report Storage
+
+Supports both team and personal scopes via `ProjectScope`:
+
+```python
+get_data_root() → Path                                    # BotsTeam/data/
+get_personal_root() → Path                                # BotsTeam/data/personal/
+get_registry_path() → Path                                # data/projects.json
+get_personal_registry_path() → Path                       # data/personal/projects.json
+get_project_data_dir(project_name, scope) → Path          # data/{project}/ or data/personal/{project}/
+get_reports_dir(project_name, bot, scope) → Path
+save_report(project_name, bot, content, scope=TEAM, ...)
+list_reports(project_name, bot, scope) → list[Path]
 ```
 
 Report naming:
 
 - `data/{project}/reports/{bot}/latest.md` — always current
 - `data/{project}/reports/{bot}/2026-02-25-075540.md` — timestamped archive
+- Personal reports follow the same pattern under `data/personal/`
 
 ### `gitlab_client.py` / `github_client.py` — Issue Clients
 
@@ -201,22 +242,64 @@ uv run pmbot list --project-id 12345 --state opened --labels bug
 
 ---
 
+### JournalBot — Personal Notes Analyzer
+
+**Role:** Reads markdown journal/notes directories and generates AI insights on themes, patterns, and progress.
+
+**Entry point:**
+
+```python
+get_bot_result(notes_dir, since, until, max_files, model, project_name, scope) → BotResult
+```
+
+**CLI:** `uv run journalbot ~/Notes/journal [--since DATE] [--until DATE] [--project NAME]`
+
+---
+
+### TaskBot — Personal Task Analyzer
+
+**Role:** Reads markdown task/todo files and generates productivity insights on completion rates, blockers, and priorities.
+
+**Entry point:**
+
+```python
+get_bot_result(task_source, model, project_name, scope) → BotResult
+```
+
+**CLI:** `uv run taskbot ~/Notes/tasks.md [--project NAME]`
+
+---
+
+### HabitBot — Habit Tracking Analyzer
+
+**Role:** Reads habit tracking logs (CSV or markdown) and surfaces consistency patterns, streaks, and recommendations.
+
+**Entry point:**
+
+```python
+get_bot_result(habit_source, since, until, model, project_name, scope) → BotResult
+```
+
+**CLI:** `uv run habitbot ~/Notes/habits.csv [--since DATE] [--until DATE] [--project NAME]`
+
+---
+
 ### Orchestrator — Conversational Bot Router
 
-**Role:** Conversational interface that understands natural language, routes requests to the right bot, and manages the project registry.
+**Role:** Conversational interface that understands natural language, routes requests to the right bot, manages the project registry, and detects team vs personal context automatically.
 
 **Key components:**
 
-- `registry.py` — `ProjectRegistry` and `Project` dataclasses; loads/saves `data/projects.json`
-- `bot_invoker.py` — `invoke_bot(bot_name, project, **params) → BotResult`; routes to gitbot/qabot/pmbot
-- `cli.py` — Interactive chat loop, project CRUD, dashboard launcher
+- `registry.py` — `ProjectRegistry` and `Project` dataclasses; loads both `data/projects.json` (team) and `data/personal/projects.json` (personal). `Project` has `scope`, `notes_dir`, `task_file`, `habit_file` fields.
+- `bot_invoker.py` — `invoke_bot(bot_name, project, **params) → BotResult`; routes to all bots including personal ones
+- `cli.py` — Interactive chat loop, project CRUD (with scope), dashboard launcher
 
 **CLI:**
 
 ```bash
 uv run orchestrator chat                    # Interactive conversational loop
-uv run orchestrator add myproject /path [--gitlab-id N] [--github-repo owner/repo]
-uv run orchestrator projects                # List all registered projects
+uv run orchestrator add myproject /path [--scope personal] [--notes-dir ~/Notes]
+uv run orchestrator projects                # List all registered projects (team + personal)
 uv run orchestrator dashboard [--port N]    # Launch web dashboard
 ```
 
@@ -224,32 +307,45 @@ uv run orchestrator dashboard [--port N]    # Launch web dashboard
 
 ```text
 > get gitbot report for uni.li
-> analyze issues for myproject
-> create sprint plan for uni.li
-> what projects do you know?
+> analyze my journal for this month    # → journalbot (personal context detected)
+> how am I doing on my habits?         # → habitbot
+> analyze issues for uni.li
 ```
 
 **Bot invocation flow:**
 
-1. User message → Claude parses intent → JSON `{action, bot, project, params}`
-2. `invoke_bot()` resolves project from registry
-3. Bot runs, result auto-saved if `project.name` is set
+1. User message → Claude parses intent + detects scope → JSON `{action, bot, project, params}`
+2. `invoke_bot()` resolves project from registry (team or personal)
+3. Bot runs, result auto-saved to correct scoped directory
 4. Report displayed via Rich Markdown
 
-#### Project Registry Schema (`data/projects.json`)
+#### Project Registry Schemas
+
+Team (`data/projects.json`):
 
 ```json
 {
   "myproject": {
     "name": "myproject",
-    "path": "/absolute/path/to/project",
-    "description": "Optional description",
-    "language": "python",
+    "path": "/absolute/path",
+    "scope": "team",
     "gitlab_project_id": "12345",
-    "gitlab_url": "https://gitlab.com",
-    "gitlab_token": null,
-    "github_repo": "owner/repo",
-    "github_token": null
+    "github_repo": "owner/repo"
+  }
+}
+```
+
+Personal (`data/personal/projects.json`):
+
+```json
+{
+  "mylife": {
+    "name": "mylife",
+    "path": "/home/user/notes",
+    "scope": "personal",
+    "notes_dir": "/home/user/notes/journal",
+    "task_file": "/home/user/notes/tasks.md",
+    "habit_file": "/home/user/notes/habits.csv"
   }
 }
 ```
@@ -258,23 +354,25 @@ uv run orchestrator dashboard [--port N]    # Launch web dashboard
 
 - `project.has_gitlab()` / `project.has_github()`
 - `project.get_gitlab_token()` — per-project token, falls back to global `Config`
-- `project.get_data_dir()` → `data/{project_name}/`
+- `project.scope` — `ProjectScope.TEAM` or `ProjectScope.PERSONAL`
 
 ---
 
 ### Dashboard — Web-Based Visualization
 
-**Role:** Static HTML/CSS/JS web interface for browsing projects and bot reports. Served by a Python HTTP server with a small REST API.
+**Role:** Static HTML/CSS/JS web interface for browsing all projects (team and personal) and bot reports. Served by a Python HTTP server with a small REST API.
 
 **Data pipeline:**
 
 ```text
-Bot reports in data/{project}/reports/{bot}/
-    ↓  generate_data.py
-dashboard/data/projects.json   — project metadata + activity summary
-dashboard/data/index.json      — complete report catalog
+Team:     data/{project}/reports/{bot}/
+Personal: data/personal/{project}/reports/{bot}/
+    ↓  generate_data.py  (reads shared.bot_registry for bot list)
+dashboard/data/bots.json       — bot metadata from registry
+dashboard/data/projects.json   — all projects (team + personal) + activity summary
+dashboard/data/index.json      — complete report catalog (scoped)
 dashboard/data/dashboard.json  — statistics + recent activity
-    ↓  Fetch API
+    ↓  Fetch API (CONFIG.BOTS loaded at runtime from bots.json)
 Browser (projects.html, reports.html, activity.html, bots.html)
 ```
 
@@ -290,21 +388,22 @@ uv run orchestrator dashboard   # Same, via orchestrator CLI
 **REST API** (served by `dashboard/server.py`):
 
 ```text
-GET    /api/projects                        — List all projects
-POST   /api/projects                        — Create project
-PUT    /api/projects/{name}                 — Update project
-DELETE /api/projects/{name}                 — Remove project
-POST   /api/projects/{name}/reports         — Generate bot reports for a project
-GET    /reports/{project}/{bot}/{filename}  — Serve raw markdown report
+GET    /api/projects                              — List all projects
+POST   /api/projects                              — Create project
+PUT    /api/projects/{name}                       — Update project
+DELETE /api/projects/{name}                       — Remove project
+POST   /api/projects/{name}/reports               — Generate bot reports for a project
+GET    /reports/{project}/{bot}/{filename}         — Serve team report markdown
+GET    /reports/personal/{project}/{bot}/{filename} — Serve personal report markdown
 ```
 
-**Features implemented:**
+**Features:**
 
-- Project list with search and CRUD (add/edit/delete via modal)
-- Per-project report generation (select bots, runs inline)
+- Project list with search, CRUD, and scope badges (👥 Team / 👤 Personal)
+- Report generation modal adapts to project scope: team projects show team bots, personal projects show personal bots with their configured data sources
 - In-page markdown report viewer with styled rendering
-- Activity feed (chronological report history)
-- Bot status panel
+- Activity feed (chronological report history across all scopes)
+- Bot status panel (all 7 bots)
 - Dark mode (system-aware)
 - Touch-friendly (48px+ targets)
 
@@ -372,22 +471,22 @@ Dashboard UI: POST /api/projects/uni.li/reports {bots: [gitbot, pmbot]}
 
 ---
 
-## Planned: Personal Context Extension
+## Personal Context Extension
 
-The current architecture is **team-oriented** — all bots are code/issue focused, the registry is flat, and there is no notion of scope or privacy.
+The architecture supports both **team** and **personal** contexts with clear data separation. Personal bots read local files rather than git repos or issue trackers.
 
-The planned extension adds a **personal context** layer to support personal bots (journal, tasks, habits) alongside team bots, with clear data separation.
+See [context-design.md](context-design.md) for the original design specification.
 
-See [context-design.md](context-design.md) for the full design specification.
-
-### Summary of planned changes
+### Implemented changes
 
 | Layer | Change |
 | --- | --- |
-| `shared/models.py` | Add `ProjectScope` enum (`PERSONAL`, `TEAM`) |
+| `shared/bot_registry.py` | New: single source of truth for all bot metadata and scopes |
+| `shared/models.py` | `ProjectScope` enum (`TEAM`, `PERSONAL`) |
 | `shared/data_manager.py` | Scope-aware paths: personal → `data/personal/{project}/` |
-| `shared/file_reader.py` | New: reads local markdown/text/CSV for non-git bots |
-| `orchestrator/registry.py` | `Project` gets `scope` field; `ProjectRegistry` loads both registries |
-| `orchestrator/bot_invoker.py` | Route by scope; context detected from user intent |
+| `shared/file_reader.py` | New: reads local markdown dirs, task files, CSV habit logs |
+| `orchestrator/registry.py` | `Project` gets `scope`, `notes_dir`, `task_file`, `habit_file`; loads both registries |
+| `orchestrator/bot_invoker.py` | Routes to journalbot, taskbot, habitbot; passes scope through |
+| `orchestrator/cli.py` | `--scope` flag; intent detection for personal vs team context |
 | New bots | `journalbot`, `taskbot`, `habitbot` |
-| Dashboard | Context filter (All / Personal / Team) |
+| Dashboard | Scope badges; personal report paths; bot modal adapts to scope; bot list from registry |

@@ -25,14 +25,16 @@ Open <http://localhost:8080>
 ## Architecture
 
 ```text
-Bot reports (data/{project}/reports/{bot}/*.md)
-    ↓  dashboard/generate_data.py
-dashboard/data/projects.json    — project list + activity summary
+Bot reports (data/{project}/reports/{bot}/*.md)          ← team bots
+Bot reports (data/personal/{project}/reports/{bot}/*.md) ← personal bots
+    ↓  dashboard/generate_data.py  (reads shared/bot_registry.py)
+dashboard/data/bots.json        — bot registry (id, name, icon, scope, …)
+dashboard/data/projects.json    — project list + activity summary (scope field)
 dashboard/data/index.json       — full report catalog
 dashboard/data/dashboard.json   — statistics + recent activity
     ↓  Fetch API (vanilla JS)
-Browser
-    projects.html   — project management
+Browser  (CONFIG.BOTS populated at runtime from bots.json via API.getBots())
+    projects.html   — project management (scope badges, dynamic bot modal)
     reports.html    — report browser + inline viewer
     bots.html       — bot status
     activity.html   — chronological feed
@@ -47,6 +49,7 @@ dashboard/
 ├── api.py              # REST API handlers (CRUD, report generation)
 ├── generate_data.py    # Scans data/ → writes JSON to dashboard/data/
 ├── data/               # Generated JSON (git-ignored)
+│   ├── bots.json       # Bot registry (generated from shared/bot_registry.py)
 │   ├── projects.json
 │   ├── index.json
 │   └── dashboard.json
@@ -68,14 +71,19 @@ The Python server (`dashboard/server.py`) exposes both static file serving and a
 | `PUT` | `/api/projects/{name}` | Update project fields |
 | `DELETE` | `/api/projects/{name}` | Remove a project |
 | `POST` | `/api/projects/{name}/reports` | Run selected bots and save reports |
-| `GET` | `/reports/{project}/{bot}/{file}` | Serve a raw markdown report file |
+| `GET` | `/api/bots` | List all registered bots (from bot_registry) |
+| `GET` | `/reports/{project}/{bot}/{file}` | Serve a team project markdown report |
+| `GET` | `/reports/personal/{project}/{bot}/{file}` | Serve a personal project markdown report |
 
 ### Report Generation Request
 
 ```json
 POST /api/projects/uni.li/reports
 {
-  "bots": ["gitbot", "pmbot"]
+  "bots": ["gitbot", "pmbot"],
+  "since": "2026-01-01",
+  "until": "2026-02-01",
+  "pmbot_mode": "analyze"
 }
 ```
 
@@ -96,6 +104,21 @@ Response:
 
 ## Generated JSON Schemas
 
+### `dashboard/data/bots.json`
+
+```json
+[
+  { "id": "gitbot",     "name": "GitBot",     "icon": "🔍", "description": "Git history analyzer",               "scope": "team",     "requires_field": null },
+  { "id": "qabot",      "name": "QABot",      "icon": "🧪", "description": "Test suggestion and execution",      "scope": "team",     "requires_field": null },
+  { "id": "pmbot",      "name": "PMBot",      "icon": "📊", "description": "Issue analyzer and sprint planner",  "scope": "team",     "requires_field": null },
+  { "id": "journalbot", "name": "JournalBot", "icon": "📓", "description": "Personal journal and notes analyzer","scope": "personal", "requires_field": "notes_dir" },
+  { "id": "taskbot",    "name": "TaskBot",    "icon": "✅", "description": "Personal task list analyzer",        "scope": "personal", "requires_field": "task_file" },
+  { "id": "habitbot",   "name": "HabitBot",   "icon": "🔄", "description": "Habit and goal tracking analyzer",   "scope": "personal", "requires_field": "habit_file" }
+]
+```
+
+Generated from `shared/bot_registry.py`. Loaded by the browser at startup via `API.getBots()`, which populates `CONFIG.BOTS`. Adding a bot to `bot_registry.py` automatically makes it appear across the entire dashboard with no frontend changes.
+
 ### `dashboard/data/projects.json`
 
 ```json
@@ -105,11 +128,24 @@ Response:
       "id": "uni.li",
       "name": "UniLi",
       "path": "/path/to/project",
+      "scope": "team",
       "gitlab_id": "76261915",
       "github_repo": null,
       "last_activity": "2026-02-25T07:55:40",
       "reports_count": 4,
       "bots_run": ["gitbot", "pmbot"]
+    },
+    {
+      "id": "journal",
+      "name": "My Journal",
+      "path": null,
+      "scope": "personal",
+      "notes_dir": "/Users/me/notes",
+      "task_file": null,
+      "habit_file": null,
+      "last_activity": "2026-02-24T20:00:00",
+      "reports_count": 2,
+      "bots_run": ["journalbot"]
     }
   ],
   "last_updated": "2026-02-25T12:00:00Z"
@@ -143,10 +179,12 @@ Response:
 {
   "version": "1.0.0",
   "statistics": {
-    "total_projects": 2,
-    "active_projects": 1,
-    "total_reports": 4,
-    "total_bots": 4
+    "total_projects": 3,
+    "active_projects": 2,
+    "total_reports": 6,
+    "total_bots": 6,
+    "team_projects": 2,
+    "personal_projects": 1
   },
   "recent_activity": [...]
 }
@@ -158,10 +196,10 @@ Response:
 
 ### Projects Page
 
-- Lists all registered projects with description, integrations (GitLab/GitHub), and last activity
+- Lists all registered projects — both team and personal — with scope badges (👥 Team / 👤 Personal)
 - Search/filter by name
-- Add, edit, and delete projects via modal form (writes to `data/projects.json`)
-- Per-project report generation: select which bots to run, results shown inline
+- Add, edit, and delete projects via modal form (writes to `data/projects.json` or `data/personal/projects.json`)
+- Per-project report generation: bot checkboxes are rendered dynamically from `CONFIG.BOTS`, filtered by project scope; personal bots are enabled only when the required path field (`notes_dir`, `task_file`, `habit_file`) is configured
 
 ### Reports Page
 
@@ -171,7 +209,7 @@ Response:
 
 ### Bots Page
 
-- Status panel for each bot (gitbot, qabot, pmbot, orchestrator)
+- Status panel for every bot loaded from `data/bots.json` (team + personal)
 - Report count and last run timestamp per bot
 
 ### Activity Page
@@ -198,10 +236,27 @@ Response:
 
 ## Development Notes
 
-When adding a new bot, update `generate_data.py` to recognize the bot name so its reports appear in the dashboard. No frontend changes are needed — the report viewer is generic.
+### Adding a New Bot
 
-When adding new project fields, update:
+Add one entry to `shared/shared/bot_registry.py` — that's it. The bot will automatically appear:
 
-1. `api.py` — to accept the field in POST/PUT handlers
-2. `generate_data.py` — to include the field in `projects.json` output
+- In `dashboard/data/bots.json` (generated at next `uv run dashboard generate`)
+- In the Bots page status panel
+- In the report generation modal (filtered by `scope`)
+- In the Reports page bot filter dropdown
+
+No changes needed to `api.py`, `config.js`, `generate_data.py`, or any HTML.
+
+```python
+# shared/shared/bot_registry.py
+BOTS = {
+    ...
+    "newbot": BotMeta("newbot", "NewBot", "🆕", "Does something useful", "team"),
+}
+```
+
+### Adding New Project Fields
+
+1. `api.py` — accept the field in POST/PUT handlers
+2. `generate_data.py` — include the field in `projects.json` output
 3. The project modal form in `projects.html`
