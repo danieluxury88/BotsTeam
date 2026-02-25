@@ -27,6 +27,7 @@
                 <a href="projects.html" class="nav-link active" aria-current="page">Projects</a>
                 <a href="bots.html" class="nav-link">Bots</a>
                 <a href="activity.html" class="nav-link">Activity</a>
+                <a href="calendar.html" class="nav-link">Calendar</a>
             </nav>
             <div class="header-actions">
                 <button class="btn-icon" id="refresh-btn" aria-label="Refresh data" title="Refresh">
@@ -78,9 +79,16 @@
                     <span class="form-hint">Letters, digits, hyphens, underscores</span>
                 </div>
                 <div class="form-group">
+                    <label for="field-scope">Scope</label>
+                    <select id="field-scope" class="form-input" onchange="ProjectAdmin.onScopeChange(this.value)">
+                        <option value="team">👥 Team</option>
+                        <option value="personal">👤 Personal</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label for="field-path">Path</label>
                     <input type="text" id="field-path" class="form-input" required placeholder="/home/user/projects/my-project">
-                    <span class="form-hint">Absolute path to the project directory</span>
+                    <span class="form-hint" id="field-path-hint">Absolute path to the project directory</span>
                 </div>
                 <div class="form-group">
                     <label for="field-description">Description</label>
@@ -98,7 +106,7 @@
                         <option value="other">Other</option>
                     </select>
                 </div>
-                <fieldset class="form-fieldset">
+                <fieldset class="form-fieldset" id="team-fields">
                     <legend>Integrations (optional)</legend>
                     <div class="form-group">
                         <label for="field-gitlab-id">GitLab Project ID</label>
@@ -111,6 +119,24 @@
                     <div class="form-group">
                         <label for="field-github-repo">GitHub Repo</label>
                         <input type="text" id="field-github-repo" class="form-input" placeholder="owner/repo">
+                    </div>
+                </fieldset>
+                <fieldset class="form-fieldset" id="personal-fields" hidden>
+                    <legend>Personal Bot Sources (optional)</legend>
+                    <div class="form-group">
+                        <label for="field-notes-dir">Notes Directory</label>
+                        <input type="text" id="field-notes-dir" class="form-input" placeholder="/home/user/notes">
+                        <span class="form-hint">For JournalBot — path to markdown notes directory</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="field-task-file">Task File</label>
+                        <input type="text" id="field-task-file" class="form-input" placeholder="/home/user/tasks.md">
+                        <span class="form-hint">For TaskBot — path to task list file or directory</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="field-habit-file">Habit File</label>
+                        <input type="text" id="field-habit-file" class="form-input" placeholder="/home/user/habits.csv">
+                        <span class="form-hint">For HabitBot — path to habit log (CSV or markdown)</span>
                     </div>
                 </fieldset>
                 <p class="form-error" id="form-error"></p>

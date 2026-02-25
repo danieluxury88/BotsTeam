@@ -16,6 +16,7 @@ for _pkg in (ORCHESTRATOR_PKG, SHARED_PKG):
 from orchestrator.registry import ProjectRegistry  # noqa: E402
 from generate_data import DashboardDataGenerator  # noqa: E402
 from shared.bot_registry import all_bots as _all_bots  # noqa: E402
+from shared.models import ProjectScope  # noqa: E402
 
 NAME_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*$')
 
@@ -57,19 +58,36 @@ def get_project(name):
     return _project_to_dict(registry.projects[name])
 
 
+def _parse_scope(data):
+    try:
+        return ProjectScope(data.get("scope", "team"))
+    except ValueError:
+        return ProjectScope.TEAM
+
+
+def _resolve_path(path_str, scope):
+    """Resolve and validate a project path. Personal projects may omit path."""
+    path_str = (path_str or "").strip()
+    if not path_str:
+        if scope == ProjectScope.PERSONAL:
+            return Path.home(), None  # default to home dir
+        return None, "Path is required for team projects."
+    path_obj = Path(path_str).expanduser()
+    if not path_obj.exists():
+        return None, f"Path does not exist: {path_str}"
+    return path_obj, None
+
+
 def create_project(data):
     name = data.get("name", "").strip()
     err = _validate_name(name)
     if err:
         return {"error": err}, 400
 
-    path = data.get("path", "").strip()
-    if not path:
-        return {"error": "Path is required."}, 400
-
-    path_obj = Path(path).expanduser()
-    if not path_obj.exists():
-        return {"error": f"Path does not exist: {path}"}, 400
+    scope = _parse_scope(data)
+    path_obj, err = _resolve_path(data.get("path", ""), scope)
+    if err:
+        return {"error": err}, 400
 
     registry = _registry()
     if name in registry.projects:
@@ -80,9 +98,13 @@ def create_project(data):
         path=str(path_obj),
         description=data.get("description", ""),
         language=data.get("language", "python"),
+        scope=scope,
         gitlab_project_id=data.get("gitlab_project_id") or None,
         gitlab_url=data.get("gitlab_url") or None,
         github_repo=data.get("github_repo") or None,
+        notes_dir=data.get("notes_dir") or None,
+        task_file=data.get("task_file") or None,
+        habit_file=data.get("habit_file") or None,
     )
 
     _regenerate_dashboard()
@@ -97,10 +119,10 @@ def update_project(name, data):
     project = registry.projects[name]
 
     # Update allowed fields
-    if "path" in data:
-        new_path = Path(data["path"]).expanduser()
-        if not new_path.exists():
-            return {"error": f"Path does not exist: {data['path']}"}, 400
+    if "path" in data and data["path"]:
+        new_path, err = _resolve_path(data["path"], project.scope)
+        if err:
+            return {"error": err}, 400
         project.path = new_path
 
     if "description" in data:
@@ -113,6 +135,12 @@ def update_project(name, data):
         project.gitlab_url = data["gitlab_url"] or None
     if "github_repo" in data:
         project.github_repo = data["github_repo"] or None
+    if "notes_dir" in data:
+        project.notes_dir = data["notes_dir"] or None
+    if "task_file" in data:
+        project.task_file = data["task_file"] or None
+    if "habit_file" in data:
+        project.habit_file = data["habit_file"] or None
 
     registry._save()
     _regenerate_dashboard()
