@@ -106,6 +106,11 @@ const API = {
         }
     },
 
+    // Load calendar events
+    async getCalendar() {
+        return await this.fetchJSON(CONFIG.API.CALENDAR);
+    },
+
     // Load a specific markdown report
     async getReport(path) {
         try {

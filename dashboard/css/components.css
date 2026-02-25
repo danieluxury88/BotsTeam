@@ -630,3 +630,171 @@
     border-radius: var(--radius-md);
     margin: var(--space-lg);
 }
+
+/* ============================================================
+   Calendar Component
+   ============================================================ */
+
+.calendar-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+}
+
+/* Controls bar */
+.calendar-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.calendar-controls h2 {
+    min-width: 200px;
+    text-align: center;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+}
+
+.cal-nav-btn {
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-size-lg);
+    cursor: pointer;
+    color: var(--color-text-primary);
+    min-width: 36px;
+    min-height: 36px;
+    transition: background var(--transition-fast);
+}
+
+.cal-nav-btn:hover {
+    background: var(--color-bg-secondary);
+}
+
+.calendar-controls .form-input {
+    width: auto;
+    min-width: 140px;
+}
+
+/* Calendar grid */
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.calendar-weekday {
+    background: var(--color-bg-secondary);
+    padding: var(--space-sm);
+    text-align: center;
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.calendar-day {
+    background: var(--color-bg-primary);
+    min-height: 96px;
+    padding: var(--space-xs) var(--space-sm);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    transition: background var(--transition-fast);
+}
+
+.calendar-day:hover {
+    background: var(--color-bg-secondary);
+}
+
+.calendar-day-empty {
+    background: var(--color-bg-secondary);
+    min-height: 96px;
+    opacity: 0.4;
+    cursor: default;
+}
+
+.calendar-day-number {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary);
+    line-height: 24px;
+    width: 24px;
+    text-align: center;
+}
+
+.calendar-day-today .calendar-day-number {
+    background: var(--color-primary);
+    color: white;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-day-selected {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+}
+
+/* Event badges inside day cells */
+.cal-event-badge {
+    font-size: 0.68rem;
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    color: white;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    cursor: pointer;
+}
+
+.cal-event-more {
+    font-size: 0.68rem;
+    color: var(--color-text-tertiary);
+    padding: 1px 4px;
+}
+
+/* Bot-specific badge colours */
+.cal-color-gitbot      { background: #3498db; }
+.cal-color-qabot       { background: #27ae60; }
+.cal-color-pmbot       { background: #9b59b6; }
+.cal-color-journalbot  { background: #f39c12; }
+.cal-color-taskbot     { background: #e67e22; }
+.cal-color-habitbot    { background: #e74c3c; }
+.cal-color-orchestrator { background: #95a5a6; }
+
+/* Future event type colours */
+.cal-color-issue_due     { background: #e74c3c; }
+.cal-color-issue_created { background: #3498db; }
+.cal-color-commit        { background: #27ae60; }
+.cal-color-journal_entry { background: #f39c12; }
+.cal-color-task          { background: #e67e22; }
+
+/* Day detail panel */
+.calendar-detail {
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+}
+
+.calendar-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-md);
+}
+
+.calendar-detail-header h3 {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+}
+

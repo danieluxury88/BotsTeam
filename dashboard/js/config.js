@@ -6,6 +6,7 @@ const CONFIG = {
         PROJECTS: 'data/projects.json',
         REPORTS_INDEX: 'data/index.json',
         BOTS: 'data/bots.json',
+        CALENDAR: 'data/calendar.json',
         PROJECTS_API: '/api/projects'
     },
     
@@ -26,6 +27,27 @@ const CONFIG = {
     // Pages call API.getBots() at init and set CONFIG.BOTS = await API.getBots().
     BOTS: [],
     
+    // Calendar event type metadata (extend as new sources are added)
+    CALENDAR_EVENT_TYPES: {
+        report_run:    { label: 'Bot Reports',  icon: '🤖' },
+        issue_due:     { label: 'Issue Due',     icon: '📌' },
+        issue_created: { label: 'Issue Created', icon: '🆕' },
+        commit:        { label: 'Commits',       icon: '📝' },
+        journal_entry: { label: 'Journal',       icon: '📓' },
+        task:          { label: 'Task',          icon: '✅' },
+    },
+
+    // CSS color class suffixes for calendar event badges (matches .cal-color-{key})
+    CALENDAR_COLORS: {
+        gitbot:      '#3498db',
+        qabot:       '#27ae60',
+        pmbot:       '#9b59b6',
+        journalbot:  '#f39c12',
+        taskbot:     '#e67e22',
+        habitbot:    '#e74c3c',
+        orchestrator:'#95a5a6',
+    },
+
     // Status configuration
     STATUS: {
         SUCCESS: { icon: '✅', color: 'success', label: 'Success' },

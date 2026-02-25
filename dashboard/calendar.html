@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="description" content="DevBots Dashboard - Reports">
-    <title>Reports - DevBots Dashboard</title>
+    <meta name="description" content="DevBots Dashboard - Calendar">
+    <title>Calendar - DevBots Dashboard</title>
 
     <!-- CSS -->
     <link rel="stylesheet" href="css/reset.css">
@@ -27,7 +27,7 @@
                 <a href="projects.html" class="nav-link">Projects</a>
                 <a href="bots.html" class="nav-link">Bots</a>
                 <a href="activity.html" class="nav-link">Activity</a>
-                <a href="calendar.html" class="nav-link">Calendar</a>
+                <a href="calendar.html" class="nav-link active" aria-current="page">Calendar</a>
             </nav>
             <div class="header-actions">
                 <button class="btn-icon" id="refresh-btn" aria-label="Refresh data" title="Refresh">
@@ -43,20 +43,46 @@
     <!-- Main Content -->
     <main class="main" role="main">
         <div class="container">
-            <section class="page-section" aria-label="Reports">
+            <section class="page-section" aria-label="Calendar">
                 <div class="section-header">
-                    <h2 class="section-title">Reports</h2>
-                    <div class="section-actions">
-                        <select id="filter-project" class="filter-select" aria-label="Filter by project">
+                    <h2 class="section-title">Calendar</h2>
+                </div>
+
+                <div class="calendar-wrapper" id="calendar-wrapper">
+                    <!-- Controls -->
+                    <div class="calendar-controls">
+                        <button class="cal-nav-btn" id="cal-prev" aria-label="Previous month">&#8249;</button>
+                        <h2 id="cal-heading">Loading…</h2>
+                        <button class="cal-nav-btn" id="cal-next" aria-label="Next month">&#8250;</button>
+
+                        <select id="cal-scope" class="form-input" aria-label="Filter by scope">
+                            <option value="">All Scopes</option>
+                            <option value="team">👥 Team</option>
+                            <option value="personal">👤 Personal</option>
+                        </select>
+
+                        <select id="cal-project" class="form-input" aria-label="Filter by project">
                             <option value="">All Projects</option>
                         </select>
-                        <select id="filter-bot" class="filter-select" aria-label="Filter by bot">
-                            <option value="">All Bots</option>
+
+                        <select id="cal-type" class="form-input" aria-label="Filter by event type">
+                            <option value="">All Events</option>
                         </select>
                     </div>
-                </div>
-                <div class="reports-list" id="reports-list">
-                    <div class="loading">Loading reports...</div>
+
+                    <!-- Calendar grid (rendered by JS) -->
+                    <div class="calendar-grid" id="calendar-grid" role="grid" aria-label="Calendar">
+                        <div class="loading">Loading calendar…</div>
+                    </div>
+
+                    <!-- Day detail panel -->
+                    <div class="calendar-detail" id="calendar-detail" hidden>
+                        <div class="calendar-detail-header">
+                            <h3 id="cal-detail-heading"></h3>
+                            <button class="btn-icon" id="cal-detail-close" aria-label="Close detail">&times;</button>
+                        </div>
+                        <div id="cal-detail-list" class="reports-list"></div>
+                    </div>
                 </div>
             </section>
         </div>
@@ -75,7 +101,7 @@
     <script src="js/api.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/components.js"></script>
-    <script src="js/reports.js"></script>
+    <script src="js/calendar.js"></script>
 
     <noscript>
         <div class="no-js-message">

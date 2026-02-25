@@ -6,6 +6,7 @@ Scans the data/ directory and projects registry to create index files
 
 import json
 import sys
+from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -23,11 +24,67 @@ _SHARED_PKG = REPO_ROOT / "shared"
 if str(_SHARED_PKG) not in sys.path:
     sys.path.insert(0, str(_SHARED_PKG))
 
-from shared.bot_registry import personal_bots, team_bots, all_bots, to_json as _bots_to_json  # noqa: E402
+from shared.bot_registry import personal_bots, team_bots, all_bots, to_json as _bots_to_json, BOTS as _BOT_REGISTRY  # noqa: E402
 
 TEAM_BOTS = team_bots()
 PERSONAL_BOTS = personal_bots()
 ALL_BOTS = all_bots()
+
+
+# ---------------------------------------------------------------------------
+# Calendar event abstraction
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CalendarEvent:
+    """A single event to display on the calendar."""
+    date: str        # "YYYY-MM-DD"
+    type: str        # "report_run" | future: "issue_due" | "commit" | "journal_entry"
+    title: str
+    project_id: str
+    scope: str       # "team" | "personal"
+    color: str       # CSS class suffix — matches .cal-color-{color}
+    meta: dict       # type-specific payload
+
+
+class ReportRunEventSource:
+    """Converts report index entries into CalendarEvents (one per report run)."""
+
+    def __init__(self, reports: List[Dict[str, Any]]):
+        self._reports = reports
+
+    def get_events(self) -> List[CalendarEvent]:
+        events = []
+        for report in self._reports:
+            timestamp = report.get("timestamp", "")
+            if not timestamp:
+                continue
+            date = timestamp[:10]  # "YYYY-MM-DD"
+            bot = report.get("bot", "")
+            project_name = report.get("project_name") or report.get("project_id", "")
+            bot_meta = _BOT_REGISTRY.get(bot)
+            bot_display = f"{bot_meta.icon} {bot_meta.name}" if bot_meta else bot
+            events.append(CalendarEvent(
+                date=date,
+                type="report_run",
+                title=f"{bot_display} · {project_name}",
+                project_id=report.get("project_id", ""),
+                scope=report.get("scope", "team"),
+                color=bot,  # matches .cal-color-{bot} CSS class
+                meta={
+                    "bot": bot,
+                    "status": report.get("status", ""),
+                    "summary": report.get("summary", "")[:150],
+                    "path": report.get("path", ""),
+                    "report_id": report.get("id", ""),
+                },
+            ))
+        return events
+
+# Future event sources (add here when bots export structured event data):
+# class IssueDueDateEventSource:   reads pmbot latest_events.json
+# class CommitActivityEventSource: reads gitbot latest_events.json
+# class JournalEntryEventSource:   reads journalbot latest_events.json
 
 
 class DashboardDataGenerator:
@@ -290,6 +347,28 @@ class DashboardDataGenerator:
             "last_updated": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
 
+    def generate_calendar_json(self) -> Dict[str, Any]:
+        """Generate calendar.json with all events from all sources."""
+        sources = [
+            ReportRunEventSource(self.reports),
+            # Future sources registered here:
+            # IssueDueDateEventSource(self.reports),
+            # CommitActivityEventSource(self.reports),
+        ]
+
+        all_events: List[CalendarEvent] = []
+        for source in sources:
+            all_events.extend(source.get_events())
+
+        all_events.sort(key=lambda e: e.date, reverse=True)
+        event_types = sorted({e.type for e in all_events})
+
+        return {
+            "events": [asdict(e) for e in all_events],
+            "event_types": event_types,
+            "last_updated": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
+
     def run(self):
         """Main execution"""
         print("🤖 DevBots Dashboard Data Generator")
@@ -317,6 +396,10 @@ class DashboardDataGenerator:
         print("\n📈 Generating dashboard.json...")
         dashboard_data = self.generate_dashboard_json()
         self.save_json("dashboard.json", dashboard_data)
+
+        print("\n📅 Generating calendar.json...")
+        calendar_data = self.generate_calendar_json()
+        self.save_json("calendar.json", calendar_data)
 
         print("\n✨ Done! Dashboard data generated successfully.")
         print(f"\n📊 Summary:")
