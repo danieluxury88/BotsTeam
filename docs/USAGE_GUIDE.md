@@ -49,7 +49,7 @@ uv run orchestrator chat
 Then type natural language requests:
 
 | What you type | What happens |
-|---|---|
+| --- | --- |
 | `get gitbot report for myproject` | Analyzes recent git commits and generates a summary |
 | `suggest tests for myproject` | Suggests tests based on recent code changes |
 | `analyze issues for myproject` | Analyzes open issues and finds patterns (needs GitLab/GitHub) |
@@ -59,7 +59,7 @@ Then type natural language requests:
 ### Chat Commands
 
 | Command | Action |
-|---|---|
+| --- | --- |
 | `/projects` | Show registered projects |
 | `/add` | Add a project interactively (step-by-step prompts) |
 | `/remove` | Remove a project |
@@ -72,6 +72,9 @@ You can also run each bot directly from the command line:
 ```bash
 # Git analysis
 uv run gitbot ~/Projects/myproject
+
+# Filter by date range
+uv run gitbot ~/Projects/myproject --since 2026-01-01 --until 2026-02-01
 
 # Test suggestions
 uv run qabot suggest ~/Projects/myproject
@@ -93,7 +96,7 @@ uv run pmbot plan --project-id 12345
 
 All reports are automatically saved when run through the orchestrator:
 
-```
+```text
 data/
 └── myproject/
     └── reports/
@@ -121,15 +124,13 @@ uv run dashboard --port 3000
 uv run dashboard generate
 ```
 
-Open http://localhost:8080 and navigate to:
+Open <http://localhost:8080> and navigate to:
 
 - **Dashboard** — Overview with summary stats
-- **Projects** — All registered projects with search
+- **Projects** — All registered projects with search; add/edit/delete via modal; run bots per-project
 - **Bots** — Bot status and report counts
 - **Activity** — Chronological feed of all reports
-- **Reports** — Filterable report list (by project or bot)
-
-Click any report to view it rendered with full markdown styling.
+- **Reports** — Filterable report list (by project or bot); click any report to view inline
 
 ## 5. Typical Workflow
 
@@ -160,16 +161,17 @@ uv run dashboard
 ### Environment Variables (`.env`)
 
 | Variable | Required | Description |
-|---|---|---|
+| --- | --- | --- |
 | `ANTHROPIC_API_KEY` | Yes | Your Anthropic API key |
 | `DEVBOTS_MODEL` | No | Default model (default: `claude-haiku-4-5-20251001`) |
-| `GITLAB_TOKEN` | For pmbot | GitLab personal access token |
+| `GITLAB_TOKEN` | For pmbot (GitLab) | GitLab personal access token |
 | `GITLAB_URL` | No | GitLab URL (default: `https://gitlab.com`) |
-| `GITHUB_TOKEN` | For GitHub | GitHub personal access token |
+| `GITHUB_TOKEN` | For pmbot (GitHub) | GitHub personal access token |
+| `GITHUB_API_URL` | No | GitHub API URL (default: `https://api.github.com`) |
 
 ### Project Registry
 
-Projects are stored in `~/.devbot/projects.json`. You manage them with:
+Projects are stored in `data/projects.json` (repo-local). You manage them with:
 
 ```bash
 uv run orchestrator add <name> <path> [options]
@@ -182,10 +184,11 @@ uv run orchestrator projects
 **"Project not found"** — Check the project name matches exactly: `uv run orchestrator projects`
 
 **pmbot says "requires GitLab integration"** — Re-add the project with `--gitlab-id`:
+
 ```bash
 uv run orchestrator add myproject ~/Projects/myproject --gitlab-id 12345
 ```
 
 **Dashboard shows no data** — Regenerate: `uv run dashboard generate`
 
-**Reports not appearing in dashboard** — Reports are only auto-saved when run through the orchestrator chat, not when running bots directly.
+**Reports not appearing in dashboard** — Reports are only auto-saved when run through the orchestrator chat or the dashboard's "Generate Reports" button, not when running bots directly from the CLI.

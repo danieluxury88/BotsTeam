@@ -44,6 +44,9 @@ uv run orchestrator chat
 # Get AI summary of recent changes
 uv run gitbot . --max-commits 50
 
+# Filter by date range
+uv run gitbot . --since 2026-01-01 --until 2026-02-01
+
 # Save report to file
 uv run gitbot /path/to/project --output report.md
 ```
@@ -137,7 +140,7 @@ Each bot:
 - Can be called via CLI or programmatically
 - Uses the same Claude client and configuration
 
-**Project Registry:** Projects are registered in `~/.devbot/projects.json` with paths, GitLab/GitHub metadata, and integration settings.
+**Project Registry:** Projects are registered in `data/projects.json` (repo-local) with paths, GitLab/GitHub metadata, and integration settings.
 
 ### 📊 Visual Architecture
 
@@ -159,8 +162,8 @@ Set up your `.env` file in the workspace root:
 | `DEVBOTS_MODEL` | `claude-haiku-4-5-20251001` | Claude model to use (all bots) |
 | `GITLAB_TOKEN` | — | Your GitLab personal access token (global fallback) |
 | `GITLAB_URL` | `https://gitlab.com` | GitLab instance URL (for self-hosted) |
-| `GITLAB_PROJECT_ID` | — | Default GitLab project ID (can override per-project) |
-| `GITHUB_TOKEN` | — | GitHub token (future support) |
+| `GITHUB_TOKEN` | — | GitHub personal access token |
+| `GITHUB_API_URL` | `https://api.github.com` | GitHub API URL (for GitHub Enterprise) |
 
 **Per-Project Configuration:**
 When adding projects to the orchestrator, you can specify per-project credentials:
@@ -203,6 +206,7 @@ Each bot has its own README with detailed usage:
 
 - [x] Export report to Markdown file
 - [x] Programmatic API for other bots
+- [x] Date range filtering (`--since` / `--until`)
 - [ ] Compare two branches
 - [ ] GitHub Actions integration
 
@@ -230,20 +234,22 @@ Each bot has its own README with detailed usage:
 - [x] Conversational interface with Claude
 - [x] Bot invocation (gitbot, qabot, pmbot)
 - [x] Auto-saving reports to project data directories
+- [x] Project CRUD via REST API and dashboard UI
 - [ ] Multi-bot workflows (gitbot → qabot pipeline)
 - [ ] Slack/Discord integration
-- [ ] Report viewing/management CLI commands
+- [ ] Personal context / scoped workspaces
 
 ### Visual Dashboard
 
-- [x] Design documentation and planning
-- [x] HTML/CSS implementation
+- [x] HTML/CSS/JS implementation (no frameworks)
 - [x] Data generation scripts
 - [x] Touch-friendly UI
 - [x] Dark mode support
-- [ ] Report viewer
+- [x] In-page markdown report viewer
+- [x] Per-project report generation from Projects page
+- [ ] Context filter (personal / team)
 
-See [Dashboard Documentation](docs/DASHBOARD.md) for complete design specifications.
+See [Dashboard Documentation](docs/DASHBOARD.md) for details.
 
 ## 📄 License
 
