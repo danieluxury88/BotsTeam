@@ -180,6 +180,7 @@ def run_server(port=PORT):
     dashboard_dir = Path(__file__).parent
     os.chdir(dashboard_dir)
 
+    socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", port), DashboardHandler) as httpd:
         print("=" * 60)
         print("🤖 DevBots Dashboard Server")

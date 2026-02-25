@@ -1,4 +1,4 @@
-"""Bot invoker — calls gitbot, qabot, and pmbot programmatically."""
+"""Bot invoker — calls all bots programmatically."""
 
 from pathlib import Path
 from typing import Literal
@@ -6,19 +6,22 @@ from typing import Literal
 from gitbot.analyzer import get_bot_result as gitbot_get_result
 from qabot.analyzer import get_bot_result as qabot_get_result
 from project_manager.analyzer import get_bot_result as pmbot_get_result
-from shared.models import BotResult, IssueSet
+from journalbot.analyzer import get_bot_result as journalbot_get_result
+from taskbot.analyzer import get_bot_result as taskbot_get_result
+from habitbot.analyzer import get_bot_result as habitbot_get_result
+from shared.models import BotResult, IssueSet, ProjectScope
 from shared.gitlab_client import fetch_issues as gitlab_fetch_issues
 from shared.github_client import fetch_issues as github_fetch_issues
 
 
-BotName = Literal["gitbot", "qabot", "pmbot"]
+BotName = Literal["gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot"]
 
 
 def invoke_bot(
     bot_name: BotName,
     project: "Project | None" = None,
-    repo_path: Path | str | None = None,  # Legacy
-    project_id: str | None = None,  # Legacy
+    repo_path: Path | str | None = None,   # Legacy
+    project_id: str | None = None,          # Legacy
     max_commits: int = 300,
     model: str | None = None,
     pmbot_mode: str = "analyze",
@@ -29,23 +32,78 @@ def invoke_bot(
     Invoke a bot programmatically.
 
     Args:
-        bot_name: Which bot to invoke ("gitbot", "qabot", or "pmbot")
-        project: Project object (preferred - contains all metadata)
-        repo_path: Path to repository (legacy - for gitbot/qabot)
-        project_id: GitLab project ID (legacy - for pmbot)
+        bot_name: Which bot to invoke
+        project: Project object (preferred — contains path, scope, data sources)
+        repo_path: Path to repository (legacy fallback for gitbot/qabot)
+        project_id: GitLab project ID (legacy fallback for pmbot)
         max_commits: Max commits to analyze (gitbot/qabot)
         model: Optional Claude model override
-        pmbot_mode: Mode for pmbot - "analyze" or "plan"
-        since: Only commits after this date (gitbot)
-        until: Only commits before this date (gitbot)
+        pmbot_mode: "analyze" or "plan" (pmbot only)
+        since: Only commits after this date, ISO format (gitbot)
+        until: Only commits before this date, ISO format (gitbot)
 
     Returns:
         BotResult with the bot's analysis
     """
     from orchestrator.registry import Project
 
-    if bot_name in ["gitbot", "qabot"]:
-        # Extract repo_path from project or use legacy parameter
+    scope = project.scope if project else ProjectScope.TEAM
+
+    # ── Personal bots ─────────────────────────────────────────────────────────
+
+    if bot_name == "journalbot":
+        if not project:
+            return BotResult(
+                bot_name="journalbot", status="error",
+                summary="journalbot requires a registered project with notes_dir configured",
+                data={"error": "missing_project"}, markdown_report="",
+            )
+        notes_path = Path(project.notes_dir) if project.notes_dir else project.path
+        return journalbot_get_result(
+            notes_path,
+            model=model,
+            project_name=project.name,
+            scope=scope,
+        )
+
+    if bot_name == "taskbot":
+        if not project:
+            return BotResult(
+                bot_name="taskbot", status="error",
+                summary="taskbot requires a registered project with task_file configured",
+                data={"error": "missing_project"}, markdown_report="",
+            )
+        task_path = Path(project.task_file) if project.task_file else project.path
+        return taskbot_get_result(
+            task_path,
+            model=model,
+            project_name=project.name,
+            scope=scope,
+        )
+
+    if bot_name == "habitbot":
+        if not project:
+            return BotResult(
+                bot_name="habitbot", status="error",
+                summary="habitbot requires a registered project with habit_file configured",
+                data={"error": "missing_project"}, markdown_report="",
+            )
+        if not project.habit_file:
+            return BotResult(
+                bot_name="habitbot", status="error",
+                summary=f"Project '{project.name}' has no habit_file configured",
+                data={"error": "missing_habit_file"}, markdown_report="",
+            )
+        return habitbot_get_result(
+            Path(project.habit_file),
+            model=model,
+            project_name=project.name,
+            scope=scope,
+        )
+
+    # ── Team bots ─────────────────────────────────────────────────────────────
+
+    if bot_name in ("gitbot", "qabot"):
         if project:
             repo_path = project.path
 
@@ -73,7 +131,7 @@ def invoke_bot(
                 since=since,
                 until=until,
             )
-        elif bot_name == "qabot":
+        else:
             return qabot_get_result(
                 repo_path,
                 max_commits=max_commits,
@@ -81,13 +139,11 @@ def invoke_bot(
                 project_name=project.name if project else None,
             )
 
-    elif bot_name == "pmbot":
-        # Determine issue source: GitLab or GitHub
+    if bot_name == "pmbot":
         issue_set: IssueSet | None = None
 
         if project:
             if project.has_gitlab():
-                # GitLab path
                 gitlab_token = project.get_gitlab_token()
                 if not gitlab_token:
                     return BotResult(
@@ -109,7 +165,6 @@ def invoke_bot(
                     )
 
             elif project.has_github():
-                # GitHub path
                 github_token = project.get_github_token()
                 if not github_token:
                     return BotResult(
@@ -138,7 +193,6 @@ def invoke_bot(
                 )
 
         else:
-            # Legacy mode — GitLab only via project_id parameter
             if not project_id:
                 return BotResult(
                     bot_name=bot_name, status="error",
@@ -160,25 +214,22 @@ def invoke_bot(
             project_name=project.name if project else None,
         )
 
-    else:
-        return BotResult(
-            bot_name=bot_name, status="error",
-            summary=f"Unknown bot: {bot_name}",
-            data={"error": "unknown_bot"}, markdown_report="",
-        )
+    return BotResult(
+        bot_name=bot_name, status="error",
+        summary=f"Unknown bot: {bot_name}",
+        data={"error": "unknown_bot"}, markdown_report="",
+    )
 
 
+# ── Convenience functions ─────────────────────────────────────────────────────
 
 def invoke_gitbot(repo_path: Path | str, max_commits: int = 300) -> BotResult:
-    """Convenience function to invoke gitbot."""
     return invoke_bot("gitbot", repo_path=repo_path, max_commits=max_commits)
 
 
 def invoke_qabot(repo_path: Path | str, max_commits: int = 50) -> BotResult:
-    """Convenience function to invoke qabot."""
     return invoke_bot("qabot", repo_path=repo_path, max_commits=max_commits)
 
 
 def invoke_pmbot(project_id: str, mode: str = "analyze") -> BotResult:
-    """Convenience function to invoke pmbot."""
     return invoke_bot("pmbot", project_id=project_id, pmbot_mode=mode)

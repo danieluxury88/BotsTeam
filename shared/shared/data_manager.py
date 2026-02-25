@@ -1,14 +1,16 @@
 """Data management utilities for DevBots projects.
 
 Provides centralized utilities for managing project data storage including
-reports, cache, and metadata.
+reports, cache, and metadata. Supports both team and personal project scopes.
 """
 
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-BotType = Literal["gitbot", "qabot", "pmbot"]
+from shared.models import ProjectScope
+
+BotType = Literal["gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot", "orchestrator"]
 
 
 def get_workspace_root() -> Path:
@@ -22,88 +24,114 @@ def get_data_root() -> Path:
     return get_workspace_root() / "data"
 
 
+def get_personal_root() -> Path:
+    """Get the root data directory for personal projects (data/personal/)."""
+    return get_data_root() / "personal"
+
+
 def get_registry_path() -> Path:
-    """Get the path to the project registry file (data/projects.json)."""
+    """Get the path to the team project registry (data/projects.json)."""
     return get_data_root() / "projects.json"
 
 
-def get_project_data_dir(project_name: str) -> Path:
-    """Get the data directory for a specific project."""
+def get_personal_registry_path() -> Path:
+    """Get the path to the personal project registry (data/personal/projects.json)."""
+    return get_personal_root() / "projects.json"
+
+
+def get_project_data_dir(
+    project_name: str,
+    scope: ProjectScope = ProjectScope.TEAM,
+) -> Path:
+    """
+    Get the data directory for a specific project.
+
+    Team:     data/{project_name}/
+    Personal: data/personal/{project_name}/
+    """
+    if scope == ProjectScope.PERSONAL:
+        return get_personal_root() / project_name
     return get_data_root() / project_name
 
 
-def get_reports_dir(project_name: str, bot: BotType | None = None) -> Path:
+def get_reports_dir(
+    project_name: str,
+    bot: BotType | None = None,
+    scope: ProjectScope = ProjectScope.TEAM,
+) -> Path:
     """
     Get the reports directory for a project.
 
     Args:
         project_name: Name of the project
-        bot: Optional bot type to get specific bot's report directory
-
-    Returns:
-        Path to reports directory (or bot-specific subdirectory)
+        bot: Optional bot name to get the bot-specific subdirectory
+        scope: Team or personal context
     """
-    reports_dir = get_project_data_dir(project_name) / "reports"
+    reports_dir = get_project_data_dir(project_name, scope) / "reports"
     if bot:
         return reports_dir / bot
     return reports_dir
 
 
-def get_cache_dir(project_name: str) -> Path:
+def get_cache_dir(
+    project_name: str,
+    scope: ProjectScope = ProjectScope.TEAM,
+) -> Path:
     """Get the cache directory for a project."""
-    return get_project_data_dir(project_name) / "cache"
+    return get_project_data_dir(project_name, scope) / "cache"
 
 
 def get_report_path(
     project_name: str,
     bot: BotType,
     variant: Literal["latest", "timestamped"] = "latest",
+    scope: ProjectScope = ProjectScope.TEAM,
 ) -> Path:
     """
     Get the path for a bot report.
 
     Args:
         project_name: Name of the project
-        bot: Bot type (gitbot, qabot, pmbot)
+        bot: Bot name
         variant: "latest" for latest.md or "timestamped" for dated file
-
-    Returns:
-        Path to the report file
+        scope: Team or personal context
     """
-    bot_reports_dir = get_reports_dir(project_name, bot)
+    bot_reports_dir = get_reports_dir(project_name, bot, scope)
 
     if variant == "latest":
         return bot_reports_dir / "latest.md"
     else:
-        # timestamped: 2024-02-14-103045.md
         timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
         return bot_reports_dir / f"{timestamp}.md"
 
 
-def ensure_project_structure(project_name: str) -> None:
+def ensure_project_structure(
+    project_name: str,
+    scope: ProjectScope = ProjectScope.TEAM,
+    bots: list[str] | None = None,
+) -> None:
     """
     Ensure the complete data directory structure exists for a project.
 
-    Creates:
-    - data/{project_name}/
-    - data/{project_name}/reports/{gitbot,qabot,pmbot}/
-    - data/{project_name}/cache/
+    Args:
+        project_name: Name of the project
+        scope: Team or personal context (determines data root)
+        bots: Bot names to create report directories for (defaults to all known bots)
     """
-    project_dir = get_project_data_dir(project_name)
-
-    # Create main directories
+    project_dir = get_project_data_dir(project_name, scope)
     project_dir.mkdir(parents=True, exist_ok=True)
-    get_cache_dir(project_name).mkdir(parents=True, exist_ok=True)
+    get_cache_dir(project_name, scope).mkdir(parents=True, exist_ok=True)
 
-    # Create bot report directories
-    for bot in ["gitbot", "qabot", "pmbot"]:
-        get_reports_dir(project_name, bot).mkdir(parents=True, exist_ok=True)  # type: ignore
+    default_bots = bots or ["gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot", "orchestrator"]
+    for bot in default_bots:
+        get_reports_dir(project_name, bot, scope).mkdir(parents=True, exist_ok=True)  # type: ignore
 
 
 def save_report(
     project_name: str,
     bot: BotType,
     content: str,
+    scope: ProjectScope = ProjectScope.TEAM,
     save_latest: bool = True,
     save_timestamped: bool = True,
 ) -> tuple[Path, Path | None]:
@@ -112,65 +140,64 @@ def save_report(
 
     Args:
         project_name: Name of the project
-        bot: Bot type
+        bot: Bot name
         content: Markdown content of the report
+        scope: Team or personal context
         save_latest: Whether to save as latest.md
         save_timestamped: Whether to save timestamped version
 
     Returns:
         Tuple of (latest_path, timestamped_path)
     """
-    ensure_project_structure(project_name)
+    ensure_project_structure(project_name, scope, bots=[bot])
 
     latest_path = None
     timestamped_path = None
 
     if save_latest:
-        latest_path = get_report_path(project_name, bot, "latest")
+        latest_path = get_report_path(project_name, bot, "latest", scope)
         latest_path.write_text(content, encoding="utf-8")
 
     if save_timestamped:
-        timestamped_path = get_report_path(project_name, bot, "timestamped")
+        timestamped_path = get_report_path(project_name, bot, "timestamped", scope)
         timestamped_path.write_text(content, encoding="utf-8")
 
     return (latest_path or Path(), timestamped_path)
 
 
-def get_cached_file(project_name: str, filename: str) -> Path:
-    """
-    Get path to a cached file for a project.
-
-    Args:
-        project_name: Name of the project
-        filename: Name of the cache file
-
-    Returns:
-        Path to the cache file
-    """
-    return get_cache_dir(project_name) / filename
+def get_cached_file(
+    project_name: str,
+    filename: str,
+    scope: ProjectScope = ProjectScope.TEAM,
+) -> Path:
+    """Get path to a cached file for a project."""
+    return get_cache_dir(project_name, scope) / filename
 
 
-def list_reports(project_name: str, bot: BotType | None = None) -> list[Path]:
+def list_reports(
+    project_name: str,
+    bot: BotType | None = None,
+    scope: ProjectScope = ProjectScope.TEAM,
+) -> list[Path]:
     """
     List all report files for a project.
 
     Args:
         project_name: Name of the project
-        bot: Optional bot type to filter reports
+        bot: Optional bot name to filter reports
+        scope: Team or personal context
 
     Returns:
-        List of report file paths
+        List of report file paths sorted newest first
     """
-    reports_dir = get_reports_dir(project_name, bot)
+    reports_dir = get_reports_dir(project_name, bot, scope)
 
     if not reports_dir.exists():
         return []
 
     if bot:
-        # Return all .md files in bot-specific directory
         return sorted(reports_dir.glob("*.md"), reverse=True)
     else:
-        # Return all .md files from all bot directories
         all_reports = []
         for bot_dir in reports_dir.iterdir():
             if bot_dir.is_dir():

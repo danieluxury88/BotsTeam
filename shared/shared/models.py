@@ -10,6 +10,14 @@ from pathlib import Path
 from typing import Any, Literal
 
 
+# ── Scope Enum ───────────────────────────────────────────────────────────────
+
+class ProjectScope(str, Enum):
+    """Whether a project belongs to the team or personal context."""
+    TEAM = "team"
+    PERSONAL = "personal"
+
+
 # ── Status Enums ─────────────────────────────────────────────────────────────
 
 class BotStatus(str, Enum):
