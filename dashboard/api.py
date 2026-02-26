@@ -16,6 +16,7 @@ for _pkg in (ORCHESTRATOR_PKG, SHARED_PKG):
 from orchestrator.registry import ProjectRegistry  # noqa: E402
 from generate_data import DashboardDataGenerator  # noqa: E402
 from shared.bot_registry import all_bots as _all_bots  # noqa: E402
+from shared.data_manager import get_notes_dir  # noqa: E402
 from shared.models import ProjectScope  # noqa: E402
 
 NAME_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*$')
@@ -215,3 +216,156 @@ def generate_reports(name, data):
 
     _regenerate_dashboard()
     return {"results": results, "completed": completed, "failed": failed}, 200
+
+
+# ── Notes CRUD ────────────────────────────────────────────────────────────────
+
+_NOTE_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9 _-]*\.md$')
+
+
+def _validate_note_filename(filename: str) -> str | None:
+    """Return an error string if the filename is invalid, else None."""
+    if not filename:
+        return "Filename is required."
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return "Filename must not contain path separators."
+    if not _NOTE_NAME_PATTERN.match(filename):
+        return "Filename must end in .md and contain only letters, digits, spaces, hyphens, or underscores."
+    return None
+
+
+def _resolve_note_path(project_name: str, filename: str):
+    """
+    Resolve (notes_dir, note_path, error) for a project note.
+    Returns (notes_dir, note_path, None) on success or (None, None, error_string).
+    """
+    registry = _registry()
+    if project_name not in registry.projects:
+        return None, None, f"Project '{project_name}' not found."
+
+    project = registry.projects[project_name]
+    notes_dir = get_notes_dir(project_name, project.scope)
+    notes_dir.mkdir(parents=True, exist_ok=True)
+
+    err = _validate_note_filename(filename)
+    if err:
+        return None, None, err
+
+    note_path = notes_dir / filename
+    # Security: ensure resolved path is still inside notes_dir
+    try:
+        note_path.resolve().relative_to(notes_dir.resolve())
+    except ValueError:
+        return None, None, "Invalid file path."
+
+    return notes_dir, note_path, None
+
+
+def _note_to_dict(note_path: Path) -> dict:
+    stat = note_path.stat()
+    return {
+        "filename": note_path.name,
+        "modified": stat.st_mtime,
+        "size_bytes": stat.st_size,
+    }
+
+
+def list_notes(project_name: str) -> dict:
+    registry = _registry()
+    if project_name not in registry.projects:
+        return {"error": f"Project '{project_name}' not found."}, 404
+
+    project = registry.projects[project_name]
+    notes_dir = get_notes_dir(project_name, project.scope)
+    notes_dir.mkdir(parents=True, exist_ok=True)
+
+    files = sorted(notes_dir.glob("*.md"), key=lambda f: f.stat().st_mtime, reverse=True)
+    return {"notes": [_note_to_dict(f) for f in files]}
+
+
+def get_note(project_name: str, filename: str) -> dict:
+    notes_dir, note_path, err = _resolve_note_path(project_name, filename)
+    if err:
+        return {"error": err}, 404
+
+    if not note_path.exists():
+        return {"error": f"Note '{filename}' not found."}, 404
+
+    return {
+        "filename": filename,
+        "content": note_path.read_text(encoding="utf-8"),
+        "modified": note_path.stat().st_mtime,
+    }
+
+
+def create_note(project_name: str, data: dict) -> tuple:
+    name = (data.get("name") or "").strip()
+    if not name:
+        return {"error": "Note name is required."}, 400
+
+    # Ensure .md extension
+    if not name.endswith(".md"):
+        name = name + ".md"
+
+    notes_dir, note_path, err = _resolve_note_path(project_name, name)
+    if err:
+        return {"error": err}, 400
+
+    if note_path.exists():
+        return {"error": f"Note '{name}' already exists."}, 409
+
+    content = data.get("content", "")
+    note_path.write_text(content, encoding="utf-8")
+    _regenerate_dashboard()
+    return {**_note_to_dict(note_path), "content": content}, 201
+
+
+def update_note(project_name: str, filename: str, data: dict) -> tuple:
+    notes_dir, note_path, err = _resolve_note_path(project_name, filename)
+    if err:
+        return {"error": err}, 400
+
+    if not note_path.exists():
+        return {"error": f"Note '{filename}' not found."}, 404
+
+    content = data.get("content", "")
+    note_path.write_text(content, encoding="utf-8")
+    _regenerate_dashboard()
+    return {**_note_to_dict(note_path), "content": content}, 200
+
+
+def delete_note(project_name: str, filename: str) -> tuple:
+    notes_dir, note_path, err = _resolve_note_path(project_name, filename)
+    if err:
+        return {"error": err}, 400
+
+    if not note_path.exists():
+        return {"error": f"Note '{filename}' not found."}, 404
+
+    note_path.unlink()
+    _regenerate_dashboard()
+    return {"deleted": filename}, 200
+
+
+def improve_note_api(project_name: str, filename: str) -> tuple:
+    """Call NoteBot to improve a note's content. Returns suggested text without saving."""
+    notes_dir, note_path, err = _resolve_note_path(project_name, filename)
+    if err:
+        return {"error": err}, 400
+
+    if not note_path.exists():
+        return {"error": f"Note '{filename}' not found."}, 404
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return {"error": "ANTHROPIC_API_KEY is not set."}, 400
+
+    try:
+        NOTEBOT_PKG = REPO_ROOT / "bots" / "notebot"
+        if str(NOTEBOT_PKG) not in sys.path:
+            sys.path.insert(0, str(NOTEBOT_PKG))
+        from notebot.analyzer import improve_note  # noqa: E402
+        content = note_path.read_text(encoding="utf-8")
+        improved = improve_note(content, title=filename)
+        return {"improved": improved}, 200
+    except Exception as e:
+        return {"error": f"Improve failed: {e}"}, 500

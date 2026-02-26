@@ -111,6 +111,55 @@ const API = {
         return await this.fetchJSON(CONFIG.API.CALENDAR);
     },
 
+    // ── Notes API ──────────────────────────────────────────────────────────────
+
+    _notesUrl(projectName, filename) {
+        const base = `${CONFIG.API.PROJECTS_API}/${encodeURIComponent(projectName)}/notes`;
+        return filename ? `${base}/${encodeURIComponent(filename)}` : base;
+    },
+
+    async listNotes(projectName) {
+        return await this.fetchJSON(this._notesUrl(projectName, null));
+    },
+
+    async getNote(projectName, filename) {
+        return await this.fetchJSON(this._notesUrl(projectName, filename));
+    },
+
+    async createNote(projectName, name, content) {
+        return await this._mutate(this._notesUrl(projectName, null), 'POST', { name, content });
+    },
+
+    async updateNote(projectName, filename, content) {
+        return await this._mutate(this._notesUrl(projectName, filename), 'PUT', { content });
+    },
+
+    async deleteNote(projectName, filename) {
+        return await this._mutate(this._notesUrl(projectName, filename), 'DELETE');
+    },
+
+    async improveNote(projectName, filename) {
+        const url = `${this._notesUrl(projectName, filename)}/improve`;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout for AI
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+                signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            const data = await response.json();
+            if (!response.ok) return { error: data.error || `HTTP ${response.status}`, status: response.status };
+            return { data, status: response.status };
+        } catch (error) {
+            clearTimeout(timeout);
+            if (error.name === 'AbortError') return { error: 'Request timed out.', status: 0 };
+            return { error: error.message, status: 0 };
+        }
+    },
+
     // Load a specific markdown report
     async getReport(path) {
         try {

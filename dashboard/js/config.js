@@ -45,6 +45,7 @@ const CONFIG = {
         journalbot:  '#f39c12',
         taskbot:     '#e67e22',
         habitbot:    '#e74c3c',
+        notebot:     '#8B5CF6',
         orchestrator:'#95a5a6',
     },
 

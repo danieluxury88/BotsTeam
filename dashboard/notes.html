@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="DevBots Dashboard - Notes">
+    <title>Notes - DevBots Dashboard</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/report-viewer.css">
+    <link rel="stylesheet" href="css/responsive.css">
+
+    <style>
+        /* Notes page layout */
+        .notes-layout {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            gap: var(--space-lg);
+            align-items: start;
+        }
+
+        /* Sidebar — note list */
+        .notes-sidebar {
+            background: var(--color-bg-primary);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .notes-sidebar-header {
+            padding: var(--space-md);
+            border-bottom: 1px solid var(--color-border);
+            background: var(--color-bg-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-sm);
+        }
+
+        .notes-sidebar-title {
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .notes-list {
+            list-style: none;
+            max-height: calc(100vh - 260px);
+            overflow-y: auto;
+        }
+
+        .notes-list-empty {
+            padding: var(--space-xl) var(--space-md);
+            text-align: center;
+            color: var(--color-text-tertiary);
+            font-size: var(--font-size-sm);
+        }
+
+        .note-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--color-border);
+            cursor: pointer;
+            transition: background var(--transition-base);
+        }
+
+        .note-item:last-child {
+            border-bottom: none;
+        }
+
+        .note-item:hover {
+            background: var(--color-bg-secondary);
+        }
+
+        .note-item.active {
+            background: var(--color-bg-tertiary);
+        }
+
+        .note-item-icon {
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .note-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .note-item-name {
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--color-text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .note-item-date {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-tertiary);
+        }
+
+        .note-item-delete {
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--color-text-tertiary);
+            font-size: 1rem;
+            padding: 2px 4px;
+            border-radius: var(--radius-sm);
+            opacity: 0;
+            transition: opacity var(--transition-base), color var(--transition-base);
+        }
+
+        .note-item:hover .note-item-delete {
+            opacity: 1;
+        }
+
+        .note-item-delete:hover {
+            color: var(--color-error);
+            background: rgba(231, 76, 60, 0.1);
+        }
+
+        /* Editor area */
+        .notes-editor-area {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        .notes-editor-toolbar {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            flex-wrap: wrap;
+        }
+
+        .notes-filename-display {
+            font-size: var(--font-size-lg);
+            font-weight: var(--font-weight-semibold);
+            color: var(--color-text-primary);
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .notes-filename-display.placeholder {
+            color: var(--color-text-tertiary);
+            font-weight: var(--font-weight-normal);
+            font-style: italic;
+        }
+
+        /* Split pane */
+        .notes-split-pane {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-md);
+            height: calc(100vh - 300px);
+            min-height: 400px;
+        }
+
+        .notes-pane {
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .notes-pane-header {
+            padding: var(--space-sm) var(--space-md);
+            background: var(--color-bg-secondary);
+            border-bottom: 1px solid var(--color-border);
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-semibold);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-secondary);
+        }
+
+        .notes-textarea {
+            flex: 1;
+            width: 100%;
+            padding: var(--space-md);
+            border: none;
+            outline: none;
+            resize: none;
+            font-family: var(--font-family-mono);
+            font-size: var(--font-size-sm);
+            line-height: var(--line-height-relaxed);
+            background: var(--color-bg-primary);
+            color: var(--color-text-primary);
+        }
+
+        .notes-preview {
+            flex: 1;
+            padding: var(--space-md);
+            overflow-y: auto;
+            background: var(--color-bg-primary);
+        }
+
+        /* Reuse report-viewer-content styles for the preview */
+        .notes-preview.report-viewer-content {
+            border: none;
+            border-radius: 0;
+            max-width: none;
+            padding: var(--space-md);
+        }
+
+        .notes-preview-empty {
+            color: var(--color-text-tertiary);
+            font-style: italic;
+            font-size: var(--font-size-sm);
+        }
+
+        /* Improve modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-lg);
+        }
+
+        .modal-overlay.hidden {
+            display: none;
+        }
+
+        .modal-box {
+            background: var(--color-bg-primary);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            width: 100%;
+            max-width: 800px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: var(--space-lg);
+            border-bottom: 1px solid var(--color-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: var(--font-size-xl);
+            font-weight: var(--font-weight-semibold);
+        }
+
+        .modal-body {
+            padding: var(--space-lg);
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-footer {
+            padding: var(--space-md) var(--space-lg);
+            border-top: 1px solid var(--color-border);
+            display: flex;
+            gap: var(--space-sm);
+            justify-content: flex-end;
+        }
+
+        .improve-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-md);
+        }
+
+        .improve-pane-label {
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-semibold);
+            margin-bottom: var(--space-sm);
+            color: var(--color-text-secondary);
+        }
+
+        .improve-pane-content {
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            font-family: var(--font-family-mono);
+            font-size: var(--font-size-sm);
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+            background: var(--color-bg-secondary);
+            color: var(--color-text-primary);
+        }
+
+        .improve-pane-content.preview {
+            font-family: var(--font-family-base);
+            white-space: normal;
+        }
+
+        /* Unsaved indicator */
+        .unsaved-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--color-warning);
+            margin-left: var(--space-xs);
+            vertical-align: middle;
+        }
+
+        .unsaved-dot.hidden {
+            display: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .notes-layout {
+                grid-template-columns: 1fr;
+            }
+            .notes-split-pane {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            .improve-comparison {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" role="banner">
+        <div class="header-content">
+            <div class="header-brand">
+                <span class="header-logo">🤖</span>
+                <h1 class="header-title">DevBots Dashboard</h1>
+            </div>
+            <nav class="header-nav" role="navigation" aria-label="Main navigation">
+                <a href="index.html" class="nav-link">Dashboard</a>
+                <a href="projects.html" class="nav-link">Projects</a>
+                <a href="bots.html" class="nav-link">Bots</a>
+                <a href="activity.html" class="nav-link">Activity</a>
+                <a href="reports.html" class="nav-link">Reports</a>
+                <a href="calendar.html" class="nav-link">Calendar</a>
+                <a href="notes.html" class="nav-link active" aria-current="page">Notes</a>
+            </nav>
+            <div class="header-actions">
+                <button class="btn-icon" id="refresh-btn" aria-label="Refresh notes" title="Refresh">
+                    <span class="icon">🔄</span>
+                </button>
+                <button class="btn-icon" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+                    <span class="icon">☀️</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main" role="main">
+        <div class="container">
+            <!-- Page header -->
+            <section class="page-section" aria-label="Notes">
+                <div class="section-header">
+                    <h2 class="section-title">📝 Notes</h2>
+                    <div class="section-actions">
+                        <select id="project-select" class="filter-select" aria-label="Select project">
+                            <option value="">Select a project…</option>
+                        </select>
+                        <button id="btn-new-note" class="btn btn-primary" disabled>+ New Note</button>
+                        <button id="btn-analyse" class="btn btn-secondary" disabled title="Run NoteBot AI analysis on all notes">🤖 Analyse Notes</button>
+                    </div>
+                </div>
+
+                <!-- Notes layout -->
+                <div class="notes-layout" id="notes-layout">
+                    <!-- Sidebar -->
+                    <aside class="notes-sidebar">
+                        <div class="notes-sidebar-header">
+                            <span class="notes-sidebar-title">Notes</span>
+                            <span id="notes-count" class="text-muted" style="font-size:var(--font-size-xs)"></span>
+                        </div>
+                        <ul class="notes-list" id="notes-list">
+                            <li class="notes-list-empty" id="notes-empty-state">Select a project to view notes.</li>
+                        </ul>
+                    </aside>
+
+                    <!-- Editor -->
+                    <div class="notes-editor-area" id="notes-editor-area">
+                        <div class="notes-editor-toolbar">
+                            <span class="notes-filename-display placeholder" id="notes-filename">No note selected</span>
+                            <span class="unsaved-dot hidden" id="unsaved-dot" title="Unsaved changes"></span>
+                            <button id="btn-save" class="btn btn-primary" disabled>Save</button>
+                            <button id="btn-improve" class="btn btn-secondary" disabled title="Improve this note with AI">✨ Improve with AI</button>
+                        </div>
+
+                        <div class="notes-split-pane">
+                            <!-- Editor pane -->
+                            <div class="notes-pane">
+                                <div class="notes-pane-header">Markdown Editor</div>
+                                <textarea
+                                    id="notes-editor"
+                                    class="notes-textarea"
+                                    placeholder="Select or create a note to start editing…"
+                                    disabled
+                                    spellcheck="true"
+                                ></textarea>
+                            </div>
+                            <!-- Preview pane -->
+                            <div class="notes-pane">
+                                <div class="notes-pane-header">Preview</div>
+                                <div id="notes-preview" class="notes-preview report-viewer-content">
+                                    <p class="notes-preview-empty">Preview will appear here as you type.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="footer-content">
+            <p>&copy; 2026 DevBots. Built with ❤️ and no frameworks.</p>
+        </div>
+    </footer>
+
+    <!-- New Note Modal -->
+    <div class="modal-overlay hidden" id="new-note-modal" role="dialog" aria-modal="true" aria-labelledby="new-note-title">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 class="modal-title" id="new-note-title">New Note</h3>
+                <button class="btn-icon" id="new-note-close" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <label for="new-note-name" style="display:block;margin-bottom:var(--space-sm);font-weight:var(--font-weight-medium);">Note filename</label>
+                <input
+                    type="text"
+                    id="new-note-name"
+                    class="form-input"
+                    placeholder="e.g. meeting-notes or ideas (no .md needed)"
+                    style="width:100%"
+                />
+                <p id="new-note-error" class="form-error" style="display:none;margin-top:var(--space-sm);color:var(--color-error);font-size:var(--font-size-sm);"></p>
+            </div>
+            <div class="modal-footer">
+                <button id="new-note-cancel" class="btn btn-secondary">Cancel</button>
+                <button id="new-note-confirm" class="btn btn-primary">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Improve Modal -->
+    <div class="modal-overlay hidden" id="improve-modal" role="dialog" aria-modal="true" aria-labelledby="improve-title">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 class="modal-title" id="improve-title">✨ AI-Improved Note</h3>
+                <button class="btn-icon" id="improve-close" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom:var(--space-md);color:var(--color-text-secondary);font-size:var(--font-size-sm);">
+                    Review the AI suggestion below. Click <strong>Accept</strong> to replace the current note with the improved version.
+                </p>
+                <div class="improve-comparison" id="improve-comparison">
+                    <div>
+                        <div class="improve-pane-label">Original</div>
+                        <div class="improve-pane-content" id="improve-original"></div>
+                    </div>
+                    <div>
+                        <div class="improve-pane-label">Improved (rendered)</div>
+                        <div class="improve-pane-content preview report-viewer-content" id="improve-preview"></div>
+                    </div>
+                </div>
+                <div id="improve-loading" style="text-align:center;padding:var(--space-xl);display:none;">
+                    <span>🤖 Claude is improving your note…</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="improve-cancel" class="btn btn-secondary">Discard</button>
+                <button id="improve-accept" class="btn btn-primary" disabled>Accept Improvement</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- marked.js for markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/notes.js"></script>
+
+    <noscript>
+        <div class="no-js-message">
+            <p>This dashboard works best with JavaScript enabled.</p>
+        </div>
+    </noscript>
+</body>
+</html>

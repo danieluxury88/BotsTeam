@@ -7,12 +7,10 @@ Raw python-gitlab objects never leave this module.
 
 from __future__ import annotations
 
-import os
 from datetime import datetime, timezone
 from typing import Iterator
 
 import gitlab
-from gitlab.v4.cli import GitlabCLI
 
 from shared.config import Config
 from shared.models import Issue, IssueSet, IssueState
@@ -176,6 +174,25 @@ class GitLabClient:
         ):
             yield _normalise_issue(raw)
 
+    def get_issue(self, project_id: str, issue_iid: int) -> Issue:
+        """Fetch a single issue by its project-scoped IID."""
+        project = self.get_project(project_id)
+        try:
+            raw = project.issues.get(issue_iid)
+        except gitlab.exceptions.GitlabGetError as e:
+            raise ValueError(f"Issue #{issue_iid} not found in project '{project_id}'.\nGitLab error: {e}")
+        return _normalise_issue(raw)
+
+    def update_issue_description(
+        self,
+        project_id: str,
+        issue_iid: int,
+        description: str,
+    ) -> None:
+        """Update a single issue's description in GitLab (atomic PUT, no re-fetch)."""
+        project = self.get_project(project_id)
+        project.issues.update(issue_iid, {"description": description})
+
 
 # ── Convenience function ─────────────────────────────────────────────────────
 
@@ -192,3 +209,28 @@ def fetch_issues(
     """
     client = GitLabClient(token=token, url=url)
     return client.fetch_issues(project_id, state=state, max_issues=max_issues)
+
+
+def get_issue(
+    project_id: str,
+    issue_iid: int,
+    token: str | None = None,
+    url: str | None = None,
+) -> Issue:
+    """Module-level convenience — fetch a single issue by IID."""
+    client = GitLabClient(token=token, url=url)
+    return client.get_issue(project_id, issue_iid)
+
+
+def update_issue_description(
+    project_id: str,
+    issue_iid: int,
+    description: str,
+    token: str | None = None,
+    url: str | None = None,
+) -> None:
+    """
+    Module-level convenience — creates a client and updates an issue description.
+    """
+    client = GitLabClient(token=token, url=url)
+    client.update_issue_description(project_id, issue_iid, description)

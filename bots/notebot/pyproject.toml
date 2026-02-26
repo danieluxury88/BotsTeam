@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "notebot"
+version = "0.1.0"
+description = "AI-powered note-taking and organisation assistant"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "shared",
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+]
+
+[project.scripts]
+notebot = "notebot.cli:app"
+
+[tool.uv.sources]
+shared = { workspace = true }

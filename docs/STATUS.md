@@ -1,7 +1,7 @@
 # DevBots — Project Status
 
 > **Living document.** Update this whenever a feature ships, a gap is closed, or priorities shift.
-> Last reviewed: 2026-02-25
+> Last reviewed: 2026-02-26
 
 ---
 
@@ -23,8 +23,9 @@
 | JournalBot | ✅ | ✅ | ✅ | `notes_dir` — markdown directory |
 | TaskBot | ✅ | ✅ | ✅ | `task_file` — `.md`/`.txt`/todo.txt |
 | HabitBot | ✅ | ✅ | ✅ | `habit_file` — CSV or markdown log |
+| NoteBot | ✅ | ✅ | ✅ | `data/{project}/notes/` — auto-created, scope-aware, no project field needed |
 
-**Status:** All three bots are implemented and wired up. No personal project has been registered yet — first use requires adding a project with at least one data source field set.
+**Status:** All four bots are implemented and wired up. No personal project has been registered yet — first use requires adding a project with at least one data source field set.
 
 ### Infrastructure ✅
 
@@ -32,7 +33,7 @@
 |-----------|--------|-------|
 | `shared/bot_registry.py` | ✅ | Single source of truth; adding a bot touches one file |
 | `shared/file_reader.py` | ✅ | Reads markdown dirs, task files, CSV habits; date filtering |
-| `shared/data_manager.py` | ✅ | Scope-aware paths (`data/` vs `data/personal/`) |
+| `shared/data_manager.py` | ✅ | Scope-aware paths; `get_notes_dir()` for per-project notes |
 | `ProjectScope` | ✅ | `TEAM` / `PERSONAL` on every project |
 | Dual registry | ✅ | `data/projects.json` + `data/personal/projects.json` |
 | Dashboard data pipeline | ✅ | `bots.json`, `projects.json`, `index.json`, `dashboard.json`, `calendar.json` |
@@ -54,6 +55,10 @@
 | Calendar page (month view, bot report events) | ✅ |
 | Dark mode | ✅ |
 | Bot registry auto-loaded (`data/bots.json`) | ✅ |
+| Notes page (create, view, edit, delete per project) | ✅ |
+| Split-pane markdown editor + live preview | ✅ |
+| "Improve with AI" note enhancement via NoteBot | ✅ |
+| "Analyse Notes" runs NoteBot on all project notes | ✅ |
 
 ---
 

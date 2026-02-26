@@ -346,6 +346,135 @@ def _render_plan_markdown(plan_obj: WorkloadPlan) -> str:
     return "\n".join(lines)
 
 
+# ── 3. Issue description reviewer ────────────────────────────────────────────
+
+_REVIEW_BASE_SYSTEM = """\
+You are an expert technical writer specializing in software project management.
+Your job is to improve GitLab issue descriptions to make them clearer, more complete,
+and more actionable for developers.
+
+Keep the same intent and technical content — only improve structure, clarity,
+and completeness. Add sections like Steps to Reproduce, Expected Behavior,
+Acceptance Criteria, or Technical Notes when appropriate and inferable.
+"""
+
+_REVIEW_SINGLE_SYSTEM = _REVIEW_BASE_SYSTEM + """\
+Return ONLY the improved description as markdown text.
+Do not include any preamble, explanation, or metadata — just the improved content.
+"""
+
+_REVIEW_BATCH_SYSTEM = _REVIEW_BASE_SYSTEM + """\
+Return ONLY valid JSON — no markdown fences, no preamble, no explanation.
+
+JSON schema:
+[
+  {
+    "iid": 42,
+    "improved_description": "The full improved description text..."
+  }
+]
+"""
+
+_REVIEW_BATCH_SIZE = 10
+
+
+def _review_single(issue: "Issue", project_name: str) -> str:
+    """
+    Ask Claude to improve a single issue's description.
+    Uses plain text response — more reliable than JSON for complex markdown content.
+    Returns the improved description string, or "" on failure.
+    """
+    user_message = (
+        f"Project: {project_name}\n\n"
+        f"Issue #{issue.iid}: {issue.title}\n\n"
+        f"Current description:\n{issue.description or '(no description)'}\n\n"
+        f"Return only the improved description as markdown."
+    )
+    try:
+        return llm.chat(
+            system=_REVIEW_SINGLE_SYSTEM,
+            user=user_message,
+            max_tokens=2000,
+            bot_env_key="ISSUEBOT_MODEL",
+        ).strip()
+    except Exception:
+        return ""
+
+
+def _review_batch(batch: "list[Issue]", project_name: str) -> "dict[int, str]":
+    """
+    Ask Claude to improve descriptions for multiple issues at once.
+    Returns a dict of iid → improved_description.
+    Falls back to empty strings on parse failure.
+    """
+    issues_payload = [
+        f"Issue #{i.iid}: {i.title}\nCurrent description:\n{i.description or '(no description)'}"
+        for i in batch
+    ]
+    user_message = (
+        f"Project: {project_name}\n\n"
+        + "\n\n---\n\n".join(issues_payload)
+        + f"\n\nReturn a JSON array with improved descriptions for all {len(batch)} issues."
+    )
+    try:
+        raw = llm.chat(
+            system=_REVIEW_BATCH_SYSTEM,
+            user=user_message,
+            max_tokens=4000,
+            bot_env_key="ISSUEBOT_MODEL",
+        )
+        clean = re.sub(r"```(?:json)?|```", "", raw).strip()
+        data = json.loads(clean)
+        return {item["iid"]: item["improved_description"] for item in data}
+    except (json.JSONDecodeError, KeyError, Exception):
+        return {}
+
+
+def review(issue_set: IssueSet) -> list[dict]:
+    """
+    AI review of issue descriptions — generates improved versions.
+
+    Single issues use a plain-text response (reliable for any markdown content).
+    Multiple issues are batched and use a JSON response.
+
+    Returns a list of dicts with keys:
+        iid (int), title (str), original (str), improved (str), web_url (str)
+    """
+    issues = issue_set.issues
+    if not issues:
+        return []
+
+    results: list[dict] = []
+
+    for batch_start in range(0, len(issues), _REVIEW_BATCH_SIZE):
+        batch = issues[batch_start : batch_start + _REVIEW_BATCH_SIZE]
+
+        if len(batch) == 1:
+            # Single issue: plain text — avoids JSON escaping issues with markdown content
+            i = batch[0]
+            improved = _review_single(i, issue_set.project_name)
+            results.append({
+                "iid": i.iid,
+                "title": i.title,
+                "original": i.description or "",
+                "improved": improved,
+                "web_url": i.web_url,
+            })
+        else:
+            # Multiple issues: JSON batch
+            improved_by_iid = _review_batch(batch, issue_set.project_name)
+            for i in batch:
+                results.append({
+                    "iid": i.iid,
+                    "title": i.title,
+                    "original": i.description or "",
+                    "improved": improved_by_iid.get(i.iid, ""),
+                    "web_url": i.web_url,
+                })
+
+    return results
+
+
 # ── Programmatic API for orchestrator ────────────────────────────────────────
 
 def get_bot_result(
@@ -368,11 +497,28 @@ def get_bot_result(
         result = analyze(issue_set)
     elif mode == "plan":
         _plan_obj, result = plan(issue_set)
+    elif mode == "review":
+        reviews = review(issue_set)
+        reviewed = len(reviews)
+        with_content = sum(1 for r in reviews if r["improved"])
+        lines = [f"# Issue Description Review — {issue_set.project_name}\n"]
+        for r in reviews:
+            lines.append(f"## #{r['iid']}: {r['title']}\n")
+            lines.append(f"**Original:**\n\n{r['original'] or '*(no description)*'}\n")
+            lines.append(f"**Improved:**\n\n{r['improved'] or '*(no suggestion)*'}\n")
+            lines.append("---\n")
+        result = BotResult(
+            bot_name="issuebot",
+            status=BotStatus.SUCCESS if with_content else BotStatus.PARTIAL,
+            summary=f"Reviewed {reviewed} issue descriptions for {issue_set.project_name}",
+            report_md="\n".join(lines),
+            payload={"project": issue_set.project_name, "reviewed": reviewed},
+        )
     else:
         return BotResult(
             bot_name="issuebot",
             status=BotStatus.ERROR,
-            summary=f"Unknown mode: {mode}. Use 'analyze' or 'plan'.",
+            summary=f"Unknown mode: {mode}. Use 'analyze', 'plan', or 'review'.",
             report_md="",
         )
 

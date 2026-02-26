@@ -74,6 +74,19 @@ def get_reports_dir(
     return reports_dir
 
 
+def get_notes_dir(
+    project_name: str,
+    scope: ProjectScope = ProjectScope.TEAM,
+) -> Path:
+    """
+    Get the notes directory for a project.
+
+    Team:     data/{project_name}/notes/
+    Personal: data/personal/{project_name}/notes/
+    """
+    return get_project_data_dir(project_name, scope) / "notes"
+
+
 def get_cache_dir(
     project_name: str,
     scope: ProjectScope = ProjectScope.TEAM,
@@ -122,8 +135,9 @@ def ensure_project_structure(
     project_dir = get_project_data_dir(project_name, scope)
     project_dir.mkdir(parents=True, exist_ok=True)
     get_cache_dir(project_name, scope).mkdir(parents=True, exist_ok=True)
+    get_notes_dir(project_name, scope).mkdir(parents=True, exist_ok=True)
 
-    default_bots = bots or ["gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot", "orchestrator"]
+    default_bots = bots or ["gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot", "notebot", "orchestrator"]
     for bot in default_bots:
         get_reports_dir(project_name, bot, scope).mkdir(parents=True, exist_ok=True)  # type: ignore
 

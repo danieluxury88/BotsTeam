@@ -10,6 +10,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 # Default port
 PORT = 8080
@@ -22,7 +23,10 @@ DASHBOARD_DIR = Path(__file__).resolve().parent
 if str(DASHBOARD_DIR) not in sys.path:
     sys.path.insert(0, str(DASHBOARD_DIR))
 
-from api import list_projects, get_project, create_project, update_project, delete_project, generate_reports  # noqa: E402
+from api import (  # noqa: E402
+    list_projects, get_project, create_project, update_project, delete_project, generate_reports,
+    list_notes, get_note, create_note, update_note, delete_note, improve_note_api,
+)
 
 
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
@@ -46,6 +50,31 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 return str(DATA_DIR / "personal" / project / "reports" / bot / filename)
         return super().translate_path(path)
 
+    def _parse_notes_api(self, path):
+        """
+        Parse notes API paths of the form:
+          /api/projects/{name}/notes             → (name, None, None)
+          /api/projects/{name}/notes/{file}      → (name, file, None)
+          /api/projects/{name}/notes/{file}/improve → (name, file, "improve")
+        Returns None if the path doesn't match.
+        """
+        prefix = '/api/projects/'
+        if not path.startswith(prefix):
+            return None
+        rest = path[len(prefix):]
+        parts = rest.split('/')
+        # Need at least: {name}/notes
+        if len(parts) < 2 or parts[1] != 'notes':
+            return None
+        project_name = unquote(parts[0])
+        if not project_name:
+            return None
+        if len(parts) == 2:
+            return (project_name, None, None)
+        filename = unquote(parts[2])
+        action = parts[3] if len(parts) >= 4 else None
+        return (project_name, filename, action)
+
     def end_headers(self):
         # Add CORS headers for local development
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -60,6 +89,14 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self._clean_path()
+        notes = self._parse_notes_api(path)
+        if notes is not None:
+            project_name, filename, _ = notes
+            if filename:
+                self._call_api(get_note, project_name, filename)
+            else:
+                self._call_api(list_notes, project_name)
+            return
         api = self._parse_api_path(path)
         if api is not None:
             self._handle_api_get(api)
@@ -68,6 +105,22 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = self._clean_path()
+
+        # Notes routes: POST /api/projects/{name}/notes and POST /api/projects/{name}/notes/{file}/improve
+        notes = self._parse_notes_api(path)
+        if notes is not None:
+            project_name, filename, action = notes
+            body = self._read_json_body()
+            if body is None:
+                body = {}
+            if filename and action == 'improve':
+                self._call_api(improve_note_api, project_name, filename)
+            elif not filename:
+                self._call_api(create_note, project_name, body)
+            else:
+                self._send_json({"error": "Not found"}, 404)
+            return
+
         api = self._parse_api_path(path)
         if api is None:
             self._send_json({"error": "Not found"}, 404)
@@ -96,6 +149,20 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_PUT(self):
         path = self._clean_path()
+
+        # PUT /api/projects/{name}/notes/{file} — update note
+        notes = self._parse_notes_api(path)
+        if notes is not None:
+            project_name, filename, _ = notes
+            if not filename:
+                self._send_json({"error": "Filename required in URL"}, 400)
+                return
+            body = self._read_json_body()
+            if body is None:
+                return
+            self._call_api(update_note, project_name, filename, body)
+            return
+
         api = self._parse_api_path(path)
         if api is None or api == "":
             self._send_json({"error": "Project name required in URL"}, 400)
@@ -107,6 +174,17 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_DELETE(self):
         path = self._clean_path()
+
+        # DELETE /api/projects/{name}/notes/{file} — delete note
+        notes = self._parse_notes_api(path)
+        if notes is not None:
+            project_name, filename, _ = notes
+            if not filename:
+                self._send_json({"error": "Filename required in URL"}, 400)
+                return
+            self._call_api(delete_note, project_name, filename)
+            return
+
         api = self._parse_api_path(path)
         if api is None or api == "":
             self._send_json({"error": "Project name required in URL"}, 400)

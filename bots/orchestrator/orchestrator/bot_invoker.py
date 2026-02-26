@@ -9,12 +9,13 @@ from project_manager.analyzer import get_bot_result as pmbot_get_result
 from journalbot.analyzer import get_bot_result as journalbot_get_result
 from taskbot.analyzer import get_bot_result as taskbot_get_result
 from habitbot.analyzer import get_bot_result as habitbot_get_result
+from notebot.analyzer import get_bot_result as notebot_get_result
 from shared.models import BotResult, IssueSet, ProjectScope
 from shared.gitlab_client import fetch_issues as gitlab_fetch_issues
 from shared.github_client import fetch_issues as github_fetch_issues
 
 
-BotName = Literal["gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot"]
+BotName = Literal["gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot", "notebot"]
 
 
 def invoke_bot(
@@ -98,6 +99,16 @@ def invoke_bot(
             Path(project.habit_file),
             model=model,
             project_name=project.name,
+            scope=scope,
+        )
+
+    if bot_name == "notebot":
+        from shared.data_manager import get_notes_dir
+        notes_dir = get_notes_dir(project.name, scope) if project else Path("notes")
+        return notebot_get_result(
+            notes_dir,
+            model=model,
+            project_name=project.name if project else None,
             scope=scope,
         )
 
