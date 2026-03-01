@@ -1,0 +1,22 @@
+[project]
+name = "slackbot"
+version = "0.1.0"
+description = "Slack bot interface for DevBots."
+requires-python = ">=3.10"
+dependencies = [
+    "shared",
+    "orchestrator",
+    "slack-bolt>=1.23.0,<2",
+    "python-dotenv>=1.0.1,<2",
+]
+
+[project.scripts]
+slackbot = "slackbot.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+shared = { workspace = true }
+orchestrator = { workspace = true }

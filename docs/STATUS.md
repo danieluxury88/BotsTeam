@@ -1,7 +1,7 @@
 # DevBots — Project Status
 
 > **Living document.** Update this whenever a feature ships, a gap is closed, or priorities shift.
-> Last reviewed: 2026-02-26
+> Last reviewed: 2026-03-01
 
 ---
 
@@ -23,9 +23,9 @@
 | JournalBot | ✅ | ✅ | ✅ | `notes_dir` — markdown directory |
 | TaskBot | ✅ | ✅ | ✅ | `task_file` — `.md`/`.txt`/todo.txt |
 | HabitBot | ✅ | ✅ | ✅ | `habit_file` — CSV or markdown log |
-| NoteBot | ✅ | ✅ | ✅ | `data/{project}/notes/` — auto-created, scope-aware, no project field needed |
+| NoteBot | ✅ | ✅ | ✅ | `data/{project}/notes/` — auto-created, scope-aware, no project field needed; scope `both` |
 
-**Status:** All four bots are implemented and wired up. No personal project has been registered yet — first use requires adding a project with at least one data source field set.
+**Status:** All four bots are implemented and wired up. Register a personal project via the dashboard or CLI to start using them.
 
 ### Infrastructure ✅
 
@@ -109,6 +109,7 @@
 
 | Item | Priority | Notes |
 |------|----------|-------|
+| Slack integration | ✅ Done | `bots/slackbot/` — Socket Mode, DM + @mention, all bots; see `docs/slack-integration.md` |
 | Calendar: issue due/created events (pmbot) | Medium | Needs pmbot to export structured event data alongside `.md` |
 | Calendar: commit activity events (gitbot) | Low | Needs gitbot to export per-commit dates |
 | Multi-bot workflow (gitbot → qabot pipeline) | Medium | Orchestrator orchestrates sequential runs |
@@ -120,7 +121,6 @@
 
 | Item | Notes |
 |------|-------|
-| Slack/Discord integration | Orchestrator posts reports to channels |
 | GitHub Actions integration | Gitbot/QABot as CI pipeline steps |
 | PMBot: velocity tracking | Sprint-over-sprint comparison |
 | PMBot: multi-project comparison | Cross-project issue analytics |

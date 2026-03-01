@@ -18,6 +18,7 @@ This workspace contains multiple specialized bots that share common infrastructu
 - **JournalBot** — Analyzes personal notes and journal entries (markdown directories)
 - **TaskBot** — Analyzes personal task lists and todo files
 - **HabitBot** — Analyzes habit tracking logs (CSV or markdown)
+- **NoteBot** — AI-powered note analysis and improvement (scope: team or personal)
 
 **[Dashboard](docs/DASHBOARD.md)** — Web-based visual interface for all projects and reports
 
@@ -114,6 +115,26 @@ uv run dashboard generate        # Regenerate data only
 # Or via orchestrator
 uv run orchestrator dashboard
 ```
+
+### Personal Bots - Journal, Tasks & Habits
+
+```bash
+# Register a personal project with data source fields
+uv run orchestrator add myjournal ~/notes \
+  --scope personal \
+  --notes-dir ~/notes \
+  --task-file ~/todo.md \
+  --habit-file ~/habits.csv
+
+# Then chat naturally
+uv run orchestrator chat
+# > analyze my journal
+# > how are my habits looking?
+# > what tasks are overdue?
+# > improve my latest note
+```
+
+Personal bot reports are saved to `data/personal/{project}/reports/{bot}/`.
 
 **✨ Reports are automatically saved to `data/{project}/reports/{bot}/`**
 
@@ -254,13 +275,14 @@ Each bot has its own README with detailed usage:
 - [x] Project CRUD via REST API and dashboard UI
 - [x] Personal context / scoped workspaces (team vs personal)
 - [ ] Multi-bot workflows (gitbot → qabot pipeline)
-- [ ] Slack/Discord integration
+- [x] Slack integration — `uv run slackbot` (Socket Mode; see [docs](docs/slack-integration.md))
 
 ### Personal Bots
 
 - [x] JournalBot — journal/notes analysis
 - [x] TaskBot — task list analysis
 - [x] HabitBot — habit tracking analysis
+- [x] NoteBot — note analysis + AI improvement (scope: both)
 - [x] Scoped data storage (`data/personal/{project}/`)
 - [x] Dual project registry (team + personal)
 
