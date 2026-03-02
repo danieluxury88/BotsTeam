@@ -26,6 +26,15 @@ ALLOWED_WSL_COMMANDS: dict[str, list[str]] = {
 _WSL_TIMEOUT_SECONDS = 10
 _WSL_OUTPUT_MAX_CHARS = 3500
 _LOG_TEXT_MAX_CHARS = 200
+_BOT_PROGRESS_LABEL: dict[str, str] = {
+    "gitbot": "analyze",
+    "qabot": "qa",
+    "pmbot": "issues",
+    "journalbot": "journal",
+    "taskbot": "tasks",
+    "habitbot": "habits",
+    "notebot": "notes",
+}
 
 HELP_TEXT = """\
 *DevBots — Available Commands*
@@ -230,6 +239,16 @@ def _dispatch(
             client.reactions_add(channel=channel, timestamp=ts, name="hourglass_flowing_sand")
         except Exception:
             pass  # reactions:write scope may not be configured
+
+        status_label = _BOT_PROGRESS_LABEL.get(intent.bot or "", intent.bot or "bot")
+        try:
+            say(
+                text=f"⏳ Processing `{status_label} {project.name}`...",
+                thread_ts=thread_ts,
+            )
+        except Exception:
+            # Don't block bot execution if status message fails.
+            logger.debug("Failed to send processing status message", exc_info=True)
 
         try:
             result = invoke_bot(intent.bot, project=project)
