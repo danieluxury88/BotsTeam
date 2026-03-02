@@ -98,9 +98,19 @@ The bot:
 2. Calls `invoke_bot()` (may take several seconds)
 3. Posts the formatted report as a threaded reply
 
-### 2. Slash Commands (future)
+### 2. Slash Command (`/wsl`)
 
-Not yet implemented. Would require registering Slack slash commands and a public URL or Socket Mode configuration.
+Implemented with a strict allowlist for local utility commands:
+
+```text
+/wsl ls
+/wsl df
+/wsl uptime
+/wsl whoami
+/wsl gitman list
+```
+
+The handler executes only these predefined commands and returns output in a code block.
 
 ### 3. Scheduled / Proactive Reports (future)
 
@@ -162,6 +172,7 @@ Add to `.env`:
 SLACK_BOT_TOKEN=xoxb-...           # Bot OAuth token (required)
 SLACK_SIGNING_SECRET=...           # For HTTP mode request verification
 SLACK_APP_TOKEN=xapp-...           # For Socket Mode (optional)
+SLACKBOT_LOG_LEVEL=INFO            # Optional: DEBUG, INFO, WARNING, ERROR
 
 # Slack channel for proactive reports (optional)
 SLACK_REPORTS_CHANNEL=#dev-digest
@@ -174,6 +185,7 @@ Add to `.env.example`:
 SLACK_BOT_TOKEN=              # xoxb-... Bot OAuth token
 SLACK_SIGNING_SECRET=         # App signing secret
 SLACK_APP_TOKEN=              # xapp-... Socket Mode token (dev only)
+SLACKBOT_LOG_LEVEL=INFO       # Optional logger level for slackbot process
 SLACK_REPORTS_CHANNEL=        # Default channel for scheduled reports
 ```
 
@@ -182,12 +194,12 @@ SLACK_REPORTS_CHANNEL=        # Default channel for scheduled reports
 ## Starting the Bot
 
 ```bash
-# Copy tokens from slack-bot/.env to root .env, then:
+# Set Slack tokens in the repository root `.env`, then:
 uv sync
 uv run slackbot     # Connects via Socket Mode; Ctrl-C to stop
 ```
 
-The bot logs `Starting DevBots Slack bot (Socket Mode)…` on startup and then listens for events.
+The bot logs `Starting DevBots Slack bot (Socket Mode)` on startup and then listens for events.
 
 ---
 
@@ -199,7 +211,7 @@ The bot logs `Starting DevBots Slack bot (Socket Mode)…` on startup and then l
 - [x] `intent.py` — Rule-based keyword/alias parser
 - [x] `formatter.py` — Block Kit header + section blocks, `md_to_mrkdwn()` converter
 - [x] `.env.example` updated with `SLACK_BOT_TOKEN` / `SLACK_APP_TOKEN`
-- [ ] Slash commands (future)
+- [x] Slash command `/wsl` with strict command allowlist
 - [ ] Scheduled/proactive reports (future)
 
 Not in `bot_registry.py` — slackbot is a transport layer, not a data analyzer.
@@ -219,9 +231,11 @@ Not in `bot_registry.py` — slackbot is a transport layer, not a data analyzer.
    - `reactions:write` — add emoji reactions (acknowledgment)
    - `app_mentions:read`
    - `im:history`
+   - `commands` — enables slash commands
 5. Install to workspace → copy `SLACK_BOT_TOKEN`
 6. Copy `SLACK_SIGNING_SECRET` from Basic Information
 7. (Socket Mode) Copy `SLACK_APP_TOKEN` from App-Level Tokens
+8. Create slash command `/wsl` in Slack app settings (Socket Mode enabled)
 
 ---
 

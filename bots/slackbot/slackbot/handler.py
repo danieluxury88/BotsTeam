@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import re
+import subprocess
 
 from slack_bolt import App
 
@@ -10,6 +12,20 @@ from orchestrator.bot_invoker import invoke_bot
 from orchestrator.registry import ProjectRegistry
 from slackbot.formatter import format_result
 from slackbot.intent import parse_intent
+
+logger = logging.getLogger(__name__)
+
+ALLOWED_WSL_COMMANDS: dict[str, list[str]] = {
+    "ls": ["ls", "-al"],
+    "df": ["df", "-h"],
+    "uptime": ["uptime"],
+    "whoami": ["whoami"],
+    "gitman list": ["gitman", "list"],
+}
+
+_WSL_TIMEOUT_SECONDS = 10
+_WSL_OUTPUT_MAX_CHARS = 3500
+_LOG_TEXT_MAX_CHARS = 200
 
 HELP_TEXT = """\
 *DevBots — Available Commands*
@@ -33,27 +49,128 @@ HELP_TEXT = """\
 • `analyze myproject`
 • `issues myproject`
 • `list projects`
+
+*Slash command:*
+• `/wsl gitman list` — run allowlisted local command
 """
+
+
+def _preview_text(text: str | None) -> str:
+    if not text:
+        return ""
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= _LOG_TEXT_MAX_CHARS:
+        return collapsed
+    return f"{collapsed[:_LOG_TEXT_MAX_CHARS]}..."
+
+
+def _log_incoming_event(event_name: str, event: dict) -> None:
+    logger.info(
+        "Incoming Slack event=%s user=%s channel=%s channel_type=%s subtype=%s ts=%s text=%r",
+        event_name,
+        event.get("user"),
+        event.get("channel"),
+        event.get("channel_type"),
+        event.get("subtype"),
+        event.get("ts"),
+        _preview_text(event.get("text")),
+    )
 
 
 def register_handlers(app: App, registry: ProjectRegistry) -> None:
     """Register all Slack event handlers on the Bolt app."""
 
+    @app.middleware
+    def log_raw_slack_request(body, next):
+        event = body.get("event", {})
+        logger.debug(
+            (
+                "Incoming Slack raw request type=%s event_type=%s subtype=%s "
+                "command=%s user=%s channel=%s text=%r"
+            ),
+            body.get("type"),
+            event.get("type"),
+            event.get("subtype"),
+            body.get("command"),
+            body.get("user_id") or event.get("user"),
+            body.get("channel_id") or event.get("channel"),
+            _preview_text(body.get("text") or event.get("text")),
+        )
+        next()
+
     @app.event("app_mention")
     def handle_mention(event, say, client):
+        _log_incoming_event("app_mention", event)
         # Strip the @mention prefix before parsing.
         text = re.sub(r"<@[A-Z0-9]+>", "", event.get("text", "")).strip()
         _dispatch(text, event, say, client, registry)
 
     @app.event("message")
     def handle_dm(event, say, client):
+        _log_incoming_event("message", event)
         # Only handle direct messages; skip bot messages and subtypes.
         if event.get("channel_type") != "im":
+            logger.debug("Skipping message event outside DM channel: %s", event.get("channel"))
             return
         if event.get("subtype") or event.get("bot_id"):
+            logger.debug(
+                "Skipping message subtype/bot event: subtype=%s bot_id=%s",
+                event.get("subtype"),
+                event.get("bot_id"),
+            )
             return
         text = event.get("text", "").strip()
         _dispatch(text, event, say, client, registry)
+
+    @app.command("/wsl")
+    def handle_wsl_command(ack, respond, command):
+        """Handle /wsl slash command with a strict allowlist."""
+        ack()
+
+        text = (command.get("text") or "").strip()
+        logger.info(
+            "Incoming Slack command=/wsl user=%s channel=%s text=%r",
+            command.get("user_id"),
+            command.get("channel_id"),
+            _preview_text(text),
+        )
+        key = " ".join(text.split())
+
+        if key not in ALLOWED_WSL_COMMANDS:
+            respond(
+                text=(
+                    "Allowed commands: "
+                    + ", ".join(sorted(ALLOWED_WSL_COMMANDS.keys()))
+                    + "\nExamples: `/wsl ls`, `/wsl gitman list`"
+                )
+            )
+            return
+
+        try:
+            output = _run_command(ALLOWED_WSL_COMMANDS[key])
+        except subprocess.TimeoutExpired:
+            respond(text=f"❌ Command timed out after {_WSL_TIMEOUT_SECONDS}s")
+            return
+        except Exception as e:
+            respond(text=f"❌ Command failed: {e}")
+            return
+
+        respond(text=f"```{output}```")
+
+
+def _run_command(argv: list[str]) -> str:
+    """Run an allowlisted command and return trimmed output."""
+    proc = subprocess.run(
+        argv,
+        capture_output=True,
+        text=True,
+        timeout=_WSL_TIMEOUT_SECONDS,
+        check=False,
+    )
+    output = (proc.stdout + proc.stderr).strip()
+    if not output:
+        output = "(no output)"
+    return output[:_WSL_OUTPUT_MAX_CHARS]
 
 
 def _dispatch(

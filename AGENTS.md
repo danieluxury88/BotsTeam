@@ -7,7 +7,7 @@
 - `dashboard/`: static web app and local server/data scripts (`server.py`, `generate_data.py`, `css/`, `js/`).
 - `data/`: runtime output (project registries, generated reports, cache). Avoid manual edits unless debugging.
 - `docs/`: architecture, usage, and design documentation.
-- `slack-bot/` and `bots/slackbot/`: Slack integrations (legacy and workspace package).
+- `bots/slackbot/`: Slack integration package.
 
 ## Build, Test, and Development Commands
 - `uv sync`: install workspace dependencies for all packages.

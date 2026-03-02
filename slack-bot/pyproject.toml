@@ -1,9 +1,0 @@
-[project]
-name = "slack-bot"
-version = "0.1.0"
-description = "Slack slash command bot for safe command execution."
-requires-python = ">=3.10"
-dependencies = [
-    "python-dotenv>=1.0.1,<2",
-    "slack-bolt>=1.23.0,<2",
-]
