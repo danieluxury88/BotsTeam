@@ -110,6 +110,16 @@
                 <fieldset class="form-fieldset" id="team-fields">
                     <legend>Integrations (optional)</legend>
                     <div class="form-group">
+                        <label for="field-site-url">Site URL</label>
+                        <input type="text" id="field-site-url" class="form-input" placeholder="https://example.com">
+                        <span class="form-hint">Public production URL used by PageSpeedBot</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="field-audit-urls">Audit URLs</label>
+                        <textarea id="field-audit-urls" class="form-input" rows="4" placeholder="https://example.com/about&#10;https://example.com/contact"></textarea>
+                        <span class="form-hint">Optional additional URLs for PageSpeedBot, one per line</span>
+                    </div>
+                    <div class="form-group">
                         <label for="field-gitlab-id">GitLab Project ID</label>
                         <input type="text" id="field-gitlab-id" class="form-input" placeholder="12345">
                     </div>

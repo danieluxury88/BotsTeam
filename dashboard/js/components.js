@@ -12,6 +12,7 @@ const Components = {
             : '<span class="scope-badge scope-team" title="Team project">👥 Team</span>';
         const integration = project.gitlab_id ? `GitLab #${project.gitlab_id}` :
                           project.github_repo ? `GitHub: ${project.github_repo}` :
+                          project.site_url ? `Site: ${project.site_url}` :
                           isPersonal ? 'Local files' : 'No integration';
 
         const actions = [
@@ -59,6 +60,8 @@ const Components = {
                     <p class="card-description">${Utils.escapeHtml(project.description || 'No description')}</p>
                     <ul class="card-meta">
                         <li>${Utils.escapeHtml(integration)}</li>
+                        ${project.site_url ? `<li>${Utils.escapeHtml(project.site_url)}</li>` : ''}
+                        ${project.audit_urls && project.audit_urls.length ? `<li>${project.audit_urls.length} extra audit URLs</li>` : ''}
                         <li>Last activity: ${Utils.formatDate(project.last_activity)}</li>
                         <li>📊 ${project.reports_count || 0} reports</li>
                     </ul>

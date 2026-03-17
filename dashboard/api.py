@@ -20,6 +20,20 @@ from shared.data_manager import get_notes_dir  # noqa: E402
 from shared.models import ProjectScope  # noqa: E402
 
 NAME_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*$')
+AI_BOTS = {"gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot", "notebot", "orchestrator"}
+
+
+def _parse_audit_urls(value):
+    if value is None:
+        return None
+    if isinstance(value, list):
+        cleaned = [str(item).strip() for item in value if str(item).strip()]
+        return cleaned or None
+    text = str(value).strip()
+    if not text:
+        return None
+    cleaned = [line.strip() for line in text.splitlines() if line.strip()]
+    return cleaned or None
 
 
 def _registry():
@@ -103,6 +117,8 @@ def create_project(data):
         gitlab_project_id=data.get("gitlab_project_id") or None,
         gitlab_url=data.get("gitlab_url") or None,
         github_repo=data.get("github_repo") or None,
+        site_url=data.get("site_url") or None,
+        audit_urls=_parse_audit_urls(data.get("audit_urls")),
         notes_dir=data.get("notes_dir") or None,
         task_file=data.get("task_file") or None,
         habit_file=data.get("habit_file") or None,
@@ -136,6 +152,10 @@ def update_project(name, data):
         project.gitlab_url = data["gitlab_url"] or None
     if "github_repo" in data:
         project.github_repo = data["github_repo"] or None
+    if "site_url" in data:
+        project.site_url = data["site_url"] or None
+    if "audit_urls" in data:
+        project.audit_urls = _parse_audit_urls(data["audit_urls"])
     if "notes_dir" in data:
         project.notes_dir = data["notes_dir"] or None
     if "task_file" in data:
@@ -177,8 +197,7 @@ def generate_reports(name, data):
     if invalid:
         return {"error": f"Unknown bots: {', '.join(invalid)}"}, 400
 
-    # Pre-flight: check API key before spending time on git reads
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    if any(bot in AI_BOTS for bot in bots) and not os.environ.get("ANTHROPIC_API_KEY"):
         return {
             "error": "ANTHROPIC_API_KEY is not set. Add it to your .env file and restart the server."
         }, 400

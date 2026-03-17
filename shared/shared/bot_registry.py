@@ -34,6 +34,7 @@ BOTS: dict[str, BotMeta] = {
     "gitbot":       BotMeta("gitbot",       "GitBot",       "🔍", "Git history analyzer",                  "team"),
     "qabot":        BotMeta("qabot",        "QABot",        "🧪", "Test suggestion and execution",          "team"),
     "pmbot":        BotMeta("pmbot",        "PMBot",        "📊", "Issue analyzer and sprint planner",      "team"),
+    "pagespeedbot": BotMeta("pagespeedbot", "PageSpeedBot", "⚡", "PageSpeed Insights collector",            "team", requires_field="site_url"),
     "orchestrator": BotMeta("orchestrator", "Orchestrator", "🎭", "Conversational bot interface",           "team"),
     "journalbot":   BotMeta("journalbot",   "JournalBot",   "📓", "Personal journal and notes analyzer",   "personal", requires_field="notes_dir"),
     "taskbot":      BotMeta("taskbot",      "TaskBot",      "✅", "Personal task list analyzer",            "personal", requires_field="task_file"),

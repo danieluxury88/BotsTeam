@@ -20,7 +20,7 @@ const ReportGenerator = {
             let hint = '';
             let checked = true;
 
-            if (isPersonal && bot.requires_field) {
+            if (bot.requires_field) {
                 const value = project[bot.requires_field];
                 enabled = !!value;
                 checked = !!value;

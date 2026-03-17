@@ -1,11 +1,14 @@
 """Bot invoker — calls all bots programmatically."""
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from gitbot.analyzer import get_bot_result as gitbot_get_result
 from qabot.analyzer import get_bot_result as qabot_get_result
 from project_manager.analyzer import get_bot_result as pmbot_get_result
+from pagespeedbot.analyzer import get_bot_result as pagespeedbot_get_result
 from journalbot.analyzer import get_bot_result as journalbot_get_result
 from taskbot.analyzer import get_bot_result as taskbot_get_result
 from habitbot.analyzer import get_bot_result as habitbot_get_result
@@ -14,13 +17,16 @@ from shared.models import BotResult, IssueSet, ProjectScope
 from shared.gitlab_client import fetch_issues as gitlab_fetch_issues
 from shared.github_client import fetch_issues as github_fetch_issues
 
+if TYPE_CHECKING:
+    from orchestrator.registry import Project
 
-BotName = Literal["gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot", "notebot"]
+
+BotName = Literal["gitbot", "qabot", "pmbot", "pagespeedbot", "journalbot", "taskbot", "habitbot", "notebot"]
 
 
 def invoke_bot(
     bot_name: BotName,
-    project: "Project | None" = None,
+    project: Project | None = None,
     repo_path: Path | str | None = None,   # Legacy
     project_id: str | None = None,          # Legacy
     max_commits: int = 300,
@@ -46,8 +52,6 @@ def invoke_bot(
     Returns:
         BotResult with the bot's analysis
     """
-    from orchestrator.registry import Project
-
     scope = project.scope if project else ProjectScope.TEAM
 
     # ── Personal bots ─────────────────────────────────────────────────────────
@@ -149,6 +153,26 @@ def invoke_bot(
                 model=model,
                 project_name=project.name if project else None,
             )
+
+    if bot_name == "pagespeedbot":
+        if not project:
+            return BotResult(
+                bot_name=bot_name, status="error",
+                summary="pagespeedbot requires a registered project with site_url configured",
+                data={"error": "missing_project"}, markdown_report="",
+            )
+        if not project.site_url:
+            return BotResult(
+                bot_name=bot_name, status="error",
+                summary=f"Project '{project.name}' has no site_url configured",
+                data={"error": "missing_site_url"}, markdown_report="",
+            )
+        return pagespeedbot_get_result(
+            project.site_url,
+            audit_urls=tuple(project.audit_urls or []),
+            project_name=project.name,
+            scope=scope,
+        )
 
     if bot_name == "pmbot":
         issue_set: IssueSet | None = None

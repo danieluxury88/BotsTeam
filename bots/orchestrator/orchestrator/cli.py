@@ -404,6 +404,8 @@ def add(
     gitlab_url: GitLabUrlOpt = None,
     gitlab_token: GitLabTokenOpt = None,
     github_repo: GitHubRepoOpt = None,
+    site_url: Annotated[str | None, typer.Option("--site-url", help="Public site URL for PageSpeed analysis")] = None,
+    audit_urls: Annotated[list[str] | None, typer.Option("--audit-url", help="Additional public URL to audit; repeat for multiple pages")] = None,
     notes_dir: Annotated[str | None, typer.Option("--notes-dir", help="Journal/notes directory (journalbot)")] = None,
     task_file: Annotated[str | None, typer.Option("--task-file", help="Task list file or directory (taskbot)")] = None,
     habit_file: Annotated[str | None, typer.Option("--habit-file", help="Habit log file (habitbot)")] = None,
@@ -440,6 +442,8 @@ def add(
             gitlab_url=gitlab_url,
             gitlab_token=gitlab_token,
             github_repo=github_repo,
+            site_url=site_url,
+            audit_urls=audit_urls,
             notes_dir=notes_dir,
             task_file=task_file,
             habit_file=habit_file,
@@ -452,6 +456,10 @@ def add(
                          (f" @ {gitlab_url}" if gitlab_url else "") + "[/dim]")
         if github_repo:
             console.print(f"[dim]  GitHub: {github_repo}[/dim]")
+        if site_url:
+            console.print(f"[dim]  Site URL: {site_url}[/dim]")
+        if audit_urls:
+            console.print(f"[dim]  Audit URLs: {', '.join(audit_urls)}[/dim]")
         if notes_dir:
             console.print(f"[dim]  Notes dir: {notes_dir}[/dim]")
         if task_file:
@@ -501,6 +509,8 @@ def _show_projects_list(project_list: list) -> None:
             parts.append("GitLab")
         if proj.has_github():
             parts.append("GitHub")
+        if proj.site_url:
+            parts.append("site")
         if proj.notes_dir:
             parts.append("notes")
         if proj.task_file:
@@ -539,6 +549,8 @@ def _add_project_interactive(registry: ProjectRegistry) -> None:
 
     gitlab_id = ""
     github_repo_val = ""
+    site_url = ""
+    audit_urls_str = ""
     notes_dir = ""
     task_file = ""
     habit_file = ""
@@ -547,6 +559,8 @@ def _add_project_interactive(registry: ProjectRegistry) -> None:
         console.print("\n[dim]Issue Tracker Integration (optional — enables pmbot)[/dim]")
         gitlab_id = Prompt.ask("GitLab project ID (press Enter to skip)", default="")
         github_repo_val = Prompt.ask("GitHub repo owner/repo (press Enter to skip)", default="")
+        site_url = Prompt.ask("Public site URL for PageSpeedBot (press Enter to skip)", default="")
+        audit_urls_str = Prompt.ask("Additional audit URLs, comma-separated (press Enter to skip)", default="")
     else:
         console.print("\n[dim]Personal Data Sources (optional)[/dim]")
         notes_dir = Prompt.ask("Notes/journal directory for journalbot (press Enter to skip)", default="")
@@ -560,6 +574,8 @@ def _add_project_interactive(registry: ProjectRegistry) -> None:
             scope=project_scope,
             gitlab_project_id=gitlab_id if gitlab_id else None,
             github_repo=github_repo_val if github_repo_val else None,
+            site_url=site_url if site_url else None,
+            audit_urls=[url.strip() for url in audit_urls_str.split(",") if url.strip()] or None,
             notes_dir=notes_dir if notes_dir else None,
             task_file=task_file if task_file else None,
             habit_file=habit_file if habit_file else None,

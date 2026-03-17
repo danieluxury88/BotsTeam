@@ -5,10 +5,10 @@ Serves static files and provides CORS support for local development
 """
 
 import http.server
-import socketserver
 import json
 import os
 import sys
+import socketserver
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -201,10 +201,15 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json(result[0], result[1])
             else:
                 self._send_json(result)
+        except BrokenPipeError:
+            self.log_message("Client disconnected before API response was sent")
         except Exception as e:
             import traceback
             traceback.print_exc()
-            self._send_json({"error": str(e)}, 500)
+            try:
+                self._send_json({"error": str(e)}, 500)
+            except BrokenPipeError:
+                self.log_message("Client disconnected before error response was sent")
 
     def _clean_path(self):
         return self.path.split('?', 1)[0].split('#', 1)[0]
@@ -240,7 +245,10 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except BrokenPipeError:
+            raise
 
     def _read_json_body(self):
         content_length = int(self.headers.get('Content-Length', 0))

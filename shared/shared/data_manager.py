@@ -4,6 +4,7 @@ Provides centralized utilities for managing project data storage including
 reports, cache, and metadata. Supports both team and personal project scopes.
 """
 
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -95,6 +96,15 @@ def get_cache_dir(
     return get_project_data_dir(project_name, scope) / "cache"
 
 
+def get_bot_cache_dir(
+    project_name: str,
+    bot: BotType,
+    scope: ProjectScope = ProjectScope.TEAM,
+) -> Path:
+    """Get the cache directory for a specific bot within a project."""
+    return get_cache_dir(project_name, scope) / bot
+
+
 def get_report_path(
     project_name: str,
     bot: BotType,
@@ -137,9 +147,46 @@ def ensure_project_structure(
     get_cache_dir(project_name, scope).mkdir(parents=True, exist_ok=True)
     get_notes_dir(project_name, scope).mkdir(parents=True, exist_ok=True)
 
-    default_bots = bots or ["gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot", "notebot", "orchestrator"]
+    default_bots = bots or [
+        "gitbot",
+        "qabot",
+        "pmbot",
+        "pagespeedbot",
+        "journalbot",
+        "taskbot",
+        "habitbot",
+        "notebot",
+        "orchestrator",
+    ]
     for bot in default_bots:
         get_reports_dir(project_name, bot, scope).mkdir(parents=True, exist_ok=True)  # type: ignore
+
+
+def save_json_artifact(
+    project_name: str,
+    bot: BotType,
+    data: dict,
+    scope: ProjectScope = ProjectScope.TEAM,
+    save_latest: bool = True,
+    save_timestamped: bool = True,
+) -> tuple[Path, Path | None]:
+    """Save a JSON artifact under the project's bot cache directory."""
+    cache_dir = get_bot_cache_dir(project_name, bot, scope)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    latest_path = None
+    timestamped_path = None
+
+    if save_latest:
+        latest_path = cache_dir / "latest.json"
+        latest_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    if save_timestamped:
+        timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        timestamped_path = cache_dir / f"{timestamp}.json"
+        timestamped_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    return (latest_path or Path(), timestamped_path)
 
 
 def save_report(

@@ -71,7 +71,9 @@ function filterProjects(query) {
     const filtered = allProjects.filter(p =>
         p.name.toLowerCase().includes(q) ||
         (p.description && p.description.toLowerCase().includes(q)) ||
-        (p.github_repo && p.github_repo.toLowerCase().includes(q))
+        (p.github_repo && p.github_repo.toLowerCase().includes(q)) ||
+        (p.site_url && p.site_url.toLowerCase().includes(q)) ||
+        (p.audit_urls && p.audit_urls.some(url => url.toLowerCase().includes(q)))
     );
 
     renderProjects(filtered);

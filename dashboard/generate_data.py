@@ -257,6 +257,8 @@ class DashboardDataGenerator:
                 "gitlab_id": project.get("gitlab_id"),
                 "gitlab_url": project.get("gitlab_url"),
                 "github_repo": project.get("github_repo"),
+                "site_url": project.get("site_url"),
+                "audit_urls": project.get("audit_urls"),
                 # Personal data source fields
                 "notes_dir": project.get("notes_dir"),
                 "task_file": project.get("task_file"),
@@ -402,7 +404,7 @@ class DashboardDataGenerator:
         self.save_json("calendar.json", calendar_data)
 
         print("\n✨ Done! Dashboard data generated successfully.")
-        print(f"\n📊 Summary:")
+        print("\n📊 Summary:")
         print(f"   Bots:     {len(ALL_BOTS)} registered")
         print(f"   Projects: {len(self.projects)} ({team_count} team, {personal_count} personal)")
         print(f"   Reports:  {len(self.reports)}")

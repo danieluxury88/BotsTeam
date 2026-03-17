@@ -79,7 +79,7 @@ const API = {
     async generateReports(name, options) {
         const url = `${CONFIG.API.PROJECTS_API}/${encodeURIComponent(name)}/reports`;
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+        const timeout = setTimeout(() => controller.abort(), 300000); // 5 min timeout
         try {
             const response = await fetch(url, {
                 method: 'POST',
@@ -100,7 +100,7 @@ const API = {
         } catch (error) {
             clearTimeout(timeout);
             if (error.name === 'AbortError') {
-                return { error: 'Request timed out. The bots may still be running on the server.', status: 0 };
+                return { error: 'Request timed out after 5 minutes. The bots may still be running on the server.', status: 0 };
             }
             return { error: error.message, status: 0 };
         }

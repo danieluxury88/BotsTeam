@@ -1,7 +1,7 @@
 """Project registry — maintains list of known projects."""
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -23,6 +23,8 @@ class Project:
     gitlab_token: str | None = None
     github_repo: str | None = None
     github_token: str | None = None
+    site_url: str | None = None
+    audit_urls: list[str] | None = None
 
     # Personal bot data sources (optional — for journalbot, taskbot, habitbot)
     notes_dir: str | None = None    # journalbot: path to markdown notes directory
@@ -112,6 +114,8 @@ class Project:
             "gitlab_token": self.gitlab_token,
             "github_repo": self.github_repo,
             "github_token": self.github_token,
+            "site_url": self.site_url,
+            "audit_urls": self.audit_urls,
             "notes_dir": self.notes_dir,
             "task_file": self.task_file,
             "habit_file": self.habit_file,
@@ -137,6 +141,8 @@ class Project:
             gitlab_token=data.get("gitlab_token"),
             github_repo=data.get("github_repo"),
             github_token=data.get("github_token"),
+            site_url=data.get("site_url"),
+            audit_urls=data.get("audit_urls"),
             notes_dir=data.get("notes_dir"),
             task_file=data.get("task_file"),
             habit_file=data.get("habit_file"),
@@ -217,6 +223,8 @@ class ProjectRegistry:
         gitlab_token: str | None = None,
         github_repo: str | None = None,
         github_token: str | None = None,
+        site_url: str | None = None,
+        audit_urls: list[str] | None = None,
         notes_dir: str | None = None,
         task_file: str | None = None,
         habit_file: str | None = None,
@@ -237,6 +245,8 @@ class ProjectRegistry:
             gitlab_token=gitlab_token,
             github_repo=github_repo,
             github_token=github_token,
+            site_url=site_url,
+            audit_urls=audit_urls,
             notes_dir=notes_dir,
             task_file=task_file,
             habit_file=habit_file,

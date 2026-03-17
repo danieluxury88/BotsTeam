@@ -31,6 +31,8 @@ const ProjectAdmin = {
         document.getElementById('field-gitlab-id').value = project.gitlab_id || '';
         document.getElementById('field-gitlab-url').value = project.gitlab_url || '';
         document.getElementById('field-github-repo').value = project.github_repo || '';
+        document.getElementById('field-site-url').value = project.site_url || '';
+        document.getElementById('field-audit-urls').value = (project.audit_urls || []).join('\n');
         document.getElementById('field-notes-dir').value = project.notes_dir || '';
         document.getElementById('field-task-file').value = project.task_file || '';
         document.getElementById('field-habit-file').value = project.habit_file || '';
@@ -90,6 +92,11 @@ const ProjectAdmin = {
             body.gitlab_project_id = document.getElementById('field-gitlab-id').value.trim() || null;
             body.gitlab_url = document.getElementById('field-gitlab-url').value.trim() || null;
             body.github_repo = document.getElementById('field-github-repo').value.trim() || null;
+            body.site_url = document.getElementById('field-site-url').value.trim() || null;
+            body.audit_urls = document.getElementById('field-audit-urls').value
+                .split('\n')
+                .map(url => url.trim())
+                .filter(Boolean);
         }
 
         let result;
