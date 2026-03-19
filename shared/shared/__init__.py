@@ -14,11 +14,13 @@ from shared.data_manager import (
     get_personal_registry_path,
     get_personal_root,
     get_project_data_dir,
+    get_report_artifact_path,
     get_registry_path,
     get_report_path,
     get_reports_dir,
     list_reports,
     save_report,
+    save_report_artifact,
 )
 
 __all__ = [
@@ -37,9 +39,11 @@ __all__ = [
     "get_personal_registry_path",
     "get_personal_root",
     "get_project_data_dir",
+    "get_report_artifact_path",
     "get_registry_path",
     "get_report_path",
     "get_reports_dir",
     "list_reports",
     "save_report",
+    "save_report_artifact",
 ]

@@ -178,12 +178,26 @@ const ReportGenerator = {
             const icon = isError ? '&#10060;' : '&#9989;';
             const botInfo = CONFIG.BOTS.find(b => b.id === bot);
             const botName = botInfo ? `${botInfo.icon} ${botInfo.name}` : bot;
+            const artifactLinks = [];
+            if (info.artifacts?.md) {
+                const params = new URLSearchParams({ path: info.artifacts.md });
+                if (info.artifacts.html) params.set('html', info.artifacts.html);
+                if (info.artifacts.pdf) params.set('pdf', info.artifacts.pdf);
+                artifactLinks.push(`<a class="btn btn-secondary" href="report.html?${params.toString()}">View Report</a>`);
+            }
+            if (info.artifacts?.html) {
+                artifactLinks.push(`<a class="btn btn-secondary" href="${Utils.escapeHtml(info.artifacts.html)}" target="_blank" rel="noopener">HTML</a>`);
+            }
+            if (info.artifacts?.pdf) {
+                artifactLinks.push(`<a class="btn btn-primary" href="${Utils.escapeHtml(info.artifacts.pdf)}" target="_blank" rel="noopener">PDF</a>`);
+            }
             return `
                 <div class="bot-result ${statusClass}">
                     <span class="bot-result-icon">${icon}</span>
                     <div class="bot-result-body">
                         <strong>${Utils.escapeHtml(botName)}</strong>
                         <p>${Utils.escapeHtml(info.summary || '')}</p>
+                        ${artifactLinks.length ? `<div class="card-actions">${artifactLinks.join('')}</div>` : ''}
                     </div>
                 </div>
             `;

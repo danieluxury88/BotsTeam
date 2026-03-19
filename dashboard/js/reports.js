@@ -1,9 +1,5 @@
 // Reports page logic
 
-function viewReport(path) {
-    window.location.href = `report.html?path=${encodeURIComponent(path)}`;
-}
-
 let allReports = [];
 let allProjectsList = [];
 

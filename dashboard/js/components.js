@@ -1,3 +1,42 @@
+// Shared report actions used across dashboard pages.
+function viewReport(path) {
+    window.location.href = `report.html?path=${encodeURIComponent(path)}`;
+}
+
+function viewReportWithFormats(path, htmlPath = '', pdfPath = '') {
+    const params = new URLSearchParams({ path });
+    if (htmlPath) params.set('html', htmlPath);
+    if (pdfPath) params.set('pdf', pdfPath);
+    window.location.href = `report.html?${params.toString()}`;
+}
+
+function openArtifact(path) {
+    window.open(path, '_blank', 'noopener');
+}
+
+async function exportReport(path) {
+    const result = await API.exportReport(path);
+    if (result.error) {
+        alert(`Export failed: ${result.error}`);
+        return;
+    }
+
+    if (result.data?.errors?.length) {
+        alert(`Export completed with warnings:\n${result.data.errors.join('\n')}`);
+    }
+
+    const pdfPath = result.data?.artifacts?.pdf;
+    if (pdfPath) {
+        window.open(pdfPath, '_blank', 'noopener');
+    }
+
+    if (typeof loadReports === 'function') {
+        await loadReports();
+    } else {
+        window.location.reload();
+    }
+}
+
 // Component rendering functions
 const Components = {
     // Render a project card
@@ -78,6 +117,43 @@ const Components = {
         const status = CONFIG.STATUS[report.status?.toUpperCase()] || CONFIG.STATUS.SUCCESS;
         const botInfo = CONFIG.BOTS.find(b => b.id === report.bot);
         const botIcon = botInfo ? botInfo.icon : '🤖';
+        const formats = report.formats || { md: report.path };
+        const markdownPath = Utils.escapeHtml(formats.md || report.path);
+        const htmlPath = Utils.escapeHtml(formats.html || '');
+        const pdfPath = Utils.escapeHtml(formats.pdf || '');
+        const actionButtons = [
+            `
+                <button class="btn-icon" onclick="viewReportWithFormats('${markdownPath}', '${htmlPath}', '${pdfPath}')"
+                   aria-label="View markdown report" title="View markdown report">
+                    <span class="icon">📄</span>
+                </button>
+            `
+        ];
+
+        if (formats.html) {
+            actionButtons.push(`
+                <button class="btn-icon" onclick="openArtifact('${htmlPath}')"
+                   aria-label="Open HTML report" title="Open HTML report">
+                    <span class="icon">🌐</span>
+                </button>
+            `);
+        }
+
+        if (formats.pdf) {
+            actionButtons.push(`
+                <a class="btn-icon" href="${Utils.escapeHtml(formats.pdf)}" target="_blank" rel="noopener"
+                   aria-label="Open PDF report" title="Open PDF report">
+                    <span class="icon">⬇️</span>
+                </a>
+            `);
+        } else {
+            actionButtons.push(`
+                <button class="btn-icon" onclick="exportReport('${markdownPath}')"
+                   aria-label="Export PDF" title="Export PDF">
+                    <span class="icon">🖨️</span>
+                </button>
+            `);
+        }
         
         return `
             <article class="report-item" data-report-id="${Utils.escapeHtml(report.id)}">
@@ -97,10 +173,7 @@ const Components = {
                     </div>
                 </div>
                 <div class="report-actions">
-                    <button class="btn-icon" onclick="viewReport('${Utils.escapeHtml(report.path)}')" 
-                       aria-label="View report" title="View report">
-                        <span class="icon">📄</span>
-                    </button>
+                    ${actionButtons.join('')}
                 </div>
             </article>
         `;

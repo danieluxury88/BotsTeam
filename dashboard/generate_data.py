@@ -194,6 +194,11 @@ class DashboardDataGenerator:
             report_id = f"{bot}-{project_id}-{timestamp_str}"
             url_prefix = self._report_url_prefix(project_id, is_personal)
             url_path = f"{url_prefix}/{bot}/{report_path.name}"
+            formats = {"md": url_path}
+            for extension in ("html", "pdf"):
+                sibling = report_path.with_suffix(f".{extension}")
+                if sibling.exists():
+                    formats[extension] = f"{url_prefix}/{bot}/{sibling.name}"
 
             return {
                 "id": report_id,
@@ -204,6 +209,7 @@ class DashboardDataGenerator:
                 "status": status,
                 "summary": summary,
                 "path": url_path,
+                "formats": formats,
                 "size_bytes": stat.st_size,
             }
 

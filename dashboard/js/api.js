@@ -106,6 +106,10 @@ const API = {
         }
     },
 
+    async exportReport(path) {
+        return await this._mutate('/api/report-exports', 'POST', { path });
+    },
+
     // Load calendar events
     async getCalendar() {
         return await this.fetchJSON(CONFIG.API.CALENDAR);

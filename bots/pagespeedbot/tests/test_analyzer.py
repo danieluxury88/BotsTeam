@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pagespeedbot import analyzer
 from shared.models import BotStatus, ProjectScope
+from shared.report_export import ReportExportResult
 
 
 def _sample_payload(strategy: str) -> dict:
@@ -111,6 +112,16 @@ def test_get_bot_result_collects_mobile_and_desktop_and_saves_files(monkeypatch,
             tmp_path / "timestamped.json",
         ),
     )
+    monkeypatch.setattr(
+        analyzer,
+        "export_report_files",
+        lambda markdown_content, **kwargs: ReportExportResult(
+            html="<html><body>export</body></html>",
+            pdf_bytes=b"%PDF-1.7",
+            html_paths=(tmp_path / "latest.html", tmp_path / "timestamped.html"),
+            pdf_paths=(tmp_path / "latest.pdf", tmp_path / "timestamped.pdf"),
+        ),
+    )
 
     result = analyzer.get_bot_result(
         "https://example.com",
@@ -139,6 +150,8 @@ def test_get_bot_result_collects_mobile_and_desktop_and_saves_files(monkeypatch,
         "https://example.com/about",
     }
     assert set(saved_artifacts[0][2]["raw"]["https://example.com"].keys()) == {"mobile", "desktop"}
+    assert result.data["export_saved"]["html"]["latest"].endswith("latest.html")
+    assert result.data["export_saved"]["pdf"]["latest"].endswith("latest.pdf")
 
 
 def test_get_bot_result_returns_partial_when_one_strategy_fails(monkeypatch) -> None:
@@ -150,6 +163,11 @@ def test_get_bot_result_returns_partial_when_one_strategy_fails(monkeypatch) -> 
     monkeypatch.setattr(analyzer, "fetch_pagespeed_payload", _fake_fetch)
     monkeypatch.setattr(analyzer, "fetch_html", lambda url, timeout=30: _sample_html())
     monkeypatch.setattr(analyzer, "fetch_text_response", _fake_text_response)
+    monkeypatch.setattr(
+        analyzer,
+        "export_report_files",
+        lambda markdown_content, **kwargs: ReportExportResult(html="<html></html>"),
+    )
 
     result = analyzer.get_bot_result("https://example.com")
 
@@ -157,6 +175,39 @@ def test_get_bot_result_returns_partial_when_one_strategy_fails(monkeypatch) -> 
     assert result.errors == ["https://example.com [desktop]: desktop failed"]
     assert "### Mobile" in result.markdown_report
     assert "## Errors" in result.markdown_report
+
+
+def test_get_bot_result_marks_partial_when_report_export_fails(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        analyzer,
+        "fetch_pagespeed_payload",
+        lambda url, strategy, categories, timeout=120: _sample_payload(strategy),
+    )
+    monkeypatch.setattr(analyzer, "fetch_html", lambda url, timeout=30: _sample_html())
+    monkeypatch.setattr(analyzer, "fetch_text_response", _fake_text_response)
+    monkeypatch.setattr(
+        analyzer,
+        "save_report",
+        lambda project_name, bot, content, scope=ProjectScope.TEAM: (tmp_path / "latest.md", tmp_path / "timestamped.md"),
+    )
+    monkeypatch.setattr(
+        analyzer,
+        "save_json_artifact",
+        lambda project_name, bot, data, scope=ProjectScope.TEAM: (tmp_path / "latest.json", tmp_path / "timestamped.json"),
+    )
+    monkeypatch.setattr(
+        analyzer,
+        "export_report_files",
+        lambda markdown_content, **kwargs: ReportExportResult(
+            html="<html></html>",
+            errors=["PDF export requires WeasyPrint to be installed."],
+        ),
+    )
+
+    result = analyzer.get_bot_result("https://example.com", project_name="Demo")
+
+    assert result.status == BotStatus.PARTIAL
+    assert "report-export: PDF export requires WeasyPrint to be installed." in result.errors
 
 
 def test_build_pagespeed_url_includes_categories_and_strategy() -> None:

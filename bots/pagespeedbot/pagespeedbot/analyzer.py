@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 
 from shared.data_manager import save_json_artifact, save_report
 from shared.models import BotResult, BotStatus, ProjectScope
+from shared.report_export import ReportHighlight, export_report_files
 
 PAGESPEED_ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 DEFAULT_CATEGORIES = (
@@ -805,6 +806,50 @@ def render_markdown_report(
     return "\n".join(lines)
 
 
+def _average_score(values: list[int | None]) -> str:
+    present = [value for value in values if value is not None]
+    if not present:
+        return "n/a"
+    return str(round(sum(present) / len(present)))
+
+
+def _build_export_metadata(
+    report: dict[str, Any],
+    summary_by_url: dict[str, dict[str, dict[str, Any]]],
+    seo_by_url: dict[str, dict[str, Any]],
+    summary: str,
+    project_name: str | None,
+    errors: list[str],
+) -> dict[str, Any]:
+    mobile_scores = [
+        item.get("mobile", {}).get("scores", {}).get("performance")
+        for item in summary_by_url.values()
+        if item.get("mobile")
+    ]
+    seo_scores = [seo_data.get("score") for seo_data in seo_by_url.values() if seo_data]
+
+    return {
+        "title": "SEO & Performance Report",
+        "subtitle": "Technical audit export for search visibility, crawl readiness, and performance signals",
+        "project_name": project_name or report["site_url"],
+        "primary_url": report["site_url"],
+        "generated_at": report["fetched_at"],
+        "author": "PageSpeedBot",
+        "kicker": "ProtonSystems Audit",
+        "document_type": "SEO & Performance Audit",
+        "primary_scope": "Search, Technical SEO, and Core Web Vitals",
+        "confidentiality": "Client Confidential",
+        "summary": summary,
+        "footer_text": f"Prepared by ProtonSystems using DevBots PageSpeedBot for {report['site_url']}",
+        "highlights": [
+            ReportHighlight("URLs Audited", str(len(report["urls"])), accent=True),
+            ReportHighlight("Avg Mobile Performance", _average_score(mobile_scores)),
+            ReportHighlight("Avg On-Page SEO", _average_score(seo_scores)),
+            ReportHighlight("Errors", str(len(errors))),
+        ],
+    }
+
+
 def get_bot_result(
     site_url: str,
     audit_urls: tuple[str, ...] = (),
@@ -881,6 +926,22 @@ def get_bot_result(
     if project_name:
         latest_report, timestamped_report = save_report(project_name, "pagespeedbot", report_md, scope=scope)
         latest_json, timestamped_json = save_json_artifact(project_name, "pagespeedbot", report, scope=scope)
+        export_result = export_report_files(
+            report_md,
+            project_name=project_name,
+            bot="pagespeedbot",
+            scope=scope,
+            template_name="protonsystems_audit",
+            branding_name="protonsystems",
+            metadata=_build_export_metadata(
+                report,
+                summary_by_url,
+                seo_by_url,
+                summary,
+                project_name,
+                errors,
+            ),
+        )
         data["report_saved"] = {
             "latest": str(latest_report),
             "timestamped": str(timestamped_report) if timestamped_report else None,
@@ -889,10 +950,13 @@ def get_bot_result(
             "latest": str(latest_json),
             "timestamped": str(timestamped_json) if timestamped_json else None,
         }
+        data["export_saved"] = export_result.to_dict()
+        if export_result.errors:
+            errors.extend([f"report-export: {error}" for error in export_result.errors])
 
     return BotResult(
         bot_name="pagespeedbot",
-        status=status,
+        status=BotStatus.PARTIAL if errors else status,
         summary=summary,
         data=data,
         markdown_report=report_md,

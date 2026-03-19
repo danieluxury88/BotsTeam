@@ -129,6 +129,24 @@ def get_report_path(
         return bot_reports_dir / f"{timestamp}.md"
 
 
+def get_report_artifact_path(
+    project_name: str,
+    bot: BotType,
+    extension: str,
+    variant: Literal["latest", "timestamped"] = "latest",
+    scope: ProjectScope = ProjectScope.TEAM,
+) -> Path:
+    """Get the path for a non-markdown report artifact such as HTML or PDF."""
+    suffix = extension if extension.startswith(".") else f".{extension}"
+    bot_reports_dir = get_reports_dir(project_name, bot, scope)
+
+    if variant == "latest":
+        return bot_reports_dir / f"latest{suffix}"
+
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    return bot_reports_dir / f"{timestamp}{suffix}"
+
+
 def ensure_project_structure(
     project_name: str,
     scope: ProjectScope = ProjectScope.TEAM,
@@ -223,6 +241,50 @@ def save_report(
     if save_timestamped:
         timestamped_path = get_report_path(project_name, bot, "timestamped", scope)
         timestamped_path.write_text(content, encoding="utf-8")
+
+    return (latest_path or Path(), timestamped_path)
+
+
+def save_report_artifact(
+    project_name: str,
+    bot: BotType,
+    content: str | bytes,
+    extension: str,
+    scope: ProjectScope = ProjectScope.TEAM,
+    save_latest: bool = True,
+    save_timestamped: bool = True,
+) -> tuple[Path, Path | None]:
+    """
+    Save a non-markdown report artifact next to the bot's markdown reports.
+
+    Args:
+        project_name: Name of the project
+        bot: Bot name
+        content: Artifact payload as text or bytes
+        extension: File extension such as ``html`` or ``pdf``
+        scope: Team or personal context
+        save_latest: Whether to save as latest.<extension>
+        save_timestamped: Whether to save timestamped version
+    """
+    ensure_project_structure(project_name, scope, bots=[bot])
+
+    latest_path = None
+    timestamped_path = None
+    is_binary = isinstance(content, bytes)
+
+    if save_latest:
+        latest_path = get_report_artifact_path(project_name, bot, extension, "latest", scope)
+        if is_binary:
+            latest_path.write_bytes(content)
+        else:
+            latest_path.write_text(content, encoding="utf-8")
+
+    if save_timestamped:
+        timestamped_path = get_report_artifact_path(project_name, bot, extension, "timestamped", scope)
+        if is_binary:
+            timestamped_path.write_bytes(content)
+        else:
+            timestamped_path.write_text(content, encoding="utf-8")
 
     return (latest_path or Path(), timestamped_path)
 

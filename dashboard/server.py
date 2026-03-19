@@ -24,7 +24,7 @@ if str(DASHBOARD_DIR) not in sys.path:
     sys.path.insert(0, str(DASHBOARD_DIR))
 
 from api import (  # noqa: E402
-    list_projects, get_project, create_project, update_project, delete_project, generate_reports,
+    list_projects, get_project, create_project, update_project, delete_project, generate_reports, export_existing_report,
     list_notes, get_note, create_note, update_note, delete_note, improve_note_api,
 )
 
@@ -105,6 +105,13 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = self._clean_path()
+
+        if path == '/api/report-exports':
+            body = self._read_json_body()
+            if body is None:
+                return
+            self._call_api(export_existing_report, body)
+            return
 
         # Notes routes: POST /api/projects/{name}/notes and POST /api/projects/{name}/notes/{file}/improve
         notes = self._parse_notes_api(path)
