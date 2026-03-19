@@ -10,6 +10,13 @@ function viewReportWithFormats(path, htmlPath = '', pdfPath = '') {
     window.location.href = `report.html?${params.toString()}`;
 }
 
+function improveReportFromDashboard(path, htmlPath = '', pdfPath = '') {
+    const params = new URLSearchParams({ path, action: 'improve' });
+    if (htmlPath) params.set('html', htmlPath);
+    if (pdfPath) params.set('pdf', pdfPath);
+    window.location.href = `report.html?${params.toString()}`;
+}
+
 function openArtifact(path) {
     window.open(path, '_blank', 'noopener');
 }
@@ -126,6 +133,12 @@ const Components = {
                 <button class="btn-icon" onclick="viewReportWithFormats('${markdownPath}', '${htmlPath}', '${pdfPath}')"
                    aria-label="View markdown report" title="View markdown report">
                     <span class="icon">📄</span>
+                </button>
+            `,
+            `
+                <button class="btn-icon" onclick="improveReportFromDashboard('${markdownPath}', '${htmlPath}', '${pdfPath}')"
+                   aria-label="Improve report with ReportBot" title="Improve report with ReportBot">
+                    <span class="icon">✨</span>
                 </button>
             `
         ];

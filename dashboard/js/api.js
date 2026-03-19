@@ -110,6 +110,35 @@ const API = {
         return await this._mutate('/api/report-exports', 'POST', { path });
     },
 
+    async improveReport(path) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120000);
+        try {
+            const response = await fetch(`${CONFIG.API.REPORT_IMPROVEMENTS}/preview`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path }),
+                signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            const data = await response.json();
+            if (!response.ok) {
+                return { error: data.error || `HTTP ${response.status}`, status: response.status };
+            }
+            return { data, status: response.status };
+        } catch (error) {
+            clearTimeout(timeout);
+            if (error.name === 'AbortError') {
+                return { error: 'Request timed out.', status: 0 };
+            }
+            return { error: error.message, status: 0 };
+        }
+    },
+
+    async saveImprovedReport(path, improved) {
+        return await this._mutate(CONFIG.API.REPORT_IMPROVEMENTS, 'POST', { path, improved });
+    },
+
     // Load calendar events
     async getCalendar() {
         return await this.fetchJSON(CONFIG.API.CALENDAR);

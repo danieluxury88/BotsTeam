@@ -44,8 +44,16 @@
         <div class="container">
             <!-- Report header with metadata -->
             <div class="report-viewer-header" id="report-header">
-                <a href="javascript:history.back()" class="back-link">← Back</a>
-                <div class="report-viewer-meta" id="report-meta"></div>
+                <div class="report-viewer-header-main">
+                    <a href="javascript:history.back()" class="back-link">← Back</a>
+                    <div class="report-viewer-meta" id="report-meta"></div>
+                </div>
+                <div class="report-viewer-banner" id="report-viewer-banner">
+                    <span class="report-viewer-banner-badge">ReportBot</span>
+                    <p class="report-viewer-banner-text">
+                        Improve this markdown report from the dashboard. The original stays untouched and the improved version is saved as a new report file.
+                    </p>
+                </div>
                 <div class="card-actions" id="report-actions"></div>
             </div>
 
@@ -62,6 +70,38 @@
             <p>&copy; 2026 DevBots. Built with ❤️ and no frameworks.</p>
         </div>
     </footer>
+
+    <div class="modal-overlay hidden" id="report-improve-modal" role="dialog" aria-modal="true" aria-labelledby="report-improve-title">
+        <div class="modal-box report-improve-modal-box">
+            <div class="modal-header">
+                <h3 class="modal-title" id="report-improve-title">✨ Improve Report with ReportBot</h3>
+                <button class="btn-icon" id="report-improve-close" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="report-improve-intro">
+                    Review the improved draft below. Saving creates a new markdown report file so the current report remains unchanged.
+                </p>
+                <div id="report-improve-loading" class="report-improve-loading">
+                    <span>🤖 ReportBot is rewriting the report…</span>
+                </div>
+                <p id="report-improve-error" class="report-improve-error hidden"></p>
+                <div class="report-improve-comparison" id="report-improve-comparison">
+                    <section class="report-improve-pane">
+                        <div class="report-improve-pane-label">Current Report</div>
+                        <div class="report-improve-pane-content report-improve-rendered" id="report-improve-original"></div>
+                    </section>
+                    <section class="report-improve-pane">
+                        <div class="report-improve-pane-label">Improved Draft</div>
+                        <div class="report-improve-pane-content report-improve-rendered" id="report-improve-preview"></div>
+                    </section>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="report-improve-cancel" class="btn btn-secondary">Discard</button>
+                <button id="report-improve-save" class="btn btn-primary" disabled>Save Improved Report</button>
+            </div>
+        </div>
+    </div>
 
     <!-- marked.js for markdown rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>

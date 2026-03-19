@@ -6,7 +6,8 @@ const ReportGenerator = {
     _renderBotList(project) {
         const isPersonal = project.scope === 'personal';
         const scopeBots = CONFIG.BOTS.filter(b =>
-            b.scope === (isPersonal ? 'personal' : 'team') || b.scope === 'both'
+            (b.scope === (isPersonal ? 'personal' : 'team') || b.scope === 'both') &&
+            b.project_runner !== false
         );
 
         if (scopeBots.length === 0) {
@@ -101,6 +102,7 @@ const ReportGenerator = {
 
         // Collect all checked bot checkboxes dynamically
         const bots = CONFIG.BOTS
+            .filter(b => b.project_runner !== false)
             .filter(b => {
                 const cb = document.getElementById(`rg-bot-${b.id}`);
                 return cb && cb.checked;

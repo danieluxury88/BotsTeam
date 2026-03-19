@@ -23,6 +23,7 @@ class BotMeta:
     description: str
     scope: BotScope
     requires_field: str | None = None
+    project_runner: bool = True
     """For personal bots: the Project field that must be set to enable this bot.
     e.g. "notes_dir", "task_file", "habit_file"."""
 
@@ -40,6 +41,7 @@ BOTS: dict[str, BotMeta] = {
     "taskbot":      BotMeta("taskbot",      "TaskBot",      "✅", "Personal task list analyzer",            "personal", requires_field="task_file"),
     "habitbot":     BotMeta("habitbot",     "HabitBot",     "🔄", "Habit and goal tracking analyzer",       "personal", requires_field="habit_file"),
     "notebot":      BotMeta("notebot",      "NoteBot",      "📝", "Note-taking and organisation assistant",  "both"),
+    "reportbot":    BotMeta("reportbot",    "ReportBot",    "✨", "Markdown report reviewer and improver",   "both", project_runner=False),
 }
 
 
@@ -60,6 +62,11 @@ def all_bots() -> list[str]:
     return list(BOTS.keys())
 
 
+def runnable_bots() -> list[str]:
+    """IDs of bots that can run from project-level report generation flows."""
+    return [m.id for m in BOTS.values() if m.project_runner]
+
+
 def to_json() -> list[dict]:
     """Serialize the registry for dashboard/data/bots.json."""
     return [
@@ -70,6 +77,7 @@ def to_json() -> list[dict]:
             "description": m.description,
             "scope": m.scope,
             "requires_field": m.requires_field,
+            "project_runner": m.project_runner,
         }
         for m in BOTS.values()
     ]

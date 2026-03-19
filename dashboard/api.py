@@ -16,10 +16,13 @@ for _pkg in (ORCHESTRATOR_PKG, SHARED_PKG):
 
 from orchestrator.registry import ProjectRegistry  # noqa: E402
 from generate_data import DashboardDataGenerator  # noqa: E402
-from shared.bot_registry import BOTS as _BOT_REGISTRY, all_bots as _all_bots  # noqa: E402
-from shared.data_manager import get_data_root, get_notes_dir  # noqa: E402
+from shared.bot_registry import BOTS as _BOT_REGISTRY, runnable_bots as _runnable_bots  # noqa: E402
+from shared.config import load_env  # noqa: E402
+from shared.data_manager import get_data_root, get_notes_dir, get_reports_dir  # noqa: E402
 from shared.models import ProjectScope  # noqa: E402
 from shared.report_export import export_report_file  # noqa: E402
+
+load_env()
 
 NAME_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*$')
 AI_BOTS = {"gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot", "notebot", "orchestrator"}
@@ -81,6 +84,16 @@ def _artifact_url_from_parts(scope, project_name, bot_name, file_path):
     if scope == ProjectScope.PERSONAL:
         return f"reports/personal/{project_name}/{bot_name}/{filename}"
     return f"reports/{project_name}/{bot_name}/{filename}"
+
+
+def _load_reportbot_improver():
+    """Import and return ReportBot's improve function lazily."""
+    reportbot_pkg = REPO_ROOT / "bots" / "reportbot"
+    if str(reportbot_pkg) not in sys.path:
+        sys.path.insert(0, str(reportbot_pkg))
+    from reportbot.analyzer import improve_report  # noqa: E402
+
+    return improve_report
 
 
 def _parse_report_reference(report_path: str):
@@ -275,7 +288,7 @@ def generate_reports(name, data):
     if not bots:
         return {"error": "No bots selected."}, 400
 
-    valid_bots = set(_all_bots())
+    valid_bots = set(_runnable_bots())
     invalid = [b for b in bots if b not in valid_bots]
     if invalid:
         return {"error": f"Unknown bots: {', '.join(invalid)}"}, 400
@@ -371,6 +384,93 @@ def export_existing_report(data):
         },
         "errors": export_result.errors,
     }, 200
+
+
+def preview_report_improvement(data):
+    """Generate an improved report draft with ReportBot without saving it."""
+    report_path = data.get("path", "")
+    resolved, error_body, error_status = _parse_report_reference(report_path)
+    if error_body:
+        return error_body, error_status
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return {"error": "ANTHROPIC_API_KEY is not set."}, 400
+
+    assert resolved is not None
+    source = resolved["source"]
+
+    try:
+        improve_report = _load_reportbot_improver()
+        content = source.read_text(encoding="utf-8")
+        improved = improve_report(content, title=source.name)
+    except Exception as exc:
+        return {"error": f"Improve failed: {exc}"}, 500
+
+    return {
+        "improved": improved,
+        "source": {
+            "path": report_path,
+            "filename": source.name,
+        },
+    }, 200
+
+
+def _build_improved_report_filename(source_bot: str, source: Path) -> str:
+    """Build a timestamped filename for an improved sibling report."""
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    stem = source.stem
+    marker = "-reportbot-improved"
+    if marker in stem:
+        stem = stem.split(marker, 1)[0]
+    if source_bot != "reportbot" and not stem.startswith(f"{source_bot}-"):
+        stem = f"{source_bot}-{stem}"
+    return f"{stem}-reportbot-improved-{timestamp}.md"
+
+
+def save_report_improvement(data):
+    """Persist an improved report draft as a new markdown file."""
+    report_path = data.get("path", "")
+    improved = data.get("improved", "")
+    if not isinstance(improved, str) or not improved.strip():
+        return {"error": "Improved report content is required."}, 400
+
+    resolved, error_body, error_status = _parse_report_reference(report_path)
+    if error_body:
+        return error_body, error_status
+
+    assert resolved is not None
+    source = resolved["source"]
+    target_dir = get_reports_dir(
+        resolved["project_name"],
+        "reportbot",
+        resolved["scope"],
+    )
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / _build_improved_report_filename(
+        resolved["bot_name"],
+        source,
+    )
+
+    try:
+        target.write_text(improved, encoding="utf-8")
+    except Exception as exc:
+        return {"error": f"Could not save improved report: {exc}"}, 500
+
+    _regenerate_dashboard()
+
+    return {
+        "artifacts": {
+            "md": _artifact_url_from_parts(
+                resolved["scope"],
+                resolved["project_name"],
+                "reportbot",
+                target,
+            ),
+        },
+        "saved": {
+            "filename": target.name,
+        },
+    }, 201
 
 
 # ── Notes CRUD ────────────────────────────────────────────────────────────────

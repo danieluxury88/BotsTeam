@@ -1,23 +1,42 @@
 // Report viewer page logic
 
+let currentReportPath = '';
+let currentHtmlPath = '';
+let currentPdfPath = '';
+let currentReportMarkdown = '';
+let currentImprovedMarkdown = '';
+let pendingViewerAction = '';
+
+function setImproveAvailability(enabled) {
+    const improveBtn = document.getElementById('improve-report-btn');
+    if (improveBtn) {
+        improveBtn.disabled = !enabled;
+    }
+}
+
 async function initReportViewer() {
     UI.initTheme();
+    await API.getBots();
 
     const params = new URLSearchParams(window.location.search);
-    const reportPath = params.get('path');
-    const htmlPath = params.get('html');
-    const pdfPath = params.get('pdf');
+    currentReportPath = params.get('path') || '';
+    currentHtmlPath = params.get('html') || '';
+    currentPdfPath = params.get('pdf') || '';
+    pendingViewerAction = params.get('action') || '';
 
-    if (!reportPath) {
+    if (!currentReportPath) {
         showError('No report specified. Use ?path=reports/...');
         return;
     }
 
     // Extract metadata from path: reports/{project}/{bot}/{filename}
-    const parts = reportPath.replace(/^reports\//, '').split('/');
-    if (parts.length === 3) {
-        const [project, bot, filename] = parts;
-        const botInfo = CONFIG.BOTS.find(b => b.id === bot);
+    const parts = currentReportPath.replace(/^reports\//, '').split('/');
+    if (parts.length === 3 || (parts.length === 4 && parts[0] === 'personal')) {
+        const offset = parts[0] === 'personal' ? 1 : 0;
+        const project = parts[offset];
+        const bot = parts[offset + 1];
+        const filename = parts[offset + 2];
+        const botInfo = CONFIG.BOTS.find((b) => b.id === bot);
         const botLabel = botInfo ? `${botInfo.icon} ${botInfo.name}` : bot;
 
         const metaEl = document.getElementById('report-meta');
@@ -34,8 +53,9 @@ async function initReportViewer() {
         document.title = `${project} - ${bot} Report - DevBots Dashboard`;
     }
 
-    renderReportActions(reportPath, htmlPath, pdfPath);
-    await loadReport(reportPath);
+    initImproveModal();
+    renderReportActions(currentReportPath, currentHtmlPath, currentPdfPath);
+    await loadReport(currentReportPath);
 }
 
 async function loadReport(path) {
@@ -50,19 +70,27 @@ async function loadReport(path) {
             return;
         }
 
-        // Configure marked for safe rendering
-        marked.setOptions({
-            breaks: true,
-            gfm: true,
-        });
-
-        // Render markdown to HTML
-        contentEl.innerHTML = marked.parse(markdown);
+        currentReportMarkdown = markdown;
+        contentEl.innerHTML = renderMarkdown(markdown);
+        setImproveAvailability(true);
+        if (pendingViewerAction === 'improve') {
+            pendingViewerAction = '';
+            await openImproveModal();
+        }
 
     } catch (error) {
         console.error('Error loading report:', error);
         showError('Failed to load report.');
+        setImproveAvailability(false);
     }
+}
+
+function renderMarkdown(markdown) {
+    marked.setOptions({
+        breaks: true,
+        gfm: true,
+    });
+    return marked.parse(markdown || '');
 }
 
 function showError(message) {
@@ -77,6 +105,7 @@ function renderReportActions(reportPath, htmlPath, pdfPath) {
     if (!actionsEl) return;
 
     const actions = [
+        `<button class="btn btn-secondary" id="improve-report-btn" type="button" ${currentReportMarkdown ? '' : 'disabled'}>✨ Improve with ReportBot</button>`,
         `<a class="btn btn-secondary" href="${Utils.escapeHtml(reportPath)}" target="_blank" rel="noopener">Open Markdown</a>`
     ];
 
@@ -97,6 +126,11 @@ function renderReportActions(reportPath, htmlPath, pdfPath) {
     }
 
     actionsEl.innerHTML = actions.join('');
+
+    const improveBtn = document.getElementById('improve-report-btn');
+    if (improveBtn) {
+        improveBtn.addEventListener('click', openImproveModal);
+    }
 
     const exportBtn = document.getElementById('export-report-btn');
     if (exportBtn) {
@@ -123,6 +157,109 @@ function renderReportActions(reportPath, htmlPath, pdfPath) {
             }
         });
     }
+}
+
+function initImproveModal() {
+    const modal = document.getElementById('report-improve-modal');
+    const closeBtn = document.getElementById('report-improve-close');
+    const cancelBtn = document.getElementById('report-improve-cancel');
+    const saveBtn = document.getElementById('report-improve-save');
+
+    if (!modal || !closeBtn || !cancelBtn || !saveBtn) return;
+
+    closeBtn.addEventListener('click', closeImproveModal);
+    cancelBtn.addEventListener('click', closeImproveModal);
+    saveBtn.addEventListener('click', saveImprovedReport);
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) {
+            closeImproveModal();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
+            closeImproveModal();
+        }
+    });
+}
+
+function setImproveError(message = '') {
+    const errorEl = document.getElementById('report-improve-error');
+    if (!errorEl) return;
+
+    if (message) {
+        errorEl.textContent = message;
+        errorEl.classList.remove('hidden');
+    } else {
+        errorEl.textContent = '';
+        errorEl.classList.add('hidden');
+    }
+}
+
+async function openImproveModal() {
+    const modal = document.getElementById('report-improve-modal');
+    const loadingEl = document.getElementById('report-improve-loading');
+    const originalEl = document.getElementById('report-improve-original');
+    const previewEl = document.getElementById('report-improve-preview');
+    const saveBtn = document.getElementById('report-improve-save');
+
+    if (!modal || !loadingEl || !originalEl || !previewEl || !saveBtn) return;
+
+    currentImprovedMarkdown = '';
+    setImproveError('');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Save Improved Report';
+    originalEl.innerHTML = renderMarkdown(currentReportMarkdown || '_Empty report._');
+    previewEl.innerHTML = '';
+    loadingEl.style.display = 'block';
+    modal.classList.remove('hidden');
+
+    const result = await API.improveReport(currentReportPath);
+    loadingEl.style.display = 'none';
+
+    if (result.error) {
+        setImproveError(result.error);
+        return;
+    }
+
+    currentImprovedMarkdown = result.data?.improved || '';
+    previewEl.innerHTML = renderMarkdown(currentImprovedMarkdown || '_No content returned._');
+    saveBtn.disabled = !currentImprovedMarkdown.trim();
+}
+
+function closeImproveModal() {
+    const modal = document.getElementById('report-improve-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    currentImprovedMarkdown = '';
+    setImproveError('');
+}
+
+async function saveImprovedReport() {
+    const saveBtn = document.getElementById('report-improve-save');
+    if (!saveBtn || !currentImprovedMarkdown.trim()) return;
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+    setImproveError('');
+
+    const result = await API.saveImprovedReport(currentReportPath, currentImprovedMarkdown);
+    if (result.error) {
+        setImproveError(result.error);
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Improved Report';
+        return;
+    }
+
+    const nextPath = result.data?.artifacts?.md;
+    if (nextPath) {
+        window.location.href = `report.html?path=${encodeURIComponent(nextPath)}`;
+        return;
+    }
+
+    closeImproveModal();
+    window.location.reload();
 }
 
 if (document.readyState === 'loading') {

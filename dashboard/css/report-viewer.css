@@ -2,11 +2,19 @@
 
 .report-viewer-header {
     display: flex;
-    align-items: center;
-    gap: var(--space-lg);
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-md);
     margin-bottom: var(--space-xl);
     padding-bottom: var(--space-md);
     border-bottom: 1px solid var(--color-border);
+}
+
+.report-viewer-header-main {
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+    flex-wrap: wrap;
 }
 
 .back-link {
@@ -26,6 +34,38 @@
 
 .meta-sep {
     color: var(--color-text-tertiary);
+}
+
+.report-viewer-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 28%, var(--color-border));
+    border-radius: var(--radius-lg);
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 8%, transparent), transparent 45%),
+        var(--color-bg-secondary);
+}
+
+.report-viewer-banner-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem 0.75rem;
+    border-radius: 999px;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.02em;
+}
+
+.report-viewer-banner-text {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
 }
 
 /* Markdown Content Styling */
@@ -181,4 +221,204 @@
 
 .report-viewer-content a:hover {
     color: var(--color-primary-hover);
+}
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: var(--z-modal, 1050);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-lg);
+}
+
+.modal-overlay.hidden {
+    display: none;
+}
+
+.modal-box {
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: min(1200px, 100%);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    padding: var(--space-lg);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+}
+
+.modal-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    margin: 0;
+}
+
+.modal-body {
+    padding: var(--space-lg);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+}
+
+.modal-footer {
+    padding: var(--space-md) var(--space-lg);
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+}
+
+.report-improve-intro {
+    margin: 0;
+    color: var(--color-text-secondary);
+}
+
+.report-improve-loading {
+    text-align: center;
+    padding: var(--space-xl);
+    color: var(--color-text-secondary);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary);
+}
+
+.report-improve-error {
+    margin: 0;
+    padding: var(--space-md);
+    border: 1px solid color-mix(in srgb, var(--color-error) 30%, var(--color-border));
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--color-error) 8%, var(--color-bg-primary));
+    color: var(--color-error);
+}
+
+.report-improve-error.hidden {
+    display: none;
+}
+
+.report-improve-comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-lg);
+}
+
+.report-improve-pane {
+    min-width: 0;
+}
+
+.report-improve-pane-label {
+    margin-bottom: var(--space-sm);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.report-improve-pane-content {
+    min-height: 320px;
+    max-height: 58vh;
+    overflow-y: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-secondary);
+}
+
+.report-improve-rendered {
+    padding: var(--space-lg);
+    line-height: var(--line-height-relaxed);
+}
+
+.report-improve-rendered h1:first-child,
+.report-improve-rendered h2:first-child,
+.report-improve-rendered h3:first-child {
+    margin-top: 0;
+}
+
+.report-improve-rendered h1 {
+    font-size: var(--font-size-2xl);
+    margin: 0 0 var(--space-md) 0;
+}
+
+.report-improve-rendered h2 {
+    font-size: var(--font-size-xl);
+    margin: var(--space-lg) 0 var(--space-sm) 0;
+}
+
+.report-improve-rendered h3,
+.report-improve-rendered h4 {
+    margin: var(--space-md) 0 var(--space-xs) 0;
+}
+
+.report-improve-rendered p,
+.report-improve-rendered ul,
+.report-improve-rendered ol,
+.report-improve-rendered pre,
+.report-improve-rendered blockquote,
+.report-improve-rendered table {
+    margin-bottom: var(--space-md);
+}
+
+.report-improve-rendered table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+}
+
+.report-improve-rendered th,
+.report-improve-rendered td {
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--color-border);
+}
+
+.report-improve-rendered pre,
+.report-improve-rendered code {
+    font-family: var(--font-family-mono);
+}
+
+.report-improve-rendered pre {
+    padding: var(--space-md);
+    background: var(--color-bg-tertiary);
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+}
+
+@media (max-width: 900px) {
+    .report-improve-comparison {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .report-viewer-banner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .modal-overlay {
+        padding: var(--space-sm);
+    }
+
+    .modal-body {
+        padding: var(--space-md);
+    }
+
+    .modal-footer {
+        flex-direction: column-reverse;
+    }
+
+    .modal-footer .btn {
+        width: 100%;
+    }
 }

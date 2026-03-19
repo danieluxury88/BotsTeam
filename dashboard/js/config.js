@@ -7,7 +7,8 @@ const CONFIG = {
         REPORTS_INDEX: 'data/index.json',
         BOTS: 'data/bots.json',
         CALENDAR: 'data/calendar.json',
-        PROJECTS_API: '/api/projects'
+        PROJECTS_API: '/api/projects',
+        REPORT_IMPROVEMENTS: '/api/report-improvements'
     },
     
     // UI settings
@@ -46,6 +47,7 @@ const CONFIG = {
         taskbot:     '#e67e22',
         habitbot:    '#e74c3c',
         notebot:     '#8B5CF6',
+        reportbot:   '#d97706',
         orchestrator:'#95a5a6',
     },
 

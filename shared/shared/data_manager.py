@@ -174,6 +174,7 @@ def ensure_project_structure(
         "taskbot",
         "habitbot",
         "notebot",
+        "reportbot",
         "orchestrator",
     ]
     for bot in default_bots:

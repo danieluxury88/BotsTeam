@@ -48,6 +48,14 @@ async function loadBots() {
 function renderBotCard(bot, totalReports, lastReport, successCount) {
     const statusClass = lastReport ? 'status-active' : 'status-idle';
     const statusText = lastReport ? 'Active' : 'No reports';
+    const isProjectRunner = bot.project_runner !== false;
+    const primaryHref = bot.id === 'reportbot'
+        ? 'reports.html'
+        : `reports.html?bot=${encodeURIComponent(bot.id)}`;
+    const primaryLabel = bot.id === 'reportbot' ? 'Open Reports' : 'View Reports';
+    const runnerHint = isProjectRunner
+        ? ''
+        : '<li>Workflow: Runs from existing report pages</li>';
 
     return `
         <article class="card bot-card">
@@ -61,11 +69,12 @@ function renderBotCard(bot, totalReports, lastReport, successCount) {
                     <li>Total reports: ${totalReports}</li>
                     <li>Successful: ${successCount}</li>
                     <li>Last run: ${Utils.formatDate(lastReport ? lastReport.timestamp : null)}</li>
+                    ${runnerHint}
                 </ul>
             </div>
             <div class="card-actions">
-                <a href="reports.html?bot=${encodeURIComponent(bot.id)}" class="btn btn-primary">
-                    View Reports
+                <a href="${primaryHref}" class="btn btn-primary">
+                    ${primaryLabel}
                 </a>
             </div>
         </article>
