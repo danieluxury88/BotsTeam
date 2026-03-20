@@ -66,7 +66,7 @@ def main(
 
 @app.command()
 def generate() -> None:
-    """Regenerate dashboard JSON data without starting the server."""
+    """Regenerate dashboard JSON data without starting server."""
     dashboard_dir = _find_dashboard_dir()
 
     if not dashboard_dir.exists():
@@ -74,6 +74,40 @@ def generate() -> None:
         raise typer.Exit(1)
 
     _generate_data(dashboard_dir, skip=False)
+
+
+@app.command()
+def generate_icons() -> None:
+    """Generate PWA icon files from SVG source."""
+    dashboard_dir = _find_dashboard_dir()
+
+    if not dashboard_dir.exists():
+        console.print("[red]Error:[/red] Dashboard directory not found")
+        raise typer.Exit(1)
+
+    icons_script = dashboard_dir / "icons" / "generate_icons.py"
+    if not icons_script.exists():
+        console.print("[red]Error:[/red] Icon generator script not found")
+        raise typer.Exit(1)
+
+    try:
+        result = subprocess.run(
+            ["python3", str(icons_script)],
+            cwd=dashboard_dir / "icons",
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            console.print("[red]Error:[/red] Icon generation failed")
+            console.print(f"[dim]{result.stderr}[/dim]")
+            raise typer.Exit(1)
+        else:
+            console.print(result.stdout)
+            console.print("[green]✓[/green] PWA icons generated successfully")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] Could not generate icons: {e}")
+        console.print("[dim]Note: You may need to install cairosvg: uv pip install cairosvg[/dim]")
+        raise typer.Exit(1)
 
 
 def _generate_data(dashboard_dir: Path, *, skip: bool) -> None:
