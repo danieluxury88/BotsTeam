@@ -28,6 +28,21 @@ def _install_fake_reportbot(monkeypatch, improved_text: str) -> None:
     monkeypatch.setitem(sys.modules, "reportbot.analyzer", analyzer)
 
 
+class _InlineThread:
+    def __init__(self, target, args=(), kwargs=None, daemon=None):
+        self._target = target
+        self._args = args
+        self._kwargs = kwargs or {}
+
+    def start(self) -> None:
+        self._target(*self._args, **self._kwargs)
+
+
+def _clear_voice_jobs() -> None:
+    with api.VOICE_COMMAND_JOBS_LOCK:
+        api.VOICE_COMMAND_JOBS.clear()
+
+
 def test_preview_report_improvement_returns_improved_markdown(
     monkeypatch,
     tmp_path: Path,
@@ -126,3 +141,57 @@ def test_preview_report_improvement_requires_api_key(
 
     assert status == 400
     assert body["error"] == "ANTHROPIC_API_KEY is not set."
+
+
+def test_start_voice_command_job_runs_inline_and_persists_result(monkeypatch) -> None:
+    _clear_voice_jobs()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(
+        api,
+        "_execute_voice_command_payload",
+        lambda data: (
+            {
+                "kind": "bot_result",
+                "transcript": data["transcript"],
+                "result": {
+                    "bot_name": "taskbot",
+                    "project_name": "journal",
+                    "summary": "Found open tasks.",
+                },
+            },
+            200,
+        ),
+    )
+    monkeypatch.setattr(api.threading, "Thread", _InlineThread)
+
+    body, status = api.start_voice_command_job(
+        {"transcript": "analiza mis tareas", "locale": "es-CO"}
+    )
+
+    assert status == 202
+    assert body["status"] == "queued"
+    job_body, job_status = api.get_voice_command_job(body["job_id"])
+    assert job_status == 200
+    assert job_body["status"] == "completed"
+    assert job_body["result"]["kind"] == "bot_result"
+    assert job_body["result"]["transcript"] == "analiza mis tareas"
+    _clear_voice_jobs()
+
+
+def test_start_voice_command_job_requires_api_key(monkeypatch) -> None:
+    _clear_voice_jobs()
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    body, status = api.start_voice_command_job({"transcript": "analiza mis tareas"})
+
+    assert status == 400
+    assert "ANTHROPIC_API_KEY" in body["error"]
+
+
+def test_get_voice_command_job_returns_not_found_for_unknown_id() -> None:
+    _clear_voice_jobs()
+
+    body, status = api.get_voice_command_job("missing-job")
+
+    assert status == 404
+    assert "was not found" in body["error"]

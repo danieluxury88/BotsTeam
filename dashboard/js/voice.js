@@ -33,8 +33,14 @@ const VoiceCommand = (() => {
     let recognition = null;
     let recognitionSupported = false;
     let listening = false;
+    let lastSpeechText = '';
+    let processing = false;
+    let processingTimer = null;
+    let processingStartedAt = 0;
+    let currentJobId = '';
+    let currentPollTimer = null;
 
-    function init() {
+    async function init() {
         elements = {
             section: document.getElementById('voice-command-module'),
             startBtn: document.getElementById('voice-start-btn'),
@@ -46,6 +52,10 @@ const VoiceCommand = (() => {
             status: document.getElementById('voice-status'),
             helper: document.getElementById('voice-language-hint'),
             result: document.getElementById('voice-result'),
+            outputProvider: document.getElementById('voice-output-provider'),
+            outputVoice: document.getElementById('voice-output-voice'),
+            outputRate: document.getElementById('voice-output-rate'),
+            outputAutoplay: document.getElementById('voice-output-autoplay'),
             examples: Array.from(document.querySelectorAll('[data-voice-example]')),
         };
 
@@ -53,6 +63,7 @@ const VoiceCommand = (() => {
             return;
         }
 
+        await initSpeechOutput();
         recognitionSupported = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
         if (recognitionSupported) {
             createRecognition();
@@ -75,6 +86,7 @@ const VoiceCommand = (() => {
             if (recognition) {
                 recognition.lang = getSpeechLocale();
             }
+            refreshVoiceChoices();
         });
 
         elements.startBtn?.addEventListener('click', startListening);
@@ -82,6 +94,11 @@ const VoiceCommand = (() => {
         elements.submitBtn?.addEventListener('click', submitTranscript);
         elements.clearBtn?.addEventListener('click', clearTranscript);
         elements.transcriptInput?.addEventListener('input', syncActionButtons);
+        elements.outputProvider?.addEventListener('change', onProviderChange);
+        elements.outputVoice?.addEventListener('change', onVoiceChange);
+        elements.outputRate?.addEventListener('change', onRateChange);
+        elements.outputAutoplay?.addEventListener('change', onAutoplayChange);
+        elements.result?.addEventListener('click', handleResultActions);
 
         elements.examples.forEach((button) => {
             button.addEventListener('click', () => {
@@ -90,6 +107,27 @@ const VoiceCommand = (() => {
                 syncActionButtons();
             });
         });
+    }
+
+    async function initSpeechOutput() {
+        if (!window.VoiceOutputService) {
+            return;
+        }
+
+        const state = await window.VoiceOutputService.init();
+        window.VoiceOutputService.subscribe((nextState) => {
+            syncVoiceOutputControls(nextState);
+            if (nextState.event === 'speech-start') {
+                setStatus('Reading the routed reply aloud...', 'live');
+            } else if (nextState.event === 'speech-stop') {
+                setStatus('Voice playback stopped.', 'ready');
+            } else if (nextState.event === 'speech-error') {
+                setStatus(nextState.error || 'Voice playback failed.', 'error');
+            } else if (nextState.event === 'speech-end' && !listening) {
+                setStatus('Reply playback finished.', 'ready');
+            }
+        });
+        syncVoiceOutputControls(state);
     }
 
     function createRecognition() {
@@ -199,16 +237,31 @@ const VoiceCommand = (() => {
     function syncActionButtons() {
         const hasTranscript = Boolean(elements.transcriptInput?.value.trim());
         if (elements.startBtn) {
-            elements.startBtn.disabled = listening || !recognitionSupported;
+            elements.startBtn.disabled = listening || processing || !recognitionSupported;
         }
         if (elements.stopBtn) {
-            elements.stopBtn.disabled = !listening;
+            elements.stopBtn.disabled = !listening || processing;
         }
         if (elements.submitBtn) {
-            elements.submitBtn.disabled = !hasTranscript;
+            elements.submitBtn.disabled = !hasTranscript || processing;
         }
         if (elements.clearBtn) {
-            elements.clearBtn.disabled = !hasTranscript && !listening;
+            elements.clearBtn.disabled = processing || (!hasTranscript && !listening);
+        }
+        if (elements.languageSelect) {
+            elements.languageSelect.disabled = processing;
+        }
+        if (elements.outputProvider) {
+            elements.outputProvider.disabled = processing || elements.outputProvider.options.length <= 1;
+        }
+        if (elements.outputVoice) {
+            elements.outputVoice.disabled = processing || elements.outputVoice.options.length <= 1;
+        }
+        if (elements.outputRate) {
+            elements.outputRate.disabled = processing;
+        }
+        if (elements.outputAutoplay) {
+            elements.outputAutoplay.disabled = processing;
         }
     }
 
@@ -238,6 +291,7 @@ const VoiceCommand = (() => {
         if (listening) {
             stopListening();
         }
+        stopPolling();
         elements.transcriptInput.value = '';
         updateIdleState();
         renderResult({
@@ -246,6 +300,7 @@ const VoiceCommand = (() => {
                 ? 'Transcript cleared. Start listening again or type a command manually.'
                 : 'Transcript cleared. Enter a command manually to test the routing flow.',
         });
+        lastSpeechText = '';
     }
 
     async function submitTranscript() {
@@ -255,39 +310,190 @@ const VoiceCommand = (() => {
             return;
         }
 
-        setStatus('Routing command through the orchestrator...', 'live');
-        renderLoadingResult('Dispatching the transcript to the dashboard API...');
+        stopPolling();
+        startProcessingState();
+        setStatus('Routing command through the orchestrator. This can take a while if a bot needs AI processing.', 'live');
+        renderLoadingResult(
+            'Processing your command...',
+            'Waiting for the orchestrator and selected bot to finish. Keep this tab open.'
+        );
 
-        const result = await API.executeVoiceCommand({
-            transcript,
-            locale: getSpeechLocale(),
-            source: 'dashboard-web-speech',
-        });
+        try {
+            const result = await API.startVoiceCommandJob({
+                transcript,
+                locale: getSpeechLocale(),
+                source: 'dashboard-web-speech',
+            });
 
-        if (result.error) {
-            setStatus(`Voice command failed: ${result.error}`, 'error');
+            if (result.error) {
+                setStatus(`Voice command failed: ${result.error}`, 'error');
+                renderResult({
+                    kind: 'error',
+                    error: result.error,
+                    transcript,
+                });
+                stopProcessingState();
+                return;
+            }
+
+            const jobId = result.data?.job_id;
+            if (!jobId) {
+                setStatus('Voice command failed: no job ID was returned by the server.', 'error');
+                renderResult({
+                    kind: 'error',
+                    error: 'The server accepted the command but did not return a job ID.',
+                    transcript,
+                });
+                stopProcessingState();
+                return;
+            }
+
+            currentJobId = jobId;
+            setStatus('Voice command accepted. Waiting for the orchestrator result...', 'live');
+            await pollVoiceCommandJob(jobId, transcript);
+        } catch (error) {
+            setStatus(`Voice command failed: ${error.message || error}`, 'error');
             renderResult({
                 kind: 'error',
-                error: result.error,
+                error: error.message || String(error),
                 transcript,
             });
-            return;
+            stopProcessingState();
         }
-
-        setStatus('Command processed. Review the routed result below.', 'ready');
-        renderResult(result.data || { kind: 'error', error: 'Empty response from server.' });
     }
 
-    function renderLoadingResult(message) {
+    function renderLoadingResult(message, detail = '') {
         if (!elements.result) {
             return;
         }
         elements.result.innerHTML = `
             <div class="voice-result-card voice-result-card-loading">
                 <div class="voice-result-kicker">Voice Router</div>
+                <div class="voice-processing-indicator" aria-hidden="true">
+                    <span class="voice-processing-dot"></span>
+                    <span class="voice-processing-dot"></span>
+                    <span class="voice-processing-dot"></span>
+                </div>
                 <p class="voice-result-message">${Utils.escapeHtml(message)}</p>
+                ${detail ? `<p class="voice-result-explanation">${Utils.escapeHtml(detail)}</p>` : ''}
+                <p class="voice-processing-elapsed" id="voice-processing-elapsed">Elapsed: 0s</p>
             </div>
         `;
+    }
+
+    function startProcessingState() {
+        processing = true;
+        processingStartedAt = Date.now();
+        elements.section?.setAttribute('data-voice-state', 'processing');
+        syncActionButtons();
+        if (processingTimer) {
+            window.clearInterval(processingTimer);
+        }
+        processingTimer = window.setInterval(updateProcessingElapsed, 1000);
+        updateProcessingElapsed();
+    }
+
+    function stopProcessingState() {
+        processing = false;
+        elements.section?.setAttribute('data-voice-state', listening ? 'listening' : 'ready');
+        if (processingTimer) {
+            window.clearInterval(processingTimer);
+            processingTimer = null;
+        }
+        syncActionButtons();
+    }
+
+    function stopPolling() {
+        currentJobId = '';
+        if (currentPollTimer) {
+            window.clearTimeout(currentPollTimer);
+            currentPollTimer = null;
+        }
+    }
+
+    function updateProcessingElapsed() {
+        const elapsedNode = document.getElementById('voice-processing-elapsed');
+        if (!elapsedNode || !processingStartedAt) {
+            return;
+        }
+        const seconds = Math.max(0, Math.round((Date.now() - processingStartedAt) / 1000));
+        let suffix = 'Working on AI routing and bot execution.';
+        if (seconds >= 30) {
+            suffix = 'Still processing. Long-running bot requests can take over a minute.';
+        }
+        if (seconds >= 60) {
+            suffix = 'This is taking longer than usual. The request is still active unless it times out.';
+        }
+        elapsedNode.textContent = `Elapsed: ${seconds}s. ${suffix}`;
+    }
+
+    async function pollVoiceCommandJob(jobId, transcript) {
+        const pollInterval = CONFIG.UI.VOICE_COMMAND_POLL_INTERVAL_MS || 2000;
+
+        while (currentJobId === jobId) {
+            const result = await API.getVoiceCommandJob(jobId);
+            if (result.error) {
+                setStatus(`Voice command failed: ${result.error}`, 'error');
+                renderResult({
+                    kind: 'error',
+                    error: result.error,
+                    transcript,
+                });
+                stopPolling();
+                stopProcessingState();
+                return;
+            }
+
+            const job = result.data || {};
+            const stageMessage = job.message || 'Processing voice command...';
+
+            if (job.status === 'queued' || job.status === 'running') {
+                setStatus(stageMessage, 'live');
+                renderLoadingResult(
+                    'Processing your command...',
+                    stageMessage,
+                );
+                await waitForNextPoll(pollInterval);
+                continue;
+            }
+
+            stopPolling();
+            stopProcessingState();
+
+            if (job.status === 'completed' && job.result) {
+                setStatus('Command processed. Review the routed result below.', 'ready');
+                const payload = job.result;
+                renderResult(payload);
+
+                if (payload.kind === 'bot_result' && payload.result) {
+                    lastSpeechText = buildReplySpeech(payload);
+                    if (elements.outputAutoplay?.checked) {
+                        playReply(lastSpeechText);
+                    }
+                } else {
+                    lastSpeechText = '';
+                }
+                return;
+            }
+
+            setStatus(`Voice command failed: ${job.error || 'Unknown error.'}`, 'error');
+            renderResult({
+                kind: 'error',
+                error: job.error || job.result?.error || 'The background voice command failed.',
+                transcript,
+                explanation: job.result?.explanation,
+            });
+            return;
+        }
+    }
+
+    function waitForNextPoll(delayMs) {
+        return new Promise((resolve) => {
+            currentPollTimer = window.setTimeout(() => {
+                currentPollTimer = null;
+                resolve();
+            }, delayMs);
+        });
     }
 
     function renderResult(payload) {
@@ -300,6 +506,7 @@ const VoiceCommand = (() => {
             : '';
 
         if (payload.kind === 'idle') {
+            lastSpeechText = '';
             elements.result.innerHTML = `
                 <div class="voice-result-card">
                     <div class="voice-result-kicker">Voice Router</div>
@@ -320,6 +527,7 @@ const VoiceCommand = (() => {
         }
 
         if (payload.kind === 'project_list') {
+            lastSpeechText = '';
             const projects = (payload.projects || []).map((project) => `
                 <li class="voice-project-item">
                     <strong>${Utils.escapeHtml(project.name)}</strong>
@@ -360,10 +568,22 @@ const VoiceCommand = (() => {
                 `);
             }
 
+            actions.unshift(`
+                <button class="btn btn-success" type="button" data-voice-action="play-reply">
+                    Play Reply
+                </button>
+            `);
+            actions.unshift(`
+                <button class="btn btn-secondary" type="button" data-voice-action="stop-reply">
+                    Stop Voice
+                </button>
+            `);
+
             const reportPreview = payload.result.markdown_report
                 ? `<pre class="voice-report-preview">${Utils.escapeHtml(payload.result.markdown_report)}</pre>`
                 : '';
 
+            lastSpeechText = buildReplySpeech(payload);
             elements.result.innerHTML = `
                 <div class="voice-result-card">
                     <div class="voice-result-header">
@@ -383,6 +603,7 @@ const VoiceCommand = (() => {
             return;
         }
 
+        lastSpeechText = '';
         elements.result.innerHTML = `
             <div class="voice-result-card voice-result-card-error">
                 <div class="voice-result-kicker">Routing Issue</div>
@@ -391,6 +612,180 @@ const VoiceCommand = (() => {
                 ${payload.explanation ? `<p class="voice-result-explanation">${Utils.escapeHtml(payload.explanation)}</p>` : ''}
             </div>
         `;
+    }
+
+    function handleResultActions(event) {
+        const action = event.target.closest('[data-voice-action]');
+        if (!action) {
+            return;
+        }
+
+        if (action.dataset.voiceAction === 'play-reply') {
+            playReply(lastSpeechText);
+        } else if (action.dataset.voiceAction === 'stop-reply') {
+            window.VoiceOutputService?.stop();
+        }
+    }
+
+    async function playReply(text) {
+        const reply = (text || '').trim();
+        if (!reply) {
+            setStatus('There is no routed reply available to read aloud yet.', 'warning');
+            return;
+        }
+
+        const result = await window.VoiceOutputService?.speak(reply, {
+            locale: getSpeechLocale(),
+        });
+        if (result && result.ok === false) {
+            setStatus(result.error || 'Voice playback failed.', 'error');
+        }
+    }
+
+    async function onProviderChange() {
+        if (!window.VoiceOutputService || !elements.outputProvider) {
+            return;
+        }
+        await window.VoiceOutputService.setProvider(elements.outputProvider.value);
+        await refreshVoiceChoices();
+    }
+
+    function onVoiceChange() {
+        if (!window.VoiceOutputService || !elements.outputVoice) {
+            return;
+        }
+        window.VoiceOutputService.updateSettings({ voiceURI: elements.outputVoice.value });
+    }
+
+    function onRateChange() {
+        if (!window.VoiceOutputService || !elements.outputRate) {
+            return;
+        }
+        window.VoiceOutputService.updateSettings({ rate: Number(elements.outputRate.value) });
+    }
+
+    function onAutoplayChange() {
+        if (!window.VoiceOutputService || !elements.outputAutoplay) {
+            return;
+        }
+        window.VoiceOutputService.updateSettings({ autoPlayReplies: elements.outputAutoplay.checked });
+    }
+
+    async function refreshVoiceChoices() {
+        if (!window.VoiceOutputService) {
+            return;
+        }
+        await window.VoiceOutputService.refreshVoices();
+    }
+
+    function syncVoiceOutputControls(state) {
+        if (!elements.outputProvider || !elements.outputVoice || !elements.outputRate || !elements.outputAutoplay) {
+            return;
+        }
+
+        const providers = state.providers || [];
+        const providerOptions = providers.map((provider) => `
+            <option value="${Utils.escapeHtml(provider.id)}" ${provider.supported ? '' : 'disabled'}>
+                ${Utils.escapeHtml(provider.label)}${provider.supported ? '' : ' (Unavailable)'}
+            </option>
+        `).join('');
+        elements.outputProvider.innerHTML = providerOptions;
+        elements.outputProvider.value = state.settings.provider || CONFIG.VOICE_OUTPUT.DEFAULT_PROVIDER;
+        elements.outputProvider.disabled = providers.length <= 1;
+
+        const locale = getSpeechLocale();
+        const voices = rankVisibleVoices(state.voices || [], locale);
+        const voiceOptions = ['<option value="">Auto-select best natural voice</option>']
+            .concat(voices.map((voice) => `
+                <option value="${Utils.escapeHtml(voice.voiceURI)}">${Utils.escapeHtml(voice.name)} (${Utils.escapeHtml(voice.lang)})</option>
+            `))
+            .join('');
+        elements.outputVoice.innerHTML = voiceOptions;
+        elements.outputVoice.value = state.settings.voiceURI || '';
+        elements.outputVoice.disabled = !voices.length;
+
+        elements.outputRate.value = String(state.settings.rate ?? CONFIG.VOICE_OUTPUT.DEFAULT_RATE);
+        elements.outputAutoplay.checked = Boolean(state.settings.autoPlayReplies);
+    }
+
+    function rankVisibleVoices(voices, locale) {
+        const base = (locale || 'es').split('-')[0].toLowerCase();
+        return [...voices]
+            .filter((voice) => {
+                const lang = (voice.lang || '').toLowerCase();
+                return lang.startsWith(base) || lang.startsWith('en');
+            })
+            .sort((left, right) => scoreVoice(right, locale, base) - scoreVoice(left, locale, base));
+    }
+
+    function scoreVoice(voice, locale, base) {
+        const lang = (voice.lang || '').toLowerCase();
+        const name = (voice.name || '').toLowerCase();
+        let score = 0;
+
+        if (lang === locale.toLowerCase()) {
+            score += 100;
+        }
+        if (lang.startsWith(base)) {
+            score += 60;
+        }
+        if (voice.default) {
+            score += 10;
+        }
+        (CONFIG.VOICE_OUTPUT.NATURAL_VOICE_HINTS || []).forEach((hint, index) => {
+            if (name.includes(hint)) {
+                score += 25 - index;
+            }
+        });
+        return score;
+    }
+
+    function buildReplySpeech(payload) {
+        const parts = [];
+        const result = payload.result || {};
+        const locale = getSpeechLocale();
+
+        if (result.bot_name && result.project_name) {
+            if (locale.toLowerCase().startsWith('es')) {
+                parts.push(`Aqui esta la respuesta de ${result.bot_name} para ${result.project_name}.`);
+            } else {
+                parts.push(`Here is the ${result.bot_name} reply for ${result.project_name}.`);
+            }
+        }
+        if (result.summary) {
+            parts.push(result.summary);
+        }
+        if (payload.explanation) {
+            parts.push(payload.explanation);
+        }
+
+        const cleanedReport = stripMarkdown(result.markdown_report || '');
+        if (cleanedReport) {
+            parts.push(cleanedReport);
+        }
+
+        return parts
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, CONFIG.VOICE_OUTPUT.MAX_REPLY_CHARS);
+    }
+
+    function stripMarkdown(markdown) {
+        const cleaned = markdown
+            .replace(/```[\s\S]*?```/g, ' ')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/^#{1,6}\s+/gm, '')
+            .replace(/\*\*([^*]+)\*\*/g, '$1')
+            .replace(/\*([^*]+)\*/g, '$1')
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
+            .replace(/^\s*[-*+]\s+/gm, '')
+            .replace(/^\s*\d+\.\s+/gm, '')
+            .replace(/\|/g, ' ')
+            .replace(/\n+/g, ' ')
+            .trim();
+
+        return cleaned.slice(0, Math.min(cleaned.length, CONFIG.VOICE_OUTPUT.MAX_REPLY_CHARS));
     }
 
     return { init };

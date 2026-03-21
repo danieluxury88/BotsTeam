@@ -72,6 +72,8 @@ The Python server (`dashboard/server.py`) exposes both static file serving and a
 | `DELETE` | `/api/projects/{name}` | Remove a project |
 | `POST` | `/api/projects/{name}/reports` | Run selected bots and save reports |
 | `GET` | `/api/bots` | List all registered bots (from bot_registry) |
+| `POST` | `/api/voice-command` | Queue a background voice command job from the dashboard voice console |
+| `GET` | `/api/voice-command/{job_id}` | Poll the state/result of a queued voice command |
 | `GET` | `/reports/{project}/{bot}/{file}` | Serve a team project markdown report |
 | `GET` | `/reports/personal/{project}/{bot}/{file}` | Serve a personal project markdown report |
 
@@ -221,6 +223,9 @@ Generated from `shared/bot_registry.py`. Loaded by the browser at startup via `A
 
 - Summary statistics (projects, reports, bots run)
 - Recent activity snapshot
+- Voice Bridge module for browser speech recognition and manual transcript routing
+- Processing state for long-running routed bot requests
+- Replaceable reply speech output with browser TTS, per-voice selection, and autoplay
 
 ---
 
@@ -231,6 +236,13 @@ Generated from `shared/bot_registry.py`. Loaded by the browser at startup via `A
 - **Local-first** — All data stays on disk; no external calls from the browser
 - **Touch-friendly** — 48px minimum touch targets throughout
 - **Dark mode** — System-aware via `prefers-color-scheme`
+
+### Voice Bridge Notes
+
+- The home page uses browser APIs for both speech recognition and speech synthesis.
+- Recognition is Spanish-first, with `es-CO`, `es-ES`, and `en-US` exposed in the UI.
+- Voice commands are handled as background jobs so long AI bot runs do not block the browser request.
+- Reply playback is provider-based. The current built-in provider is the browser `speechSynthesis` engine, but the frontend abstraction allows additional providers to be added later.
 
 ---
 

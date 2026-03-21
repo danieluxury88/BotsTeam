@@ -140,7 +140,64 @@ const API = {
     },
 
     async executeVoiceCommand(payload) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), CONFIG.UI.VOICE_COMMAND_TIMEOUT_MS || 120000);
+        try {
+            const response = await fetch(CONFIG.API.VOICE_COMMAND, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            const contentType = response.headers.get('Content-Type') || '';
+            if (!contentType.includes('application/json')) {
+                return { error: `Server error (HTTP ${response.status})`, status: response.status };
+            }
+            const data = await response.json();
+            if (!response.ok) {
+                return { error: data.error || `HTTP ${response.status}`, status: response.status };
+            }
+            return { data, status: response.status };
+        } catch (error) {
+            clearTimeout(timeout);
+            if (error.name === 'AbortError') {
+                const seconds = Math.round((CONFIG.UI.VOICE_COMMAND_TIMEOUT_MS || 120000) / 1000);
+                return { error: `Voice command timed out after ${seconds} seconds. The server may still be working.`, status: 0 };
+            }
+            return { error: error.message, status: 0 };
+        }
+    },
+
+    async startVoiceCommandJob(payload) {
         return await this._mutate(CONFIG.API.VOICE_COMMAND, 'POST', payload);
+    },
+
+    async getVoiceCommandJob(jobId) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), CONFIG.UI.VOICE_COMMAND_REQUEST_TIMEOUT_MS || 15000);
+        try {
+            const response = await fetch(`${CONFIG.API.VOICE_COMMAND}/${encodeURIComponent(jobId)}`, {
+                method: 'GET',
+                signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            const contentType = response.headers.get('Content-Type') || '';
+            if (!contentType.includes('application/json')) {
+                return { error: `Server error (HTTP ${response.status})`, status: response.status };
+            }
+            const data = await response.json();
+            if (!response.ok) {
+                return { error: data.error || `HTTP ${response.status}`, status: response.status };
+            }
+            return { data, status: response.status };
+        } catch (error) {
+            clearTimeout(timeout);
+            if (error.name === 'AbortError') {
+                return { error: 'Voice command status request timed out.', status: 0 };
+            }
+            return { error: error.message, status: 0 };
+        }
     },
 
     // Load calendar events

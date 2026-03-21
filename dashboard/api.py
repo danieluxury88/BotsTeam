@@ -3,6 +3,8 @@
 import os
 import re
 import sys
+import threading
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -27,6 +29,9 @@ load_env()
 
 NAME_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*$')
 AI_BOTS = {"gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot", "notebot", "orchestrator"}
+VOICE_COMMAND_JOBS: dict[str, dict] = {}
+VOICE_COMMAND_JOBS_LOCK = threading.Lock()
+MAX_VOICE_COMMAND_JOBS = 100
 
 
 def _parse_audit_urls(value):
@@ -56,6 +61,27 @@ def _validate_name(name):
     if not name or not NAME_PATTERN.match(name):
         return "Name must start with a letter/digit and contain only letters, digits, hyphens, underscores."
     return None
+
+
+def _utcnow_iso() -> str:
+    return datetime.utcnow().isoformat() + "Z"
+
+
+def _prune_voice_command_jobs() -> None:
+    with VOICE_COMMAND_JOBS_LOCK:
+        if len(VOICE_COMMAND_JOBS) <= MAX_VOICE_COMMAND_JOBS:
+            return
+        removable = sorted(
+            (
+                (job_id, job)
+                for job_id, job in VOICE_COMMAND_JOBS.items()
+                if job["status"] in {"completed", "failed"}
+            ),
+            key=lambda item: item[1].get("updated_at", ""),
+        )
+        while len(VOICE_COMMAND_JOBS) > MAX_VOICE_COMMAND_JOBS and removable:
+            job_id, _ = removable.pop(0)
+            VOICE_COMMAND_JOBS.pop(job_id, None)
 
 
 def _project_to_dict(project):
@@ -351,7 +377,7 @@ def generate_reports(name, data):
     return {"results": results, "completed": completed, "failed": failed}, 200
 
 
-def execute_voice_command(data):
+def _execute_voice_command_payload(data):
     """Route a transcript from the dashboard voice UI through the orchestrator."""
     transcript = str(data.get("transcript", "")).strip()
     locale = str(data.get("locale", "es-CO")).strip() or "es-CO"
@@ -432,6 +458,109 @@ def execute_voice_command(data):
 
     _regenerate_dashboard()
     return response, 200
+
+
+def _run_voice_command_job(job_id: str, data: dict) -> None:
+    with VOICE_COMMAND_JOBS_LOCK:
+        job = VOICE_COMMAND_JOBS.get(job_id)
+        if not job:
+            return
+        job["status"] = "running"
+        job["message"] = "Parsing command and invoking the selected bot."
+        job["started_at"] = _utcnow_iso()
+        job["updated_at"] = job["started_at"]
+
+    try:
+        response, status = _execute_voice_command_payload(data)
+    except Exception as exc:
+        with VOICE_COMMAND_JOBS_LOCK:
+            job = VOICE_COMMAND_JOBS.get(job_id)
+            if not job:
+                return
+            now = _utcnow_iso()
+            job["status"] = "failed"
+            job["message"] = "Voice command execution failed."
+            job["error"] = str(exc)
+            job["updated_at"] = now
+            job["completed_at"] = now
+        return
+
+    with VOICE_COMMAND_JOBS_LOCK:
+        job = VOICE_COMMAND_JOBS.get(job_id)
+        if not job:
+            return
+        now = _utcnow_iso()
+        result_kind = response.get("kind")
+        job["status"] = "completed" if status < 400 else "failed"
+        if result_kind == "error":
+            job["status"] = "failed"
+        job["message"] = "Voice command finished."
+        job["result"] = response
+        job["updated_at"] = now
+        job["completed_at"] = now
+
+
+def start_voice_command_job(data):
+    """Start a background voice command job and return the job identifier."""
+    transcript = str(data.get("transcript", "")).strip()
+    locale = str(data.get("locale", "es-CO")).strip() or "es-CO"
+    source = str(data.get("source", "dashboard")).strip() or "dashboard"
+
+    if not transcript:
+        return {"error": "Transcript is required."}, 400
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return {
+            "error": "ANTHROPIC_API_KEY is not set. Add it to your .env file and restart the server."
+        }, 400
+
+    job_id = uuid.uuid4().hex
+    now = _utcnow_iso()
+    job_record = {
+        "job_id": job_id,
+        "status": "queued",
+        "message": "Voice command accepted and queued.",
+        "transcript": transcript,
+        "locale": locale,
+        "source": source,
+        "submitted_at": now,
+        "updated_at": now,
+        "started_at": None,
+        "completed_at": None,
+        "result": None,
+        "error": None,
+    }
+
+    with VOICE_COMMAND_JOBS_LOCK:
+        VOICE_COMMAND_JOBS[job_id] = job_record
+
+    _prune_voice_command_jobs()
+    worker = threading.Thread(
+        target=_run_voice_command_job,
+        args=(job_id, {"transcript": transcript, "locale": locale, "source": source}),
+        daemon=True,
+    )
+    worker.start()
+
+    return {
+        "job_id": job_id,
+        "status": "queued",
+        "message": "Voice command accepted. Processing will continue in the background.",
+    }, 202
+
+
+def get_voice_command_job(job_id: str):
+    """Return the current state of a background voice command job."""
+    with VOICE_COMMAND_JOBS_LOCK:
+        job = VOICE_COMMAND_JOBS.get(job_id)
+        if not job:
+            return {"error": f"Voice command job '{job_id}' was not found."}, 404
+        return dict(job), 200
+
+
+def execute_voice_command(data):
+    """Backward-compatible synchronous voice command execution."""
+    return _execute_voice_command_payload(data)
 
 
 def export_existing_report(data):

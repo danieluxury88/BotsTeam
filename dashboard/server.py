@@ -28,16 +28,17 @@ from api import (  # noqa: E402
     create_project,
     delete_note,
     delete_project,
-    execute_voice_command,
     export_existing_report,
     generate_reports,
     get_note,
     get_project,
+    get_voice_command_job,
     improve_note_api,
     list_notes,
     list_projects,
     preview_report_improvement,
     save_report_improvement,
+    start_voice_command_job,
     update_note,
     update_project,
 )
@@ -45,6 +46,16 @@ from api import (  # noqa: E402
 
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
     """Custom handler with CORS support, report file serving, and project API"""
+
+    def _parse_voice_command_api(self, path):
+        if path == '/api/voice-command':
+            return ('collection', None)
+        prefix = '/api/voice-command/'
+        if path.startswith(prefix):
+            job_id = unquote(path[len(prefix):]).strip()
+            if job_id:
+                return ('item', job_id)
+        return None
 
     def translate_path(self, path):
         # Strip query string and fragment before matching
@@ -108,6 +119,14 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self._clean_path()
+        voice_api = self._parse_voice_command_api(path)
+        if voice_api is not None:
+            _, job_id = voice_api
+            if job_id is None:
+                self._send_json({"error": "Voice command job ID required."}, 400)
+            else:
+                self._call_api(get_voice_command_job, job_id)
+            return
         notes = self._parse_notes_api(path)
         if notes is not None:
             project_name, filename, _ = notes
@@ -136,7 +155,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             body = self._read_json_body()
             if body is None:
                 return
-            self._call_api(execute_voice_command, body)
+            self._call_api(start_voice_command_job, body)
             return
 
         if path == '/api/report-improvements/preview':
@@ -318,8 +337,8 @@ def run_server(port=PORT):
     dashboard_dir = Path(__file__).parent
     os.chdir(dashboard_dir)
 
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("", port), DashboardHandler) as httpd:
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
+    with socketserver.ThreadingTCPServer(("", port), DashboardHandler) as httpd:
         print("=" * 60)
         print("🤖 DevBots Dashboard Server")
         print("=" * 60)

@@ -110,6 +110,30 @@
                                     </select>
                                 </label>
                                 <p class="voice-language-hint" id="voice-language-hint"></p>
+
+                                <div class="voice-output-toolbar">
+                                    <label class="voice-field">
+                                        <span class="voice-label">Reply Voice Service</span>
+                                        <select class="filter-select" id="voice-output-provider"></select>
+                                    </label>
+                                    <label class="voice-field">
+                                        <span class="voice-label">Reply Voice</span>
+                                        <select class="filter-select" id="voice-output-voice"></select>
+                                    </label>
+                                    <label class="voice-field">
+                                        <span class="voice-label">Speech Speed</span>
+                                        <select class="filter-select" id="voice-output-rate">
+                                            <option value="0.85">Slow</option>
+                                            <option value="1" selected>Normal</option>
+                                            <option value="1.15">Clear</option>
+                                            <option value="1.3">Fast</option>
+                                        </select>
+                                    </label>
+                                    <label class="checkbox-label voice-autoplay-toggle">
+                                        <input type="checkbox" id="voice-output-autoplay">
+                                        <span>Auto-play routed replies</span>
+                                    </label>
+                                </div>
                             </div>
 
                             <div class="voice-actions-row">
@@ -188,6 +212,7 @@
     <script src="js/api.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/components.js"></script>
+    <script src="js/speech-output.js"></script>
     <script src="js/voice.js"></script>
     <script src="js/sw-register.js"></script>
     <script src="js/dashboard.js"></script>

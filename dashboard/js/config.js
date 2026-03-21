@@ -16,13 +16,25 @@ const CONFIG = {
     UI: {
         ITEMS_PER_PAGE: 10,
         AUTO_REFRESH_INTERVAL: 300000, // 5 minutes in milliseconds
-        ANIMATION_DURATION: 250
+        ANIMATION_DURATION: 250,
+        VOICE_COMMAND_TIMEOUT_MS: 120000,
+        VOICE_COMMAND_POLL_INTERVAL_MS: 2000,
+        VOICE_COMMAND_REQUEST_TIMEOUT_MS: 15000
     },
     
     // LocalStorage keys
     STORAGE: {
         THEME: 'devbots-theme',
-        SETTINGS: 'devbots-settings'
+        SETTINGS: 'devbots-settings',
+        VOICE_OUTPUT: 'devbots-voice-output'
+    },
+
+    VOICE_OUTPUT: {
+        DEFAULT_PROVIDER: 'browser',
+        DEFAULT_RATE: 1,
+        AUTO_PLAY_REPLIES: false,
+        MAX_REPLY_CHARS: 900,
+        NATURAL_VOICE_HINTS: ['natural', 'neural', 'online', 'google', 'microsoft', 'siri']
     },
     
     // Bot configuration — loaded at runtime from data/bots.json (generated from shared/bot_registry.py).

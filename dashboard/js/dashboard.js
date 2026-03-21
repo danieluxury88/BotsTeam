@@ -10,7 +10,7 @@ async function initDashboard() {
     // Initialize theme
     UI.initTheme();
     if (window.VoiceCommand && typeof window.VoiceCommand.init === 'function') {
-        window.VoiceCommand.init();
+        await window.VoiceCommand.init();
     }
     
     // Setup refresh button

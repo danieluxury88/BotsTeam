@@ -21,7 +21,7 @@ This workspace contains multiple specialized bots that share common infrastructu
 - **HabitBot** — Analyzes habit tracking logs (CSV or markdown)
 - **NoteBot** — AI-powered note analysis and improvement (scope: team or personal)
 
-**[Dashboard](docs/DASHBOARD.md)** — Web-based visual interface for all projects and reports
+**[Dashboard](docs/DASHBOARD.md)** — Web-based visual interface for all projects and reports, including a browser voice bridge for spoken commands and spoken bot replies
 
 All bots use **Claude (Anthropic)** for AI analysis and share utilities for git reading, LLM access, and configuration.
 
@@ -113,6 +113,9 @@ uv run orchestrator chat
 uv run dashboard
 uv run dashboard --port 3000     # Custom port
 uv run dashboard generate        # Regenerate data only
+
+# In the dashboard home page, use the Voice Bridge card for browser mic input
+# and spoken routed replies in Spanish or English
 
 # Or via orchestrator
 uv run orchestrator dashboard
