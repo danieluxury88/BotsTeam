@@ -84,6 +84,71 @@
                 </div>
             </section>
 
+            <section class="voice-section" aria-label="Voice command module">
+                <div class="voice-console card" id="voice-command-module" data-voice-state="idle">
+                    <div class="voice-console-header">
+                        <div class="voice-console-copy">
+                            <p class="voice-kicker">Voice Bridge</p>
+                            <h2 class="section-title">Speak To Your Bots</h2>
+                            <p class="voice-intro">
+                                Use the dashboard as a voice console for the orchestrator. Spanish is the primary path, with English available when you need it.
+                            </p>
+                        </div>
+                        <div class="voice-console-badge">PWA Mic Flow</div>
+                    </div>
+
+                    <div class="voice-console-grid">
+                        <div class="voice-input-panel">
+                            <div class="voice-toolbar">
+                                <label class="voice-field">
+                                    <span class="voice-label">Recognition Language</span>
+                                    <select class="filter-select" id="voice-language-select">
+                                        <option value="auto">Auto</option>
+                                        <option value="es-CO" selected>Español (CO)</option>
+                                        <option value="es-ES">Español (ES)</option>
+                                        <option value="en-US">English (US)</option>
+                                    </select>
+                                </label>
+                                <p class="voice-language-hint" id="voice-language-hint"></p>
+                            </div>
+
+                            <div class="voice-actions-row">
+                                <button class="btn btn-primary voice-record-btn" id="voice-start-btn" type="button">
+                                    Start Listening
+                                </button>
+                                <button class="btn btn-secondary" id="voice-stop-btn" type="button" disabled>
+                                    Stop
+                                </button>
+                                <button class="btn btn-success" id="voice-submit-btn" type="button" disabled>
+                                    Send Command
+                                </button>
+                                <button class="btn btn-secondary" id="voice-clear-btn" type="button">
+                                    Clear
+                                </button>
+                            </div>
+
+                            <div class="voice-status-line" id="voice-status" data-tone="idle">
+                                Ready for voice input.
+                            </div>
+
+                            <label class="voice-field" for="voice-transcript-input">
+                                <span class="voice-label">Transcript</span>
+                                <textarea
+                                    class="form-input voice-transcript-input"
+                                    id="voice-transcript-input"
+                                    rows="5"
+                                    placeholder="Speak into the microphone, or type a command here. Example: Quiero revisar mis tareas"
+                                ></textarea>
+                            </label>
+                        </div>
+
+                        <div class="voice-result-panel">
+                            <div class="voice-result" id="voice-result"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Recent Projects -->
             <section class="projects-section" aria-label="Recent projects">
                 <div class="section-header">
@@ -123,6 +188,7 @@
     <script src="js/api.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/components.js"></script>
+    <script src="js/voice.js"></script>
     <script src="js/sw-register.js"></script>
     <script src="js/dashboard.js"></script>
 

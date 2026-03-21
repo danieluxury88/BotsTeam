@@ -8,13 +8,14 @@ from pathlib import Path
 
 # Ensure orchestrator and shared packages are importable
 REPO_ROOT = Path(__file__).resolve().parent.parent
-ORCHESTRATOR_PKG = REPO_ROOT / "bots" / "orchestrator"
+BOT_PACKAGES = [path for path in (REPO_ROOT / "bots").iterdir() if path.is_dir()]
 SHARED_PKG = REPO_ROOT / "shared"
-for _pkg in (ORCHESTRATOR_PKG, SHARED_PKG):
+for _pkg in [*BOT_PACKAGES, SHARED_PKG]:
     if str(_pkg) not in sys.path:
         sys.path.insert(0, str(_pkg))
 
 from orchestrator.registry import ProjectRegistry  # noqa: E402
+from orchestrator.router import process_user_request  # noqa: E402
 from generate_data import DashboardDataGenerator  # noqa: E402
 from shared.bot_registry import BOTS as _BOT_REGISTRY, runnable_bots as _runnable_bots  # noqa: E402
 from shared.config import load_env  # noqa: E402
@@ -348,6 +349,89 @@ def generate_reports(name, data):
 
     _regenerate_dashboard()
     return {"results": results, "completed": completed, "failed": failed}, 200
+
+
+def execute_voice_command(data):
+    """Route a transcript from the dashboard voice UI through the orchestrator."""
+    transcript = str(data.get("transcript", "")).strip()
+    locale = str(data.get("locale", "es-CO")).strip() or "es-CO"
+    source = str(data.get("source", "dashboard")).strip() or "dashboard"
+
+    if not transcript:
+        return {"error": "Transcript is required."}, 400
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return {
+            "error": "ANTHROPIC_API_KEY is not set. Add it to your .env file and restart the server."
+        }, 400
+
+    registry = _registry()
+    outcome = process_user_request(transcript, registry)
+    action_plan = outcome.action_plan
+
+    response = {
+        "transcript": transcript,
+        "locale": locale,
+        "source": source,
+        "action_plan": action_plan,
+        "explanation": action_plan.get("explanation"),
+    }
+
+    if outcome.projects:
+        response["kind"] = "project_list"
+        response["projects"] = [_project_to_dict(project) for project in outcome.projects]
+        response["count"] = len(outcome.projects)
+        return response, 200
+
+    if outcome.error:
+        response["kind"] = "error"
+        response["error"] = outcome.error
+        return response, 200
+
+    if not outcome.bot_result:
+        response["kind"] = "error"
+        response["error"] = "The command was parsed, but no bot action was produced."
+        return response, 200
+
+    bot_result = outcome.bot_result
+    bot_name = action_plan.get("bot")
+    project_name = action_plan.get("project")
+    status_str = bot_result.status.value if hasattr(bot_result.status, "value") else str(bot_result.status)
+
+    response["kind"] = "bot_result"
+    response["result"] = {
+        "bot_name": bot_name,
+        "project_name": project_name,
+        "status": status_str,
+        "summary": bot_result.summary,
+        "markdown_report": bot_result.markdown_report,
+        "errors": list(bot_result.errors),
+    }
+
+    if project_name and bot_name and isinstance(bot_result.data, dict):
+        project = registry.get_project(project_name)
+        if project:
+            report_saved = bot_result.data.get("report_saved", {})
+            export_saved = bot_result.data.get("export_saved", {})
+            artifacts = {}
+
+            markdown_path = _artifact_url(project, bot_name, report_saved.get("latest"))
+            if markdown_path:
+                artifacts["md"] = markdown_path
+
+            html_path = _artifact_url(project, bot_name, export_saved.get("html", {}).get("latest"))
+            if html_path:
+                artifacts["html"] = html_path
+
+            pdf_path = _artifact_url(project, bot_name, export_saved.get("pdf", {}).get("latest"))
+            if pdf_path:
+                artifacts["pdf"] = pdf_path
+
+            if artifacts:
+                response["result"]["artifacts"] = artifacts
+
+    _regenerate_dashboard()
+    return response, 200
 
 
 def export_existing_report(data):

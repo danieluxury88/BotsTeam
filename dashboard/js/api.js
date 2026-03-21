@@ -139,6 +139,10 @@ const API = {
         return await this._mutate(CONFIG.API.REPORT_IMPROVEMENTS, 'POST', { path, improved });
     },
 
+    async executeVoiceCommand(payload) {
+        return await this._mutate(CONFIG.API.VOICE_COMMAND, 'POST', payload);
+    },
+
     // Load calendar events
     async getCalendar() {
         return await this.fetchJSON(CONFIG.API.CALENDAR);

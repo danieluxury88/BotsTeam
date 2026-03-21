@@ -9,6 +9,9 @@ function viewReport(path) {
 async function initDashboard() {
     // Initialize theme
     UI.initTheme();
+    if (window.VoiceCommand && typeof window.VoiceCommand.init === 'function') {
+        window.VoiceCommand.init();
+    }
     
     // Setup refresh button
     const refreshBtn = document.getElementById('refresh-btn');

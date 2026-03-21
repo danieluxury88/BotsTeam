@@ -8,7 +8,8 @@ const CONFIG = {
         BOTS: 'data/bots.json',
         CALENDAR: 'data/calendar.json',
         PROJECTS_API: '/api/projects',
-        REPORT_IMPROVEMENTS: '/api/report-improvements'
+        REPORT_IMPROVEMENTS: '/api/report-improvements',
+        VOICE_COMMAND: '/api/voice-command'
     },
     
     // UI settings

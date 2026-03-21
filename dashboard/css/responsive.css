@@ -66,6 +66,30 @@
         align-items: flex-start;
         gap: var(--space-sm);
     }
+
+    .voice-console-header,
+    .voice-console-grid {
+        grid-template-columns: 1fr;
+        display: grid;
+    }
+
+    .voice-console-badge {
+        white-space: normal;
+    }
+
+    .voice-actions-row {
+        flex-direction: column;
+    }
+
+    .voice-actions-row .btn {
+        width: 100%;
+    }
+
+    .voice-result-header,
+    .voice-project-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 
 /* Touch-friendly spacing for mobile */

@@ -12,6 +12,7 @@ This workspace contains multiple specialized bots that share common infrastructu
 - **[QABot](bots/qabot/README.md)** — Suggests tests based on code changes and runs test suites
 - **[Project Manager](bots/project_manager/README.md)** — GitLab/GitHub issue analyzer and AI-powered sprint planner
 - **[Orchestrator](bots/orchestrator/README.md)** — Conversational interface that knows your projects and calls other bots
+- **[VoiceBot](bots/voicebot/README.md)** — Voice command layer for the orchestrator with Spanish-aware speech recognition
 
 **Personal bots** (local files):
 
@@ -44,6 +45,7 @@ uv run gitbot /path/to/project
 uv run qabot suggest /path/to/project
 uv run pmbot analyze --project-id 12345
 uv run orchestrator chat
+uv run voicebot listen --language auto
 ```
 
 ## 🚀 Usage Examples
@@ -116,6 +118,19 @@ uv run dashboard generate        # Regenerate data only
 uv run orchestrator dashboard
 ```
 
+### VoiceBot - Spoken Commands for Bots
+
+```bash
+# Listen on the microphone, prefer Spanish detection, then route to orchestrator
+uv run voicebot listen --language auto
+
+# Transcribe a recorded command without dispatching it
+uv run voicebot transcribe ./samples/comando.wav --language es --no-dispatch
+
+# Transcribe and execute the spoken instruction
+uv run voicebot transcribe ./samples/command.wav --language auto --dispatch
+```
+
 ### Personal Bots - Journal, Tasks & Habits
 
 ```bash
@@ -153,6 +168,7 @@ BotsTeam/
 │   ├── taskbot/        # Personal task list analyzer
 │   ├── habitbot/       # Personal habit tracking analyzer
 │   ├── orchestrator/   # Conversational bot interface + project registry
+│   ├── voicebot/       # Voice command interface with Spanish-aware transcription
 │   └── dashboard/      # Standalone dashboard CLI (uv run dashboard)
 ├── dashboard/           # Web dashboard (static HTML/CSS/JS + data generator)
 │   ├── data/           # Generated JSON files (gitignored): bots, projects, index, dashboard
@@ -224,6 +240,7 @@ uv run gitbot --help
 uv run qabot --help
 uv run pmbot --help
 uv run orchestrator --help
+uv run voicebot --help
 
 # Run tests (when available)
 uv run pytest

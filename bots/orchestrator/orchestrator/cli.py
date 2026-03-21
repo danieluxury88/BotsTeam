@@ -1,6 +1,5 @@
 """Conversational orchestrator CLI."""
 
-import json
 import os
 import subprocess
 import webbrowser
@@ -15,10 +14,9 @@ from rich.prompt import Prompt
 from rich.rule import Rule
 from rich.table import Table
 
-from orchestrator.bot_invoker import invoke_bot
 from orchestrator.registry import ProjectRegistry
+from orchestrator.router import process_user_request
 from shared.config import load_env
-from shared.llm import create_client
 from shared.models import ProjectScope
 
 load_env()
@@ -29,6 +27,11 @@ app = typer.Typer(
     add_completion=False,
 )
 console = Console()
+
+
+def _is_success_status(status: object) -> bool:
+    value = getattr(status, "value", status)
+    return value == "success"
 
 # ── Shared option types ──────────────────────────────────────────────────────
 GitLabProjectIdOpt = Annotated[
@@ -55,94 +58,6 @@ ScopeOpt = Annotated[
     str,
     typer.Option("--scope", "-s", help="Project scope: 'team' (default) or 'personal'")
 ]
-
-SYSTEM_PROMPT = """\
-You are DevBot Orchestrator, an intelligent assistant that helps developers get information about their projects.
-
-You have access to:
-1. A project registry — list of known projects with their paths and scopes
-2. TEAM bots (for code repositories and issue trackers):
-   - gitbot: analyzes git history and provides summaries
-   - qabot: suggests tests based on recent changes
-   - pmbot: analyzes issues and generates sprint plans (requires GitLab or GitHub integration)
-3. PERSONAL bots (for personal data files — journals, tasks, habits):
-   - journalbot: analyzes a directory of markdown journal/notes files
-   - taskbot: analyzes personal task lists (markdown checklists, todo.txt)
-   - habitbot: analyzes habit tracking data (CSV or markdown tables)
-
-CONTEXT DETECTION — detect which scope the user means from their phrasing:
-- Personal signals: "my week", "my journal", "how am I doing", "my tasks", "my habits",
-  "my notes", "my side project", "personal" → use personal projects and personal bots
-- Team signals: project names, "issues", "sprint", "commits", "tests", "the team",
-  specific team project names → use team projects and team bots
-- If ambiguous and both scopes have matching projects, include "scope": null and ask
-  for clarification in the explanation field.
-
-When the user asks for information, you should:
-1. Detect the scope (personal or team) from their phrasing
-2. Identify which project they're referring to (match by name within that scope)
-3. Determine which bot they need
-4. Return a JSON response with the action to take
-
-Response format:
-{
-  "action": "invoke_bot" | "list_projects" | "unknown",
-  "bot": "gitbot" | "qabot" | "pmbot" | "journalbot" | "taskbot" | "habitbot" | null,
-  "project": "project_name" | null,
-  "scope": "team" | "personal" | null,
-  "params": {
-    "max_commits": 50,
-    "pmbot_mode": "analyze" or "plan"
-  },
-  "explanation": "Brief explanation of what you'll do"
-}
-
-Examples:
-- "get gitbot report for uni.li" → {"action": "invoke_bot", "bot": "gitbot", "project": "uni.li", "scope": "team", ...}
-- "how was my week?" → {"action": "invoke_bot", "bot": "journalbot", "project": "<personal journal project>", "scope": "personal", ...}
-- "check my tasks" → {"action": "invoke_bot", "bot": "taskbot", "project": "<personal task project>", "scope": "personal", ...}
-- "how are my habits going?" → {"action": "invoke_bot", "bot": "habitbot", "project": "<personal habit project>", "scope": "personal", ...}
-- "analyze issues for project X" → {"action": "invoke_bot", "bot": "pmbot", "project": "X", "scope": "team", "params": {"pmbot_mode": "analyze"}, ...}
-- "create sprint plan for project Y" → {"action": "invoke_bot", "bot": "pmbot", "project": "Y", "scope": "team", "params": {"pmbot_mode": "plan"}, ...}
-- "what projects do you know?" → {"action": "list_projects", "scope": null, ...}
-
-IMPORTANT: pmbot only works if the project has GitLab or GitHub integration configured.
-IMPORTANT: journalbot/taskbot/habitbot only work for personal-scope projects with the matching data source configured.
-
-Be concise and helpful.
-"""
-
-
-def parse_user_request(user_message: str, available_projects: list[str]) -> dict:
-    """Use Claude to parse user request and determine action."""
-    client = create_client()
-
-    projects_list = ", ".join(available_projects) if available_projects else "none registered"
-
-    user_prompt = f"""Available projects: {projects_list}
-
-User request: {user_message}
-
-What should I do? Respond with valid JSON only."""
-
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=500,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
-
-    response_text = message.content[0].text.strip()
-
-    if "```json" in response_text:
-        response_text = response_text.split("```json")[1].split("```")[0].strip()
-    elif "```" in response_text:
-        response_text = response_text.split("```")[1].split("```")[0].strip()
-
-    try:
-        return json.loads(response_text)
-    except json.JSONDecodeError:
-        return {"action": "unknown", "explanation": "Could not parse request"}
 
 
 @app.command()
@@ -217,66 +132,32 @@ def chat(
                     continue
 
             console.print()
-            available_projects = [p.name for p in registry.list_projects()]
-
-            try:
-                action_plan = parse_user_request(user_input, available_projects)
-            except Exception as e:
-                console.print(f"[red]Error parsing request:[/red] {e}")
-                continue
+            outcome = process_user_request(user_input, registry)
+            action_plan = outcome.action_plan
 
             if "explanation" in action_plan:
                 console.print(f"[dim]→ {action_plan['explanation']}[/dim]")
 
+            if outcome.error:
+                console.print(f"[red]Error:[/red] {outcome.error}")
+                console.print("[dim]Try: 'get qabot report for myproject' or 'how was my week?'[/dim]")
+                console.print()
+                continue
+
             if action_plan.get("action") == "list_projects":
                 _show_projects(registry)
+            elif outcome.bot_result:
+                bot_name = action_plan.get("bot", "bot")
+                project_name = action_plan.get("project", "project")
 
-            elif action_plan.get("action") == "invoke_bot":
-                bot_name = action_plan.get("bot")
-                project_name = action_plan.get("project")
-                params = action_plan.get("params", {})
-
-                if not bot_name or not project_name:
-                    console.print("[red]Error:[/red] Could not determine bot or project")
-                    continue
-
-                project = registry.get_project(project_name)
-                if not project:
-                    console.print(f"[red]Error:[/red] Project '{project_name}' not found")
-                    console.print("[dim]Use /add to register it first[/dim]")
-                    continue
-
-                console.print(f"[cyan]Running {bot_name} on {project.name}...[/cyan]")
+                console.print(f"[cyan]Running {bot_name} on {project_name}...[/cyan]")
                 console.print()
 
-                if bot_name == "pmbot":
-                    pmbot_mode = params.get("pmbot_mode", "analyze")
-                    if not project.has_gitlab() and not project.has_github():
-                        console.print(
-                            "[yellow]⚠[/yellow] pmbot requires GitLab or GitHub integration\n"
-                            f"[dim]Project '{project.name}' has no issue tracker configured.[/dim]\n\n"
-                            "To enable pmbot:\n"
-                            f"  [bold]orchestrator add {project.name} {project.path} "
-                            f"--gitlab-id YOUR_PROJECT_ID[/bold]\n"
-                            f"  [bold]orchestrator add {project.name} {project.path} "
-                            f"--github-repo owner/repo[/bold]\n"
-                        )
-                        continue
-                    result = invoke_bot(bot_name, project=project, pmbot_mode=pmbot_mode)
-
-                elif bot_name in ("journalbot", "taskbot", "habitbot"):
-                    result = invoke_bot(bot_name, project=project)
-
-                else:
-                    max_commits = params.get("max_commits", 300)
-                    result = invoke_bot(bot_name, project=project, max_commits=max_commits)
-
-                if result.status in ("success", "SUCCESS"):
+                if _is_success_status(outcome.bot_result.status):
                     console.print(Rule(f"[dim]{bot_name.upper()} Report[/dim]"))
-                    console.print(Markdown(result.markdown_report))
+                    console.print(Markdown(outcome.bot_result.markdown_report))
                 else:
-                    console.print(f"[red]Error:[/red] {result.summary}")
-
+                    console.print(f"[red]Error:[/red] {outcome.bot_result.summary}")
             else:
                 console.print("[yellow]⚠[/yellow] Sorry, I couldn't understand that request.")
                 console.print("[dim]Try: 'get qabot report for myproject' or 'how was my week?'[/dim]")

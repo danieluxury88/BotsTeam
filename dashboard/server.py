@@ -28,6 +28,7 @@ from api import (  # noqa: E402
     create_project,
     delete_note,
     delete_project,
+    execute_voice_command,
     export_existing_report,
     generate_reports,
     get_note,
@@ -129,6 +130,13 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             if body is None:
                 return
             self._call_api(export_existing_report, body)
+            return
+
+        if path == '/api/voice-command':
+            body = self._read_json_body()
+            if body is None:
+                return
+            self._call_api(execute_voice_command, body)
             return
 
         if path == '/api/report-improvements/preview':
