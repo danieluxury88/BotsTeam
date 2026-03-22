@@ -156,16 +156,27 @@ Report naming:
 - `data/{project}/reports/{bot}/2026-02-25-075540.md` — timestamped archive
 - Personal reports follow the same pattern under `data/personal/`
 
-### `gitlab_client.py` / `github_client.py` — Issue Clients
+### `gitlab_client.py` / `github_client.py` / `issue_tracker.py` — Capability-Aware Issue Clients
 
-Both normalize platform API responses into `Issue` / `IssueSet`:
+PMBot uses shared issue-tracker clients plus a lightweight capability protocol:
 
 ```python
-GitLabClient(token=None, url=None).fetch_issues(project_id, state, max_issues) → IssueSet
-GitHubClient(token=None, base_url=None).fetch_issues(repo, state, max_issues) → IssueSet
+IssueTrackerClient.capabilities() → frozenset[IssueTrackerCapability]
+IssueTrackerClient.supports(capability) → bool
+IssueTrackerClient.probe_capabilities(target_id) → IssueTrackerAccessReport
+
+GitLabClient(...).fetch_issues(project_id, state, max_issues) → IssueSet
+GitLabClient(...).get_issue(project_id, issue_iid) → Issue
+GitLabClient(...).create_issue(project_id, draft) → Issue
+GitLabClient(...).update_issue_description(project_id, issue_iid, description) → Issue
+
+GitHubClient(...).fetch_issues(repo, state, max_issues) → IssueSet
+GitHubClient(...).get_issue(repo, issue_iid) → Issue
+GitHubClient(...).create_issue(repo, draft) → Issue
+GitHubClient(...).update_issue_description(repo, issue_iid, description) → Issue
 ```
 
-Raw API objects never leave the client modules. All consumers work with `Issue`.
+Raw API objects never leave the client modules. All consumers work with `Issue`, `IssueSet`, `IssueDraft`, and capability/access reports.
 
 ---
 
@@ -218,27 +229,33 @@ Can also consume a `ChangeSet` from gitbot directly (avoiding redundant git read
 
 ---
 
-### Project Manager (pmbot) — Issue Analyzer & Sprint Planner
+### Project Manager (pmbot) — Issue Analysis, Planning, Review, and Tracker Mutations
 
-**Role:** Fetches open issues from GitLab or GitHub, analyzes patterns, and generates sprint plans.
+**Role:** Resolves a GitLab or GitHub issue target, analyzes issue sets, generates sprint plans, reviews issue descriptions, creates issues, and checks runtime tracker permissions.
 
 **Entry points:**
 
 ```python
-analyze(issue_set: IssueSet) → BotResult   # Project health, patterns, recommendations
-plan(issue_set: IssueSet) → BotResult      # Prioritized sprint workload with effort estimates
+project_manager.runner.get_bot_result(...) → BotResult     # mode-aware PMBot runner
+project_manager.analyzer.analyze(issue_set) → BotResult    # Issue health, patterns, recommendations
+project_manager.analyzer.plan(issue_set) → BotResult       # Prioritized sprint workload
+project_manager.analyzer.review(issue_set) → ReviewResult  # Description improvement suggestions
 ```
 
 **CLI:**
 
 ```bash
-uv run pmbot analyze --project-id 12345           # GitLab
-uv run pmbot analyze --github-repo owner/repo     # GitHub
-uv run pmbot plan --project-id 12345
-uv run pmbot list --project-id 12345 --state opened --labels bug
+uv run pmbot analyze --project BotsTeam
+uv run pmbot plan --project BotsTeam
+uv run pmbot review --project BotsTeam --dry-run
+uv run pmbot create --project BotsTeam --title "..." --description "..."
+uv run pmbot check --project BotsTeam
+uv run pmbot analyze --github-repo owner/repo
 ```
 
-**Data flow:** `project_id` or `github_repo` → GitLab/GitHub API → `Issue[]` → `IssueSet` → Claude → `BotResult` (payload: `WorkloadPlan`)
+**Data flow:** registry project or explicit tracker target → issue-tracker client (`GitLabClient` / `GitHubClient`) → `IssueSet` or `IssueDraft` → analyzer or mutation flow → `BotResult`
+
+The orchestrator depends on the PMBot runner rather than branching on PMBot modes itself, which keeps new PMBot capabilities local to the PMBot package.
 
 ---
 
@@ -292,7 +309,8 @@ get_bot_result(habit_source, since, until, model, project_name, scope) → BotRe
 
 - `registry.py` — `ProjectRegistry` and `Project` dataclasses; loads both `data/projects.json` (team) and `data/personal/projects.json` (personal). `Project` has `scope`, `notes_dir`, `task_file`, `habit_file` fields.
 - Team projects can also store stack metadata with a primary `language` plus optional `languages[]` and `frameworks[]` values (for example `php` + `javascript`, framework `Drupal`).
-- `bot_invoker.py` — `invoke_bot(bot_name, project, **params) → BotResult`; routes to all bots including personal ones
+- `bot_invoker.py` — `invoke_bot(bot_name, project, **params) → BotResult` and `invoke_pipeline(pipeline_name, project, **params) → BotResult`; routes to all bots including personal ones and supports composed workflows such as `gitbot_qabot`
+- `router.py` — Claude-backed intent parser that can dispatch either a single bot or a registered pipeline
 - `cli.py` — Interactive chat loop, project CRUD (with scope), dashboard launcher
 
 **CLI:**
@@ -308,16 +326,18 @@ uv run orchestrator dashboard [--port N]    # Launch web dashboard
 
 ```text
 > get gitbot report for uni.li
+> analyze recent changes and tell me what to test for uni.li
 > analyze my journal for this month    # → journalbot (personal context detected)
 > how am I doing on my habits?         # → habitbot
 > analyze issues for uni.li
+> create an issue for BotsTeam titled "Dashboard: investigate Header Navigation problem"
 ```
 
 **Bot invocation flow:**
 
-1. User message → Claude parses intent + detects scope → JSON `{action, bot, project, params}`
-2. `invoke_bot()` resolves project from registry (team or personal)
-3. Bot runs, result auto-saved to correct scoped directory
+1. User message → Claude parses intent + detects scope → JSON `{action, bot|pipeline, project, params}`
+2. `invoke_bot()` or `invoke_pipeline()` resolves project from registry (team or personal)
+3. Bot or pipeline runs, result auto-saved to the correct scoped directory
 4. Report displayed via Rich Markdown
 
 #### Project Registry Schemas
@@ -456,6 +476,18 @@ User: "get qabot report for uni.li"
   → bot_invoker.invoke_bot("qabot", project=uni_li_project)
   → qabot/analyzer.get_bot_result()
   → auto-saved to data/uni.li/reports/qabot/
+  → displayed in chat loop
+```
+
+### Pattern 2b — Pipeline via Orchestrator (Chat)
+
+```text
+User: "analyze recent changes and tell me what to test for uni.li"
+  → orchestrator/cli.py parse_user_request() via Claude
+  → JSON: {action: invoke_pipeline, pipeline: gitbot_qabot, project: uni.li}
+  → bot_invoker.invoke_pipeline("gitbot_qabot", project=uni_li_project)
+  → gitbot.get_changeset() then qabot.analyze_changeset_for_testing()
+  → auto-saved to data/uni.li/reports/orchestrator/
   → displayed in chat loop
 ```
 

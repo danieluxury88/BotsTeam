@@ -62,10 +62,11 @@ Then type natural language requests:
 | --- | --- |
 | `get gitbot report for myproject` | Analyzes recent git commits and generates a summary |
 | `suggest tests for myproject` | Suggests tests based on recent code changes |
+| `analyze recent changes and tell me what to test for myproject` | Runs the `gitbot_qabot` workflow and returns one combined report |
 | `analyze issues for myproject` | Analyzes open issues and finds patterns (needs GitLab/GitHub) |
 | `create sprint plan for myproject` | Generates a sprint plan with priorities (needs GitLab/GitHub) |
 | `review issues for myproject` | Improves issue descriptions (needs GitLab/GitHub) |
-| `create an issue for myproject titled "..." with description "..."` | Creates a new GitHub issue (needs GitHub issue write access) |
+| `create an issue for myproject titled "..." with description "..."` | Creates a new GitHub or GitLab issue (needs tracker issue write access) |
 | `what projects do you know?` | Lists all registered projects |
 
 ### Chat Commands

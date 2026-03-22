@@ -297,8 +297,8 @@ Each bot has its own README with detailed usage:
 - [x] Test framework detection (pytest, unittest)
 - [x] AI-powered test suggestions
 - [x] Test execution
-- [ ] Coverage analysis
-- [ ] Test generation
+- [x] Coverage analysis
+- [x] Test generation
 
 ### Project Manager
 
@@ -318,7 +318,7 @@ Each bot has its own README with detailed usage:
 - [x] Auto-saving reports to project data directories
 - [x] Project CRUD via REST API and dashboard UI
 - [x] Personal context / scoped workspaces (team vs personal)
-- [ ] Multi-bot workflows (gitbot → qabot pipeline)
+- [x] Multi-bot workflows (gitbot → qabot pipeline)
 - [x] Slack integration — `uv run slackbot` (Socket Mode; see [docs](docs/slack-integration.md))
 
 ### Personal Bots

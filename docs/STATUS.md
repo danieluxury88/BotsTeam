@@ -1,7 +1,7 @@
 # DevBots — Project Status
 
 > **Living document.** Update this whenever a feature ships, a gap is closed, or priorities shift.
-> Last reviewed: 2026-03-01
+> Last reviewed: 2026-03-22
 
 ---
 
@@ -13,8 +13,8 @@
 |-----|-----|-------------|-----------|-------|
 | GitBot | ✅ | ✅ | ✅ | `--since`/`--until` date filtering |
 | QABot | ✅ | ✅ | ✅ | suggest + run + generate + full workflows, including optional coverage reporting |
-| PMBot | ✅ | ✅ | ✅ | GitLab & GitHub, analyze + plan modes |
-| Orchestrator | ✅ | — | ✅ | conversational chat, project registry |
+| PMBot | ✅ | ✅ | ✅ | GitLab & GitHub, analyze + plan + review + create + check workflows |
+| Orchestrator | ✅ | — | ✅ | conversational chat, project registry, and `gitbot_qabot` pipeline routing |
 
 ### Personal Bots ✅ (code complete, untested end-to-end)
 
@@ -77,14 +77,13 @@
 - [ ] No individual README for JournalBot (`bots/journalbot/README.md`)
 - [ ] No individual README for TaskBot (`bots/taskbot/README.md`)
 - [ ] No individual README for HabitBot (`bots/habitbot/README.md`)
-- [ ] Main README has no "Personal Bots" usage examples (only brief descriptions)
 - [ ] `.env.example` is missing `JOURNALBOT_MODEL`, `TASKBOT_MODEL`, `HABITBOT_MODEL` entries
 
 ### Testing
 
 - [ ] No unit tests for personal bots (`journalbot`, `taskbot`, `habitbot`)
 - [ ] No tests for `shared/file_reader.py`
-- [ ] No tests for `dashboard/api.py` (CRUD, report generation)
+- [ ] Dashboard API coverage is still partial; voice and report-improvement paths need broader tests
 
 ### Calendar future event sources
 
