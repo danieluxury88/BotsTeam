@@ -112,7 +112,7 @@
 | Slack integration | ✅ Done | `bots/slackbot/` — Socket Mode, DM + @mention, all bots; see `docs/slack-integration.md` |
 | Calendar: issue due/created events (pmbot) | Medium | Needs pmbot to export structured event data alongside `.md` |
 | Calendar: commit activity events (gitbot) | Low | Needs gitbot to export per-commit dates |
-| Multi-bot workflow (gitbot → qabot pipeline) | Medium | Orchestrator orchestrates sequential runs |
+| Multi-bot workflow (gitbot → qabot pipeline) | ✅ Done | Orchestrator supports a first-class `gitbot_qabot` workflow for “recent changes + what to test” requests |
 | QABot: test generation | ✅ Done | `uv run qabot generate ...` drafts repo-local test stubs and can write them into the repository |
 | GitBot: compare two branches | Low | Diff-based analysis |
 

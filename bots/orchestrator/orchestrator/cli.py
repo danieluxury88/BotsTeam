@@ -161,14 +161,14 @@ def chat(
             if action_plan.get("action") == "list_projects":
                 _show_projects(registry)
             elif outcome.bot_result:
-                bot_name = action_plan.get("bot", "bot")
+                display_name = action_plan.get("bot") or action_plan.get("pipeline") or "bot"
                 project_name = action_plan.get("project", "project")
 
-                console.print(f"[cyan]Running {bot_name} on {project_name}...[/cyan]")
+                console.print(f"[cyan]Running {display_name} on {project_name}...[/cyan]")
                 console.print()
 
                 if _is_success_status(outcome.bot_result.status):
-                    console.print(Rule(f"[dim]{bot_name.upper()} Report[/dim]"))
+                    console.print(Rule(f"[dim]{display_name.upper()} Report[/dim]"))
                     console.print(Markdown(outcome.bot_result.markdown_report))
                 else:
                     console.print(f"[red]Error:[/red] {outcome.bot_result.summary}")

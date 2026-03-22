@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from orchestrator.bot_invoker import invoke_bot
-from shared.models import BotResult, ProjectScope
+from orchestrator.bot_invoker import invoke_bot, invoke_pipeline
+from shared.models import BotResult, ChangeSet, ProjectScope
 
 
 def test_invoke_bot_passes_generic_params_to_pmbot(monkeypatch):
@@ -97,3 +97,47 @@ def test_invoke_bot_filters_unknown_params_for_gitbot(monkeypatch, tmp_path: Pat
     assert captured["path"] == repo_path.resolve()
     assert captured["branch"] == "main"
     assert "unknown_flag" not in captured
+
+
+def test_invoke_pipeline_composes_gitbot_and_qabot(monkeypatch, tmp_path: Path):
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    project = SimpleNamespace(
+        name="uni.li",
+        path=repo_path,
+        scope=ProjectScope.TEAM,
+    )
+
+    monkeypatch.setattr(
+        "orchestrator.bot_invoker.gitbot_get_changeset",
+        lambda path, branch="HEAD", max_commits=300, model=None, since=None, until=None: ChangeSet(
+            summary="## Overview\n\nRecent changes touched navigation and layout.",
+            files_touched=["web/modules/custom/site/header.php"],
+            raw_data={"commit_count": 3},
+        ),
+    )
+    monkeypatch.setattr(
+        "orchestrator.bot_invoker.analyze_changeset_for_testing",
+        lambda changeset, model=None: SimpleNamespace(
+            summary="Analysis complete",
+            suggestions=[],
+            risk_areas=["dashboard"],
+            markdown_report="## Priority Test Areas\n\n- Validate header navigation on dashboard.",
+        ),
+    )
+    monkeypatch.setattr(
+        "orchestrator.bot_invoker.save_report",
+        lambda project_name, bot_name, report, save_latest=True, save_timestamped=True: (
+            Path("/tmp/latest.md"),
+            Path("/tmp/archive.md"),
+        ),
+    )
+
+    result = invoke_pipeline("gitbot_qabot", project=project, bot_params={"max_commits": 20})
+
+    assert result.status == "success"
+    assert result.bot_name == "gitbot_qabot"
+    assert "GitBot Summary" in result.markdown_report
+    assert "QABot Test Recommendations" in result.markdown_report
+    assert result.data["pipeline"] == "gitbot_qabot"
+    assert result.data["report_saved"]["latest"] == "/tmp/latest.md"

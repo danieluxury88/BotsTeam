@@ -122,6 +122,7 @@ uv run chat                  # shortcut
 # Then ask:
 # > get qabot report for uni.li
 # > show me gitbot analysis of myproject
+# > analyze recent changes and tell me what to test for uni.li
 # > analyze issues for uni.li
 # > create an issue for BotsTeam titled "Dashboard: investigate Header Navigation problem"
 # > what projects do you know?

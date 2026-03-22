@@ -429,7 +429,7 @@ data: dict | None          # Bot-specific payload (alias: payload)
 This contract enables:
 
 - **Composition**: gitbot's `ChangeSet` can feed directly into qabot
-- **Orchestration**: orchestrator invokes any bot via `invoke_bot()`
+- **Orchestration**: orchestrator invokes any bot via `invoke_bot()` and multi-bot workflows via `invoke_pipeline()`
 - **Storage**: `data_manager.save_report()` works for any bot
 - **Dashboard**: report viewer renders any bot's markdown output
 

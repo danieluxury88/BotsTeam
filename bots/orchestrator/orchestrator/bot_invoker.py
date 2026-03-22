@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import inspect
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
+from gitbot.analyzer import get_changeset as gitbot_get_changeset
 from gitbot.analyzer import get_bot_result as gitbot_get_result
+from qabot.analyzer import analyze_changeset_for_testing
 from qabot.analyzer import get_bot_result as qabot_get_result
 from project_manager.runner import get_bot_result as pmbot_get_result
 from pagespeedbot.analyzer import get_bot_result as pagespeedbot_get_result
@@ -14,6 +17,7 @@ from journalbot.analyzer import get_bot_result as journalbot_get_result
 from taskbot.analyzer import get_bot_result as taskbot_get_result
 from habitbot.analyzer import get_bot_result as habitbot_get_result
 from notebot.analyzer import get_bot_result as notebot_get_result
+from shared.data_manager import save_report
 from shared.models import BotResult, ProjectScope
 
 if TYPE_CHECKING:
@@ -21,6 +25,23 @@ if TYPE_CHECKING:
 
 
 BotName = Literal["gitbot", "qabot", "pmbot", "pagespeedbot", "journalbot", "taskbot", "habitbot", "notebot"]
+PipelineName = Literal["gitbot_qabot"]
+
+
+@dataclass(frozen=True)
+class PipelineSpec:
+    """Metadata for a multi-bot workflow."""
+
+    id: str
+    description: str
+
+
+PIPELINES: dict[str, PipelineSpec] = {
+    "gitbot_qabot": PipelineSpec(
+        id="gitbot_qabot",
+        description="Analyze recent changes with GitBot, then suggest tests with QABot.",
+    ),
+}
 
 
 def _call_runner(
@@ -39,6 +60,127 @@ def _call_runner(
         if key in supported and value is not None
     }
     return runner(*args, **filtered)
+
+
+def _resolve_team_repo_path(bot_name: str, project: Project | None, repo_path: Path | str | None) -> Path | None:
+    """Resolve and validate a repository path for team bots and pipelines."""
+    if project:
+        repo_path = project.path
+
+    if not repo_path:
+        return None
+
+    resolved = Path(repo_path).resolve()
+    if not resolved.exists():
+        return None
+    return resolved
+
+
+def invoke_pipeline(
+    pipeline_name: PipelineName | str,
+    *,
+    project: Project | None = None,
+    repo_path: Path | str | None = None,
+    max_commits: int = 300,
+    model: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    bot_params: dict | None = None,
+) -> BotResult:
+    """Invoke a registered multi-bot pipeline."""
+    if pipeline_name not in PIPELINES:
+        return BotResult(
+            bot_name=str(pipeline_name),
+            status="error",
+            summary=f"Unknown pipeline: {pipeline_name}",
+            data={"error": "unknown_pipeline"},
+            markdown_report="",
+        )
+
+    resolved_repo_path = _resolve_team_repo_path(str(pipeline_name), project, repo_path)
+    if resolved_repo_path is None:
+        return BotResult(
+            bot_name=str(pipeline_name),
+            status="error",
+            summary=f"{pipeline_name} requires repo_path or project",
+            data={"error": "missing_repo_path"},
+            markdown_report="",
+        )
+
+    if pipeline_name == "gitbot_qabot":
+        changeset = gitbot_get_changeset(
+            resolved_repo_path,
+            branch=(bot_params or {}).get("branch", "HEAD"),
+            max_commits=(bot_params or {}).get("max_commits", max_commits),
+            model=model,
+            since=(bot_params or {}).get("since", since),
+            until=(bot_params or {}).get("until", until),
+        )
+
+        commit_count = int(changeset.raw_data.get("commit_count", 0) or 0)
+        if commit_count == 0:
+            markdown_report = (
+                "# GitBot -> QABot Pipeline\n\n"
+                "No recent commits were found for the requested range, so there is nothing new to test."
+            )
+            return BotResult(
+                bot_name="gitbot_qabot",
+                status="success",
+                summary="No recent commits found for the GitBot -> QABot pipeline.",
+                data={"pipeline": "gitbot_qabot", "changeset": changeset},
+                markdown_report=markdown_report,
+            )
+
+        qa_result = analyze_changeset_for_testing(changeset, model=model)
+        markdown_report = "\n".join(
+            [
+                f"# {project.name if project else resolved_repo_path.name}: GitBot -> QABot",
+                "",
+                "## GitBot Summary",
+                "",
+                changeset.summary.strip(),
+                "",
+                "## QABot Test Recommendations",
+                "",
+                qa_result.markdown_report.strip(),
+            ]
+        ).strip()
+
+        result = BotResult(
+            bot_name="gitbot_qabot",
+            status="success",
+            summary="GitBot analyzed recent changes and QABot generated test recommendations.",
+            data={
+                "pipeline": "gitbot_qabot",
+                "changeset": changeset,
+                "risk_areas": qa_result.risk_areas,
+                "suggestions": qa_result.suggestions,
+            },
+            markdown_report=markdown_report,
+        )
+
+        if project:
+            latest, timestamped = save_report(
+                project.name,
+                "orchestrator",
+                markdown_report,
+                save_latest=True,
+                save_timestamped=True,
+            )
+            result.data["report_saved"] = {
+                "latest": str(latest),
+                "timestamped": str(timestamped) if timestamped else None,
+            }
+
+        return result
+
+    return BotResult(
+        bot_name=str(pipeline_name),
+        status="error",
+        summary=f"Pipeline not implemented: {pipeline_name}",
+        data={"error": "pipeline_not_implemented"},
+        markdown_report="",
+    )
 
 
 def invoke_bot(
@@ -137,28 +279,18 @@ def invoke_bot(
     # ── Team bots ─────────────────────────────────────────────────────────────
 
     if bot_name in ("gitbot", "qabot"):
-        if project:
-            repo_path = project.path
-
-        if not repo_path:
+        resolved_repo_path = _resolve_team_repo_path(bot_name, project, repo_path)
+        if resolved_repo_path is None:
             return BotResult(
                 bot_name=bot_name, status="error",
                 summary=f"{bot_name} requires repo_path or project",
                 data={"error": "missing_repo_path"}, markdown_report="",
             )
 
-        repo_path = Path(repo_path).resolve()
-        if not repo_path.exists():
-            return BotResult(
-                bot_name=bot_name, status="error",
-                summary=f"Repository path does not exist: {repo_path}",
-                data={"error": "path_not_found"}, markdown_report="",
-            )
-
         if bot_name == "gitbot":
             return _call_runner(
                 gitbot_get_result,
-                repo_path,
+                resolved_repo_path,
                 base_kwargs={
                     "max_commits": max_commits,
                     "model": model,
@@ -171,7 +303,7 @@ def invoke_bot(
         else:
             return _call_runner(
                 qabot_get_result,
-                repo_path,
+                resolved_repo_path,
                 base_kwargs={
                     "max_commits": max_commits,
                     "model": model,

@@ -9,6 +9,7 @@ Conversational bot that manages multiple projects and orchestrates gitbot, qabot
 - 🔗 **GitLab/GitHub Integration** — Per-project remote repository connections
 - 🧠 **Smart Routing** — Uses Claude to understand requests and route to correct bot
 - 🔌 **Bot Invocation** — Calls gitbot, qabot, and pmbot programmatically
+- 🔄 **Pipeline Workflows** — Supports multi-bot flows like `gitbot -> qabot`
 - 💾 **Auto-Save Reports** — All reports automatically saved to `data/{project}/reports/`
 - 💅 **Rich Terminal UI** — Beautiful formatted output with tables
 - 🔍 **Fuzzy Matching** — Finds projects even with partial names
@@ -138,6 +139,17 @@ You: suggest tests for myapp
 ✓ Report saved to: data/myapp/reports/qabot/latest.md
 ```
 
+**Analyze recent changes and what to test in one step:**
+```
+You: analyze recent changes and tell me what to test for uni.li
+
+→ Running gitbot_qabot on uni.li...
+
+[Combined GitBot summary followed by QABot test recommendations]
+
+✓ Report saved to: data/uni.li/reports/orchestrator/latest.md
+```
+
 **Analyze remote issues** (requires GitLab or GitHub integration):
 ```
 You: analyze issues for uni.li
@@ -202,6 +214,7 @@ The orchestrator uses Claude to understand your request and automatically route 
 |---|---|---|
 | "git history", "changes", "commits" | **gitbot** | Local git repo |
 | "tests", "qa", "testing" | **qabot** | Local git repo |
+| "recent changes and what to test" | **gitbot_qabot** | Local git repo |
 | "issues", "sprint", "backlog" | **pmbot** | GitLab or GitHub integration |
 
 ## Auto-Saved Reports

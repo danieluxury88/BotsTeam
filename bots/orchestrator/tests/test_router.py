@@ -60,3 +60,54 @@ def test_process_user_request_passes_params_through_to_invoke_bot(monkeypatch):
     assert captured["project"] is project
     assert captured["bot_params"]["mode"] == "create"
     assert captured["bot_params"]["title"] == "Dashboard header navigation problem"
+
+
+def test_process_user_request_dispatches_pipeline(monkeypatch):
+    project = SimpleNamespace(
+        name="uni.li",
+        scope=ProjectScope.TEAM,
+        has_gitlab=lambda: True,
+        has_github=lambda: False,
+    )
+
+    class FakeRegistry:
+        def list_projects(self):
+            return [project]
+
+        def get_project(self, name):
+            return project if name == "uni.li" else None
+
+    monkeypatch.setattr(
+        "orchestrator.router.parse_user_request",
+        lambda user_message, available_projects: {
+            "action": "invoke_pipeline",
+            "pipeline": "gitbot_qabot",
+            "project": "uni.li",
+            "scope": "team",
+            "params": {"max_commits": 25},
+            "explanation": "Running the GitBot to QABot workflow.",
+        },
+    )
+
+    captured = {}
+
+    def fake_invoke_pipeline(pipeline_name, project=None, bot_params=None, **kwargs):
+        captured["pipeline_name"] = pipeline_name
+        captured["project"] = project
+        captured["bot_params"] = bot_params
+        return BotResult(
+            bot_name="gitbot_qabot",
+            status="success",
+            summary="ok",
+            markdown_report="ok",
+        )
+
+    monkeypatch.setattr("orchestrator.router.invoke_pipeline", fake_invoke_pipeline)
+
+    outcome = process_user_request("what should we test?", FakeRegistry())
+
+    assert outcome.error is None
+    assert outcome.bot_result is not None
+    assert captured["pipeline_name"] == "gitbot_qabot"
+    assert captured["project"] is project
+    assert captured["bot_params"]["max_commits"] == 25

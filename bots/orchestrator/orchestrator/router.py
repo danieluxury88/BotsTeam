@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from orchestrator.bot_invoker import invoke_bot
+from orchestrator.bot_invoker import PIPELINES, invoke_bot, invoke_pipeline
 from orchestrator.registry import Project, ProjectRegistry
 from shared.llm import create_client
 from shared.models import BotResult, ProjectScope
@@ -41,8 +41,9 @@ When the user asks for information, you should:
 
 Response format:
 {
-  "action": "invoke_bot" | "list_projects" | "unknown",
+  "action": "invoke_bot" | "invoke_pipeline" | "list_projects" | "unknown",
   "bot": "gitbot" | "qabot" | "pmbot" | "journalbot" | "taskbot" | "habitbot" | null,
+  "pipeline": "gitbot_qabot" | null,
   "project": "project_name" | null,
   "scope": "team" | "personal" | null,
   "params": {
@@ -63,10 +64,12 @@ Examples:
 - "create sprint plan for project Y" → {"action": "invoke_bot", "bot": "pmbot", "project": "Y", "scope": "team", "params": {"mode": "plan"}, ...}
 - "review issues for project Y" → {"action": "invoke_bot", "bot": "pmbot", "project": "Y", "scope": "team", "params": {"mode": "review"}, ...}
 - "create an issue for project Y about broken nav" → {"action": "invoke_bot", "bot": "pmbot", "project": "Y", "scope": "team", "params": {"mode": "create", "title": "...", "description": "..."}, ...}
+- "analyze recent changes and tell me what to test for uni.li" → {"action": "invoke_pipeline", "pipeline": "gitbot_qabot", "project": "uni.li", "scope": "team", "params": {"max_commits": 50}, ...}
 - "what projects do you know?" → {"action": "list_projects", "scope": null, ...}
 
 IMPORTANT: pmbot only works if the project has GitLab or GitHub integration configured.
 IMPORTANT: For pmbot, infer the correct `mode` from the user's request and include any extra fields needed in `params`, such as `title`, `description`, `labels`, `assignees`, `issue_iid`, `state`, `max_issues`, or `dry_run`.
+IMPORTANT: Use `invoke_pipeline` with `pipeline="gitbot_qabot"` when the user wants a combined "recent changes + what to test" workflow in one step.
 IMPORTANT: journalbot/taskbot/habitbot only work for personal-scope projects with the matching data source configured.
 
 Be concise and helpful.
@@ -155,19 +158,17 @@ def process_user_request(user_message: str, registry: ProjectRegistry) -> Orches
         projects = registry.list_by_scope(scope) if scope else registry.list_projects()
         return OrchestratorOutcome(action_plan=action_plan, projects=projects)
 
-    if action != "invoke_bot":
+    if action not in {"invoke_bot", "invoke_pipeline"}:
         return OrchestratorOutcome(
             action_plan=action_plan,
             error="Sorry, I couldn't understand that request.",
         )
 
-    bot_name = action_plan.get("bot")
     project_name = action_plan.get("project")
-
-    if not bot_name or not project_name:
+    if not project_name:
         return OrchestratorOutcome(
             action_plan=action_plan,
-            error="Could not determine which bot or project to use.",
+            error="Could not determine which project to use.",
         )
 
     project = registry.get_project(project_name)
@@ -175,6 +176,33 @@ def process_user_request(user_message: str, registry: ProjectRegistry) -> Orches
         return OrchestratorOutcome(
             action_plan=action_plan,
             error=f"Project '{project_name}' not found. Use `orchestrator projects` to inspect registered names.",
+        )
+
+    if action == "invoke_pipeline":
+        pipeline_name = action_plan.get("pipeline")
+        if not pipeline_name:
+            return OrchestratorOutcome(
+                action_plan=action_plan,
+                error="Could not determine which pipeline to use.",
+            )
+        if pipeline_name not in PIPELINES:
+            return OrchestratorOutcome(
+                action_plan=action_plan,
+                error=f"Unknown pipeline '{pipeline_name}'.",
+            )
+        bot_result = invoke_pipeline(
+            pipeline_name,
+            project=project,
+            max_commits=params.get("max_commits", 300),
+            bot_params=params,
+        )
+        return OrchestratorOutcome(action_plan=action_plan, bot_result=bot_result)
+
+    bot_name = action_plan.get("bot")
+    if not bot_name:
+        return OrchestratorOutcome(
+            action_plan=action_plan,
+            error="Could not determine which bot to use.",
         )
 
     if bot_name == "pmbot":
