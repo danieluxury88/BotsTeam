@@ -9,6 +9,7 @@ const CONFIG = {
         CALENDAR: 'data/calendar.json',
         PROJECTS_API: '/api/projects',
         REPORT_IMPROVEMENTS: '/api/report-improvements',
+        REPORT_TRANSLATIONS: '/api/report-translations',
         VOICE_COMMAND: '/api/voice-command'
     },
     

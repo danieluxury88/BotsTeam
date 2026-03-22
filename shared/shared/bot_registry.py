@@ -41,7 +41,7 @@ BOTS: dict[str, BotMeta] = {
     "taskbot":      BotMeta("taskbot",      "TaskBot",      "✅", "Personal task list analyzer",            "personal", requires_field="task_file"),
     "habitbot":     BotMeta("habitbot",     "HabitBot",     "🔄", "Habit and goal tracking analyzer",       "personal", requires_field="habit_file"),
     "notebot":      BotMeta("notebot",      "NoteBot",      "📝", "Note-taking and organisation assistant",  "both"),
-    "reportbot":    BotMeta("reportbot",    "ReportBot",    "✨", "Markdown report reviewer and improver",   "both", project_runner=False),
+    "reportbot":    BotMeta("reportbot",    "ReportBot",    "✨", "Markdown report reviewer, improver, and translator", "both", project_runner=False),
 }
 
 

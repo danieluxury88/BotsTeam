@@ -136,3 +136,32 @@ def test_report_settings_allow_custom_overrides() -> None:
     assert resolve_report_presenter("pagespeedbot", settings) == "Strategy Lab"
     assert resolve_report_client_name("Demo", settings) == "Acme Corp"
     assert resolve_report_footer_text("pagespeedbot", "https://example.com", settings) == "Confidential draft for Acme Corp"
+
+
+def test_render_report_html_localizes_template_labels() -> None:
+    html = render_report_html(
+        "# Bericht\n\nInhalt",
+        template_name="pagespeed",
+        metadata={
+            "lang": "de",
+            "title": "SEO- und Performance-Bericht",
+            "project_name": "UniLi",
+            "primary_url": "https://unili.proton.systems",
+            "author": "ProtonSystems",
+            "document_type": "SEO- und Performance-Audit",
+            "primary_scope": "Suche, technisches SEO und Core Web Vitals",
+            "confidentiality": "Vertraulich",
+        },
+    )
+
+    assert '<html lang="de">' in html
+    assert "Kunde / Projekt" in html
+    assert "Primaere URL" in html
+    assert "Erstellt Von" in html
+
+
+def test_report_settings_localize_footer_text() -> None:
+    settings = ReportSettings(prepared_by="ProtonSystems")
+
+    assert resolve_report_footer_text("pagespeedbot", "UniLi", settings, language="de") == "Erstellt von ProtonSystems fuer UniLi"
+    assert resolve_report_footer_text("reportbot", "Acme Corp", ReportSettings(), language="es") == "Generado por DevBots para Acme Corp"

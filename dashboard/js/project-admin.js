@@ -51,6 +51,11 @@ const ProjectAdmin = {
         this._applyScope(scope);
     },
 
+    onSiteUrlChange() {
+        const scope = document.getElementById('field-scope').value;
+        this._applyScope(scope);
+    },
+
     _applyScope(scope) {
         const isPersonal = scope === 'personal';
         document.getElementById('team-fields').hidden = isPersonal;
@@ -58,14 +63,20 @@ const ProjectAdmin = {
 
         const pathInput = document.getElementById('field-path');
         const pathHint = document.getElementById('field-path-hint');
+        const siteUrl = document.getElementById('field-site-url').value.trim();
+        const allowsUrlOnly = !isPersonal && Boolean(siteUrl);
         if (isPersonal) {
             pathInput.required = false;
             pathInput.placeholder = '/home/user (optional)';
             pathHint.textContent = 'Optional for personal projects';
+        } else if (allowsUrlOnly) {
+            pathInput.required = false;
+            pathInput.placeholder = 'Optional when Site URL is set';
+            pathHint.textContent = 'Optional for URL-only/PageSpeed projects. A local placeholder path will be created automatically.';
         } else {
             pathInput.required = true;
             pathInput.placeholder = '/home/user/projects/my-project';
-            pathHint.textContent = 'Absolute path to the project directory';
+            pathHint.textContent = 'Absolute path to the project directory, or set a Site URL for a URL-only/PageSpeed project.';
         }
     },
 

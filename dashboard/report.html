@@ -59,6 +59,7 @@
                         Improve this markdown report from the dashboard. The original stays untouched and the improved version is saved as a new report file.
                     </p>
                 </div>
+                <p class="report-viewer-job-status hidden" id="report-job-status" aria-live="polite"></p>
                 <div class="card-actions" id="report-actions"></div>
             </div>
 
@@ -104,6 +105,45 @@
             <div class="modal-footer">
                 <button id="report-improve-cancel" class="btn btn-secondary">Discard</button>
                 <button id="report-improve-save" class="btn btn-primary" disabled>Save Improved Report</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="report-translate-modal" role="dialog" aria-modal="true" aria-labelledby="report-translate-title">
+        <div class="modal-box report-improve-modal-box">
+            <div class="modal-header">
+                <h3 class="modal-title" id="report-translate-title">🌐 Translate Report with ReportBot</h3>
+                <button class="btn-icon" id="report-translate-close" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="report-improve-intro">
+                    Generate a translated Markdown report and save it as a new sibling report in the source bot folder, with HTML and PDF artifacts exported immediately.
+                </p>
+                <div class="form-group">
+                    <label for="report-translate-language">Target Language</label>
+                    <select id="report-translate-language" class="form-input">
+                        <option value="de">German</option>
+                        <option value="es">Spanish</option>
+                    </select>
+                </div>
+                <div id="report-translate-loading" class="report-improve-loading">
+                    <span>🤖 ReportBot is translating the report…</span>
+                </div>
+                <p id="report-translate-error" class="report-improve-error hidden"></p>
+                <div class="report-improve-comparison" id="report-translate-comparison">
+                    <section class="report-improve-pane">
+                        <div class="report-improve-pane-label">Current Report</div>
+                        <div class="report-improve-pane-content report-improve-rendered" id="report-translate-original"></div>
+                    </section>
+                    <section class="report-improve-pane">
+                        <div class="report-improve-pane-label">Translated Draft</div>
+                        <div class="report-improve-pane-content report-improve-rendered" id="report-translate-preview"></div>
+                    </section>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="report-translate-cancel" class="btn btn-secondary">Discard</button>
+                <button id="report-translate-save" class="btn btn-primary" disabled>Save Translated Report</button>
             </div>
         </div>
     </div>

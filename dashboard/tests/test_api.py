@@ -14,7 +14,7 @@ if str(DASHBOARD_DIR) not in sys.path:
 import api  # noqa: E402
 
 
-def _install_fake_reportbot(monkeypatch, improved_text: str) -> None:
+def _install_fake_reportbot(monkeypatch, improved_text: str, translated_text: str = "# Bericht\n\nUebersetzt") -> None:
     package = ModuleType("reportbot")
     analyzer = ModuleType("reportbot.analyzer")
 
@@ -23,7 +23,14 @@ def _install_fake_reportbot(monkeypatch, improved_text: str) -> None:
         assert title
         return improved_text
 
+    def translate_report(content: str, target_language: str, title: str = "", instructions_file=None) -> str:
+        assert content
+        assert title
+        assert target_language
+        return translated_text
+
     analyzer.improve_report = improve_report
+    analyzer.translate_report = translate_report
     package.analyzer = analyzer
     monkeypatch.setitem(sys.modules, "reportbot", package)
     monkeypatch.setitem(sys.modules, "reportbot.analyzer", analyzer)
@@ -42,6 +49,55 @@ class _InlineThread:
 def _clear_voice_jobs() -> None:
     with api.VOICE_COMMAND_JOBS_LOCK:
         api.VOICE_COMMAND_JOBS.clear()
+
+
+def test_create_team_project_allows_url_only_setup(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    registry = api.ProjectRegistry(tmp_path / "projects.json")
+    data_root = tmp_path / "data-root"
+    monkeypatch.setattr(api, "_registry", lambda: registry)
+    monkeypatch.setattr(api, "_regenerate_dashboard", lambda: None)
+    monkeypatch.setattr(api, "get_data_root", lambda: data_root)
+
+    body, status = api.create_project(
+        {
+            "name": "UniLiLegacy",
+            "scope": "team",
+            "path": "",
+            "site_url": "https://uni.li",
+            "report_branding_profile": "protonsystems",
+            "report_prepared_by": "ProtonSystems",
+            "report_client_name": "UniLi",
+        }
+    )
+
+    assert status == 201
+    assert body["name"] == "UniLiLegacy"
+    assert body["site_url"] == "https://uni.li"
+    assert body["path"] == str(data_root / "_url_projects" / "UniLiLegacy")
+    assert (data_root / "_url_projects" / "UniLiLegacy").is_dir()
+
+
+def test_create_team_project_still_requires_path_without_site_url(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    registry = api.ProjectRegistry(tmp_path / "projects.json")
+    monkeypatch.setattr(api, "_registry", lambda: registry)
+    monkeypatch.setattr(api, "_regenerate_dashboard", lambda: None)
+
+    body, status = api.create_project(
+        {
+            "name": "NoUrlProject",
+            "scope": "team",
+            "path": "",
+        }
+    )
+
+    assert status == 400
+    assert body["error"] == "Path is required for team projects unless a Site URL is configured."
 
 
 def test_preview_report_improvement_returns_improved_markdown(
@@ -144,6 +200,167 @@ def test_preview_report_improvement_requires_api_key(
     assert body["error"] == "ANTHROPIC_API_KEY is not set."
 
 
+def test_preview_report_translation_returns_translated_markdown(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "report.md"
+    source.write_text("# Report\n\nOriginal text", encoding="utf-8")
+    _install_fake_reportbot(monkeypatch, "# Report\n\nImproved text", "# Bericht\n\nUebersetzter Text")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(
+        api,
+        "_parse_report_reference",
+        lambda _path: (
+            {
+                "scope": api.ProjectScope.TEAM,
+                "project_name": "demo",
+                "bot_name": "pagespeedbot",
+                "source": source,
+            },
+            None,
+            None,
+        ),
+    )
+
+    body, status = api.preview_report_translation(
+        {"path": "reports/demo/pagespeedbot/report.md", "target_language": "de"}
+    )
+
+    assert status == 200
+    assert body["translated"] == "# Bericht\n\nUebersetzter Text"
+    assert body["target_language"] == "de"
+    assert body["target_language_name"] == "German"
+
+
+def test_save_report_translation_writes_source_bot_sibling_and_exports(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "2026-03-21-184926.md"
+    source.write_text("# Report\n\nOriginal text", encoding="utf-8")
+    monkeypatch.setattr(api, "_regenerate_dashboard", lambda: None)
+    reports_dir = tmp_path / "data" / "demo" / "reports" / "pagespeedbot"
+    monkeypatch.setattr(api, "get_reports_dir", lambda *args, **kwargs: reports_dir)
+    monkeypatch.setattr(
+        api,
+        "_parse_report_reference",
+        lambda _path: (
+            {
+                "scope": api.ProjectScope.TEAM,
+                "project_name": "demo",
+                "bot_name": "pagespeedbot",
+                "source": source,
+            },
+            None,
+            None,
+        ),
+    )
+    monkeypatch.setattr(
+        api,
+        "_registry",
+        lambda: SimpleNamespace(
+            get_project=lambda _name: SimpleNamespace(
+                report_branding_profile="protonsystems",
+                report_prepared_by="ProtonSystems",
+                report_client_name="UniLi",
+                report_footer_text=None,
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        api,
+        "export_report_file",
+        lambda report_path, **kwargs: SimpleNamespace(
+            html_paths=(report_path.with_suffix(".html"), None),
+            pdf_paths=(report_path.with_suffix(".pdf"), None),
+            errors=[],
+        ),
+    )
+
+    body, status = api.save_report_translation(
+        {
+            "path": "reports/demo/pagespeedbot/2026-03-21-184926.md",
+            "translated": "# Bericht\n\nUebersetzter Text",
+            "target_language": "de",
+        }
+    )
+
+    assert status == 201
+    assert body["artifacts"]["md"].startswith("reports/demo/pagespeedbot/2026-03-21-184926-reportbot-translation-de-")
+    assert body["artifacts"]["html"].endswith(".html")
+    assert body["artifacts"]["pdf"].endswith(".pdf")
+    saved_file = reports_dir / body["saved"]["filename"]
+    assert saved_file.exists()
+    assert saved_file.read_text(encoding="utf-8") == "# Bericht\n\nUebersetzter Text"
+    assert body["saved"]["target_language"] == "de"
+    assert body["saved"]["bot_name"] == "pagespeedbot"
+
+
+def test_save_report_translation_from_reportbot_improvement_uses_original_bot(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "pagespeedbot-2026-03-21-184926-reportbot-improved-2026-03-21-193849.md"
+    source.write_text("# Report\n\nImproved text", encoding="utf-8")
+    monkeypatch.setattr(api, "_regenerate_dashboard", lambda: None)
+    reports_dir = tmp_path / "data" / "demo" / "reports" / "pagespeedbot"
+    monkeypatch.setattr(api, "get_reports_dir", lambda *args, **kwargs: reports_dir)
+    monkeypatch.setattr(
+        api,
+        "_parse_report_reference",
+        lambda _path: (
+            {
+                "scope": api.ProjectScope.TEAM,
+                "project_name": "demo",
+                "bot_name": "reportbot",
+                "source": source,
+            },
+            None,
+            None,
+        ),
+    )
+    monkeypatch.setattr(
+        api,
+        "_registry",
+        lambda: SimpleNamespace(
+            get_project=lambda _name: SimpleNamespace(
+                report_branding_profile="protonsystems",
+                report_prepared_by="ProtonSystems",
+                report_client_name="UniLi",
+                report_footer_text=None,
+                site_url="https://unili.proton.systems",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        api,
+        "export_report_file",
+        lambda report_path, **kwargs: SimpleNamespace(
+            html_paths=(report_path.with_suffix(".html"), None),
+            pdf_paths=(report_path.with_suffix(".pdf"), None),
+            errors=[],
+        ),
+    )
+
+    body, status = api.save_report_translation(
+        {
+            "path": (
+                "reports/demo/reportbot/"
+                "pagespeedbot-2026-03-21-184926-reportbot-improved-2026-03-21-193849.md"
+            ),
+            "translated": "# Bericht\n\nUebersetzter Text",
+            "target_language": "de",
+        }
+    )
+
+    assert status == 201
+    assert body["artifacts"]["md"].startswith("reports/demo/pagespeedbot/")
+    assert body["artifacts"]["html"].startswith("reports/demo/pagespeedbot/")
+    assert body["artifacts"]["pdf"].startswith("reports/demo/pagespeedbot/")
+    assert body["saved"]["bot_name"] == "pagespeedbot"
+
+
 def test_start_voice_command_job_runs_inline_and_persists_result(monkeypatch) -> None:
     _clear_voice_jobs()
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
@@ -211,5 +428,26 @@ def test_metadata_for_existing_pagespeed_report_uses_project_overrides(tmp_path:
     metadata = api._metadata_for_existing_report("Demo", "pagespeedbot", source, project=project)
 
     assert metadata["project_name"] == "Acme Corp"
+    assert metadata["primary_url"] == "Acme Corp"
     assert metadata["author"] == "Strategy Lab"
     assert metadata["footer_text"] == "Prepared by Strategy Lab for Acme Corp"
+
+
+def test_metadata_for_translated_pagespeed_report_is_localized(tmp_path: Path) -> None:
+    source = tmp_path / "2026-03-21-184926-reportbot-translation-de-2026-03-22-000001.md"
+    source.write_text("# Bericht\n\nDemo", encoding="utf-8")
+    project = SimpleNamespace(
+        report_branding_profile="protonsystems",
+        report_prepared_by="ProtonSystems",
+        report_client_name="UniLi",
+        report_footer_text=None,
+        site_url="https://unili.proton.systems",
+    )
+
+    metadata = api._metadata_for_existing_report("Demo", "pagespeedbot", source, project=project)
+
+    assert metadata["lang"] == "de"
+    assert metadata["title"] == "SEO- und Performance-Bericht"
+    assert metadata["primary_url"] == "https://unili.proton.systems"
+    assert metadata["confidentiality"] == "Vertraulich"
+    assert metadata["footer_text"] == "Erstellt von ProtonSystems fuer UniLi"

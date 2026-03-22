@@ -26,6 +26,7 @@ from shared.models import ProjectScope  # noqa: E402
 from shared.report_export import (  # noqa: E402
     ReportSettings,
     export_report_file,
+    normalize_report_language,
     resolve_report_branding_name,
     resolve_report_client_name,
     resolve_report_footer_text,
@@ -40,6 +41,7 @@ AI_BOTS = {"gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot", "not
 VOICE_COMMAND_JOBS: dict[str, dict] = {}
 VOICE_COMMAND_JOBS_LOCK = threading.Lock()
 MAX_VOICE_COMMAND_JOBS = 100
+TRANSLATED_REPORT_PATTERN = re.compile(r"-reportbot-translation-([a-z]{2})(?:-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6})?$")
 
 
 def _parse_audit_urls(value):
@@ -149,6 +151,109 @@ def _load_reportbot_improver():
     return improve_report
 
 
+def _load_reportbot_translator():
+    """Import and return ReportBot's translate function lazily."""
+    reportbot_pkg = REPO_ROOT / "bots" / "reportbot"
+    if str(reportbot_pkg) not in sys.path:
+        sys.path.insert(0, str(reportbot_pkg))
+    from reportbot.analyzer import translate_report  # noqa: E402
+
+    return translate_report
+
+
+def _report_language_name(language: str) -> str:
+    return {
+        "en": "English",
+        "de": "German",
+        "es": "Spanish",
+    }.get(language, language)
+
+
+def _translated_report_language(filename: str) -> str:
+    match = TRANSLATED_REPORT_PATTERN.search(Path(filename).stem)
+    if not match:
+        return "en"
+    return normalize_report_language(match.group(1))
+
+
+def _effective_report_bot_name(bot_name: str, source: Path) -> str:
+    """Resolve the original source bot for derived ReportBot markdown files."""
+    if bot_name != "reportbot":
+        return bot_name
+
+    stem = source.stem
+    if "-reportbot-improved-" not in stem:
+        return bot_name
+
+    for candidate in sorted(_BOT_REGISTRY.keys(), key=len, reverse=True):
+        if candidate == "reportbot":
+            continue
+        if stem.startswith(f"{candidate}-"):
+            return candidate
+
+    return bot_name
+
+
+def _localized_report_copy(bot_name: str, bot_label: str, language: str) -> dict[str, str]:
+    lang = normalize_report_language(language)
+    if bot_name == "pagespeedbot":
+        pagespeed = {
+            "en": {
+                "title": "SEO & Performance Report",
+                "subtitle": "Exported from an existing DevBots markdown report",
+                "kicker": "Technical Audit Report",
+                "document_type": "SEO & Performance Audit",
+                "primary_scope": "Search, Technical SEO, and Core Web Vitals",
+                "confidentiality": "Client Confidential",
+            },
+            "de": {
+                "title": "SEO- und Performance-Bericht",
+                "subtitle": "Exportiert aus einem vorhandenen DevBots-Markdown-Bericht",
+                "kicker": "Technischer Audit-Bericht",
+                "document_type": "SEO- und Performance-Audit",
+                "primary_scope": "Suche, technisches SEO und Core Web Vitals",
+                "confidentiality": "Vertraulich",
+            },
+            "es": {
+                "title": "Informe de SEO y Rendimiento",
+                "subtitle": "Exportado desde un informe Markdown existente de DevBots",
+                "kicker": "Informe de Auditoria Tecnica",
+                "document_type": "Auditoria de SEO y Rendimiento",
+                "primary_scope": "Busqueda, SEO tecnico y Core Web Vitals",
+                "confidentiality": "Confidencial",
+            },
+        }
+        return pagespeed.get(lang, pagespeed["en"])
+
+    generic = {
+        "en": {
+            "title": f"{bot_label} Report",
+            "subtitle": "Exported from an existing DevBots markdown report",
+            "kicker": "DevBots Report Export",
+            "document_type": "Technical Review",
+            "primary_scope": "Bot Report Export",
+            "confidentiality": "Internal Use",
+        },
+        "de": {
+            "title": f"{bot_label} Bericht",
+            "subtitle": "Exportiert aus einem vorhandenen DevBots-Markdown-Bericht",
+            "kicker": "DevBots Berichtsexport",
+            "document_type": "Technische Pruefung",
+            "primary_scope": "Bot-Berichtsexport",
+            "confidentiality": "Interner Gebrauch",
+        },
+        "es": {
+            "title": f"Informe de {bot_label}",
+            "subtitle": "Exportado desde un informe Markdown existente de DevBots",
+            "kicker": "Exportacion de Informes DevBots",
+            "document_type": "Revision Tecnica",
+            "primary_scope": "Exportacion de Informes del Bot",
+            "confidentiality": "Uso Interno",
+        },
+    }
+    return generic.get(lang, generic["en"])
+
+
 def _parse_report_reference(report_path: str):
     """Resolve a dashboard report URL to a concrete markdown report file."""
     normalized = (report_path or "").strip().lstrip("/")
@@ -189,24 +294,37 @@ def _metadata_for_existing_report(project_name: str, bot_name: str, source: Path
     bot_meta = _BOT_REGISTRY.get(bot_name)
     bot_label = bot_meta.name if bot_meta else bot_name
     generated_at = datetime.fromtimestamp(source.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+    language = _translated_report_language(source.name)
     report_settings = _report_settings_for_project(project)
     presenter = resolve_report_presenter(bot_name, report_settings)
     delivered_to = resolve_report_client_name(project_name, report_settings)
+    primary_url = (
+        getattr(project, "site_url", None)
+        if bot_name == "pagespeedbot" and project is not None
+        else None
+    ) or delivered_to
+    localized = _localized_report_copy(bot_name, bot_label, language)
 
     metadata = {
-        "title": f"{bot_label} Report",
-        "subtitle": "Exported from an existing DevBots markdown report",
+        "title": localized["title"],
+        "subtitle": localized["subtitle"],
         "project_name": delivered_to,
+        "primary_url": primary_url,
         "generated_at": generated_at,
+        "lang": language,
         "author": presenter if bot_name == "pagespeedbot" else bot_label,
-        "kicker": "Technical Audit Report" if bot_name == "pagespeedbot" else "DevBots Report Export",
-        "document_type": "SEO & Performance Audit" if bot_name == "pagespeedbot" else "Technical Review",
-        "primary_scope": "Search, Technical SEO, and Core Web Vitals" if bot_name == "pagespeedbot" else "Bot Report Export",
-        "confidentiality": "Client Confidential" if bot_name == "pagespeedbot" else "Internal Use",
+        "kicker": localized["kicker"],
+        "document_type": localized["document_type"],
+        "primary_scope": localized["primary_scope"],
+        "confidentiality": localized["confidentiality"],
         "footer_text": (
-            resolve_report_footer_text(bot_name, delivered_to, report_settings)
+            resolve_report_footer_text(bot_name, delivered_to, report_settings, language=language)
             if bot_name == "pagespeedbot"
-            else f"Generated by DevBots from an existing {bot_label} report"
+            else {
+                "en": f"Generated by DevBots from an existing {bot_label} report",
+                "de": f"Generiert von DevBots aus einem vorhandenen {bot_label} Bericht",
+                "es": f"Generado por DevBots a partir de un informe existente de {bot_label}",
+            }.get(language, f"Generated by DevBots from an existing {bot_label} report")
         ),
     }
     return metadata
@@ -232,13 +350,22 @@ def _parse_scope(data):
         return ProjectScope.TEAM
 
 
-def _resolve_path(path_str, scope):
-    """Resolve and validate a project path. Personal projects may omit path."""
+def _build_url_only_project_path(name: str) -> Path:
+    """Return the local placeholder directory used for URL-only projects."""
+    path = get_data_root() / "_url_projects" / name
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _resolve_path(path_str, scope, *, name: str | None = None, site_url: str | None = None):
+    """Resolve and validate a project path. Personal or URL-only projects may omit path."""
     path_str = (path_str or "").strip()
     if not path_str:
         if scope == ProjectScope.PERSONAL:
             return Path.home(), None  # default to home dir
-        return None, "Path is required for team projects."
+        if site_url and name:
+            return _build_url_only_project_path(name), None
+        return None, "Path is required for team projects unless a Site URL is configured."
     path_obj = Path(path_str).expanduser()
     if not path_obj.exists():
         return None, f"Path does not exist: {path_str}"
@@ -252,7 +379,12 @@ def create_project(data):
         return {"error": err}, 400
 
     scope = _parse_scope(data)
-    path_obj, err = _resolve_path(data.get("path", ""), scope)
+    path_obj, err = _resolve_path(
+        data.get("path", ""),
+        scope,
+        name=name,
+        site_url=_clean_optional_text(data.get("site_url")),
+    )
     if err:
         return {"error": err}, 400
 
@@ -671,6 +803,42 @@ def preview_report_improvement(data):
     }, 200
 
 
+def preview_report_translation(data):
+    """Generate a translated report draft with ReportBot without saving it."""
+    report_path = data.get("path", "")
+    target_language = normalize_report_language(data.get("target_language"))
+    resolved, error_body, error_status = _parse_report_reference(report_path)
+    if error_body:
+        return error_body, error_status
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return {"error": "ANTHROPIC_API_KEY is not set."}, 400
+
+    assert resolved is not None
+    source = resolved["source"]
+
+    try:
+        translate_report = _load_reportbot_translator()
+        content = source.read_text(encoding="utf-8")
+        translated = translate_report(
+            content,
+            title=source.name,
+            target_language=target_language,
+        )
+    except Exception as exc:
+        return {"error": f"Translation failed: {exc}"}, 500
+
+    return {
+        "translated": translated,
+        "target_language": target_language,
+        "target_language_name": _report_language_name(target_language),
+        "source": {
+            "path": report_path,
+            "filename": source.name,
+        },
+    }, 200
+
+
 def _build_improved_report_filename(source_bot: str, source: Path) -> str:
     """Build a timestamped filename for an improved sibling report."""
     timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
@@ -681,6 +849,17 @@ def _build_improved_report_filename(source_bot: str, source: Path) -> str:
     if source_bot != "reportbot" and not stem.startswith(f"{source_bot}-"):
         stem = f"{source_bot}-{stem}"
     return f"{stem}-reportbot-improved-{timestamp}.md"
+
+
+def _build_translated_report_filename(source: Path, target_language: str) -> str:
+    """Build a timestamped filename for a translated sibling report."""
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    normalized_language = normalize_report_language(target_language)
+    stem = source.stem
+    marker = "-reportbot-translation-"
+    if marker in stem:
+        stem = stem.split(marker, 1)[0]
+    return f"{stem}-reportbot-translation-{normalized_language}-{timestamp}.md"
 
 
 def save_report_improvement(data):
@@ -726,6 +905,90 @@ def save_report_improvement(data):
         "saved": {
             "filename": target.name,
         },
+    }, 201
+
+
+def save_report_translation(data):
+    """Persist a translated report draft and export localized HTML/PDF siblings."""
+    report_path = data.get("path", "")
+    translated = data.get("translated", "")
+    target_language = normalize_report_language(data.get("target_language"))
+    if not isinstance(translated, str) or not translated.strip():
+        return {"error": "Translated report content is required."}, 400
+
+    resolved, error_body, error_status = _parse_report_reference(report_path)
+    if error_body:
+        return error_body, error_status
+
+    assert resolved is not None
+    source = resolved["source"]
+    output_bot_name = _effective_report_bot_name(resolved["bot_name"], source)
+    target_dir = get_reports_dir(
+        resolved["project_name"],
+        output_bot_name,
+        resolved["scope"],
+    )
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / _build_translated_report_filename(source, target_language)
+
+    try:
+        target.write_text(translated, encoding="utf-8")
+    except Exception as exc:
+        return {"error": f"Could not save translated report: {exc}"}, 500
+
+    project = _registry().get_project(resolved["project_name"])
+    metadata = _metadata_for_existing_report(
+        resolved["project_name"],
+        output_bot_name,
+        target,
+        project=project,
+    )
+    report_settings = _report_settings_for_project(project)
+    template_name = resolve_report_template_name(
+        output_bot_name,
+        report_settings.branding_profile,
+    )
+    branding_name = resolve_report_branding_name(
+        output_bot_name,
+        report_settings.branding_profile,
+    )
+
+    export_result = export_report_file(
+        target,
+        template_name=template_name,
+        branding_name=branding_name,
+        metadata=metadata,
+    )
+
+    _regenerate_dashboard()
+
+    return {
+        "artifacts": {
+            "md": _artifact_url_from_parts(
+                resolved["scope"],
+                resolved["project_name"],
+                output_bot_name,
+                target,
+            ),
+            "html": _artifact_url_from_parts(
+                resolved["scope"],
+                resolved["project_name"],
+                output_bot_name,
+                export_result.html_paths[0] if export_result.html_paths else None,
+            ),
+            "pdf": _artifact_url_from_parts(
+                resolved["scope"],
+                resolved["project_name"],
+                output_bot_name,
+                export_result.pdf_paths[0] if export_result.pdf_paths else None,
+            ),
+        },
+        "saved": {
+            "filename": target.name,
+            "target_language": target_language,
+            "bot_name": output_bot_name,
+        },
+        "errors": export_result.errors,
     }, 201
 
 

@@ -37,7 +37,9 @@ from api import (  # noqa: E402
     list_notes,
     list_projects,
     preview_report_improvement,
+    preview_report_translation,
     save_report_improvement,
+    save_report_translation,
     start_voice_command_job,
     update_note,
     update_project,
@@ -170,6 +172,20 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             if body is None:
                 return
             self._call_api(save_report_improvement, body)
+            return
+
+        if path == '/api/report-translations/preview':
+            body = self._read_json_body()
+            if body is None:
+                return
+            self._call_api(preview_report_translation, body)
+            return
+
+        if path == '/api/report-translations':
+            body = self._read_json_body()
+            if body is None:
+                return
+            self._call_api(save_report_translation, body)
             return
 
         # Notes routes: POST /api/projects/{name}/notes and POST /api/projects/{name}/notes/{file}/improve

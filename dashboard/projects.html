@@ -93,8 +93,8 @@
                 </div>
                 <div class="form-group">
                     <label for="field-path">Path</label>
-                    <input type="text" id="field-path" class="form-input" required placeholder="/home/user/projects/my-project">
-                    <span class="form-hint" id="field-path-hint">Absolute path to the project directory</span>
+                    <input type="text" id="field-path" class="form-input" placeholder="/home/user/projects/my-project">
+                    <span class="form-hint" id="field-path-hint">Absolute path to the project directory, or set a Site URL for a URL-only/PageSpeed project.</span>
                 </div>
                 <div class="form-group">
                     <label for="field-description">Description</label>
@@ -116,7 +116,7 @@
                     <legend>Integrations (optional)</legend>
                     <div class="form-group">
                         <label for="field-site-url">Site URL</label>
-                        <input type="text" id="field-site-url" class="form-input" placeholder="https://example.com">
+                        <input type="text" id="field-site-url" class="form-input" placeholder="https://example.com" oninput="ProjectAdmin.onSiteUrlChange()">
                         <span class="form-hint">Public production URL used by PageSpeedBot</span>
                     </div>
                     <div class="form-group">

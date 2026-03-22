@@ -1,4 +1,4 @@
-"""ReportBot CLI — review and improve markdown reports."""
+"""ReportBot CLI — review, improve, and translate markdown reports."""
 
 from pathlib import Path
 from typing import Annotated
@@ -17,7 +17,7 @@ load_env()
 
 app = typer.Typer(
     name="reportbot",
-    help="ReportBot - AI-powered markdown report reviewer and improver",
+    help="ReportBot - AI-powered markdown report reviewer, improver, and translator",
     add_completion=False,
 )
 console = Console()
@@ -123,6 +123,56 @@ def improve(
             console.print(
                 "\n[dim]Tip: use --in-place to overwrite the original or --output to save elsewhere[/dim]"
             )
+
+    console.print()
+
+
+@app.command()
+def translate(
+    report_file: Annotated[Path, typer.Argument(help="Markdown report file to translate")],
+    target_language: Annotated[
+        str,
+        typer.Option("--lang", "-l", help="Target language code, for example de or es"),
+    ],
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Save translated report to this file"),
+    ] = None,
+    instructions_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--instructions-file",
+            help="Override the default translate prompt with a markdown file",
+        ),
+    ] = None,
+):
+    """Translate a markdown report while preserving its structure and meaning."""
+    console.print()
+    console.print(
+        Panel(
+            f"[bold blue]ReportBot[/bold blue] translating [bold]{report_file}[/bold] to [bold]{target_language}[/bold]",
+            border_style="blue",
+        )
+    )
+    console.print()
+
+    result = get_bot_result(
+        report_file,
+        mode="translate",
+        instructions_file=instructions_file,
+        target_language=target_language,
+    )
+
+    console.print(Rule("[dim]Translated Report[/dim]"))
+    _print_result(result)
+
+    if output and result.status == "success":
+        output.write_text(result.markdown_report, encoding="utf-8")
+        console.print(f"\n[green]✓[/green] Translated report saved to {output}")
+    elif result.status == "success":
+        console.print(
+            "\n[dim]Tip: use --output to save the translated report to a file[/dim]"
+        )
 
     console.print()
 

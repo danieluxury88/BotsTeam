@@ -493,7 +493,7 @@ body {
 DEFAULT_TEMPLATE = Template(
     """
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ metadata.lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -516,13 +516,13 @@ DEFAULT_TEMPLATE = Template(
           {% if metadata.summary %}<div class="cover-summary">{{ metadata.summary }}</div>{% endif %}
         </div>
         <aside class="cover-panel">
-          <span class="panel-label">Prepared For</span>
+          <span class="panel-label">{{ metadata.labels.prepared_for }}</span>
           <div class="panel-value">{{ metadata.project_name }}</div>
           <div class="panel-divider"></div>
-          <span class="panel-label">Report Date</span>
+          <span class="panel-label">{{ metadata.labels.report_date }}</span>
           <div class="panel-value">{{ metadata.generated_at }}</div>
           <div class="panel-divider"></div>
-          <span class="panel-label">Prepared By</span>
+          <span class="panel-label">{{ metadata.labels.prepared_by }}</span>
           <div class="panel-value">{{ metadata.author }}</div>
         </aside>
       </div>
@@ -530,15 +530,15 @@ DEFAULT_TEMPLATE = Template(
 
     <section class="meta-grid">
       <article class="meta-card">
-        <span class="meta-label">Document Type</span>
+        <span class="meta-label">{{ metadata.labels.document_type }}</span>
         <div class="meta-value">{{ metadata.document_type }}</div>
       </article>
       <article class="meta-card">
-        <span class="meta-label">Primary Scope</span>
+        <span class="meta-label">{{ metadata.labels.primary_scope }}</span>
         <div class="meta-value">{{ metadata.primary_scope }}</div>
       </article>
       <article class="meta-card">
-        <span class="meta-label">Confidentiality</span>
+        <span class="meta-label">{{ metadata.labels.confidentiality }}</span>
         <div class="meta-value">{{ metadata.confidentiality }}</div>
       </article>
     </section>
@@ -573,7 +573,7 @@ DEFAULT_TEMPLATE = Template(
 AUDIT_TEMPLATE = Template(
     """
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ metadata.lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -596,17 +596,17 @@ AUDIT_TEMPLATE = Template(
           {% if metadata.summary %}<div class="cover-summary">{{ metadata.summary }}</div>{% endif %}
         </div>
         <aside class="cover-panel">
-          <span class="panel-label">Client / Project</span>
+          <span class="panel-label">{{ metadata.labels.client_project }}</span>
           <div class="panel-value">{{ metadata.project_name }}</div>
           <div class="panel-divider"></div>
-          <span class="panel-label">Primary URL</span>
+          <span class="panel-label">{{ metadata.labels.primary_url }}</span>
           <div class="panel-value">{{ metadata.primary_url }}</div>
           <div class="panel-divider"></div>
-          <span class="panel-label">Generated</span>
+          <span class="panel-label">{{ metadata.labels.generated }}</span>
           <div class="panel-value">{{ metadata.generated_at }}</div>
           {% if metadata.author %}
           <div class="panel-divider"></div>
-          <span class="panel-label">Prepared By</span>
+          <span class="panel-label">{{ metadata.labels.prepared_by }}</span>
           <div class="panel-value">{{ metadata.author }}</div>
           {% endif %}
         </aside>
@@ -615,15 +615,15 @@ AUDIT_TEMPLATE = Template(
 
     <section class="meta-grid">
       <article class="meta-card">
-        <span class="meta-label">Audit Type</span>
+        <span class="meta-label">{{ metadata.labels.audit_type }}</span>
         <div class="meta-value">{{ metadata.document_type }}</div>
       </article>
       <article class="meta-card">
-        <span class="meta-label">Focus</span>
+        <span class="meta-label">{{ metadata.labels.focus }}</span>
         <div class="meta-value">{{ metadata.primary_scope }}</div>
       </article>
       <article class="meta-card">
-        <span class="meta-label">Confidentiality</span>
+        <span class="meta-label">{{ metadata.labels.confidentiality }}</span>
         <div class="meta-value">{{ metadata.confidentiality }}</div>
       </article>
     </section>
@@ -677,6 +677,49 @@ class ReportSettings:
     prepared_by: str | None = None
     client_name: str | None = None
     footer_text: str | None = None
+
+
+REPORT_LANGUAGE_LABELS: dict[str, dict[str, str]] = {
+    "en": {
+        "prepared_for": "Prepared For",
+        "report_date": "Report Date",
+        "prepared_by": "Prepared By",
+        "document_type": "Document Type",
+        "primary_scope": "Primary Scope",
+        "confidentiality": "Confidentiality",
+        "client_project": "Client / Project",
+        "primary_url": "Primary URL",
+        "generated": "Generated",
+        "audit_type": "Audit Type",
+        "focus": "Focus",
+    },
+    "de": {
+        "prepared_for": "Erstellt Fuer",
+        "report_date": "Berichtsdatum",
+        "prepared_by": "Erstellt Von",
+        "document_type": "Dokumenttyp",
+        "primary_scope": "Primaerer Fokus",
+        "confidentiality": "Vertraulichkeit",
+        "client_project": "Kunde / Projekt",
+        "primary_url": "Primaere URL",
+        "generated": "Erstellt",
+        "audit_type": "Audit-Typ",
+        "focus": "Fokus",
+    },
+    "es": {
+        "prepared_for": "Preparado Para",
+        "report_date": "Fecha del Informe",
+        "prepared_by": "Preparado Por",
+        "document_type": "Tipo de Documento",
+        "primary_scope": "Alcance Principal",
+        "confidentiality": "Confidencialidad",
+        "client_project": "Cliente / Proyecto",
+        "primary_url": "URL Principal",
+        "generated": "Generado",
+        "audit_type": "Tipo de Auditoria",
+        "focus": "Enfoque",
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -736,6 +779,19 @@ def resolve_report_branding_name(bot: str, branding_profile: str | None = None) 
     return "default"
 
 
+def normalize_report_language(language: str | None = None) -> str:
+    """Normalize a requested report language into a supported export locale."""
+
+    if not language:
+        return "en"
+    normalized = language.strip().lower()
+    if normalized.startswith("de"):
+        return "de"
+    if normalized.startswith("es"):
+        return "es"
+    return "en"
+
+
 def resolve_report_template_name(bot: str, branding_profile: str | None = None) -> str:
     """Resolve the HTML template alias for a report export."""
 
@@ -766,21 +822,35 @@ def resolve_report_footer_text(
     bot: str,
     subject: str | None = None,
     settings: ReportSettings | None = None,
+    language: str | None = None,
 ) -> str:
     """Resolve footer text using project overrides plus branding defaults."""
 
     settings = settings or ReportSettings()
-    if settings.footer_text:
+    lang = normalize_report_language(language)
+    if settings.footer_text and lang == "en":
         return settings.footer_text
 
     presenter = resolve_report_presenter(bot, settings)
-    prefix = (
-        f"Prepared by {presenter}"
-        if settings.prepared_by
-        else default_branding(resolve_report_branding_name(bot, settings.branding_profile)).footer_text
+    should_prepare = (
+        bot == "pagespeedbot"
+        or settings.prepared_by is not None
+        or resolve_report_branding_name(bot, settings.branding_profile) == "protonsystems"
     )
+    verbs = {
+        "en": ("Prepared by", "Generated by"),
+        "de": ("Erstellt von", "Generiert von"),
+        "es": ("Preparado por", "Generado por"),
+    }
+    prepared_label, generated_label = verbs.get(lang, verbs["en"])
+    prefix = f"{prepared_label if should_prepare else generated_label} {presenter}"
+    subject_prefix = {
+        "en": "for",
+        "de": "fuer",
+        "es": "para",
+    }.get(lang, "for")
     if subject:
-        return f"{prefix} for {subject}"
+        return f"{prefix} {subject_prefix} {subject}"
     return prefix
 
 
@@ -938,6 +1008,7 @@ def export_report_file(
 
 def _normalize_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     raw = dict(metadata or {})
+    lang = normalize_report_language(raw.get("lang"))
     generated_at = raw.get("generated_at") or datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     highlights_raw = raw.get("highlights") or []
     highlights = [
@@ -948,6 +1019,7 @@ def _normalize_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     raw["title"] = raw.get("title") or "Report"
     raw["subtitle"] = raw.get("subtitle") or ""
     raw["project_name"] = raw.get("project_name") or "Unspecified Project"
+    raw["lang"] = lang
     raw["generated_at"] = generated_at
     raw["author"] = raw.get("author") or "DevBots"
     raw["summary"] = raw.get("summary") or ""
@@ -958,6 +1030,11 @@ def _normalize_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     raw["document_type"] = raw.get("document_type") or "Technical Review"
     raw["primary_scope"] = raw.get("primary_scope") or "Web Experience"
     raw["confidentiality"] = raw.get("confidentiality") or "Internal Use"
+    raw["labels"] = {
+        **REPORT_LANGUAGE_LABELS["en"],
+        **REPORT_LANGUAGE_LABELS.get(lang, REPORT_LANGUAGE_LABELS["en"]),
+        **dict(raw.get("labels") or {}),
+    }
     return raw
 
 

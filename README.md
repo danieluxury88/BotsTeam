@@ -121,6 +121,8 @@ uv run dashboard generate        # Regenerate data only
 uv run orchestrator dashboard
 ```
 
+In the dashboard `Add Project` form, team projects can omit `Path` when `Site URL` is set. That supports URL-only PageSpeedBot projects backed by a local placeholder directory under `data/_url_projects/`.
+
 ### VoiceBot - Spoken Commands for Bots
 
 ```bash

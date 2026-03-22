@@ -68,8 +68,44 @@ def test_get_bot_result_improves_report_with_custom_instructions(
     assert result.data["instructions_file"] == str(instructions_file.resolve())
 
 
+def test_get_bot_result_translates_report(monkeypatch, tmp_path: Path) -> None:
+    report_file = tmp_path / "audit.md"
+    report_file.write_text("# Audit\n\nPerformance summary.", encoding="utf-8")
+
+    captured: dict[str, str] = {}
+
+    def _fake_chat(system: str, user: str, max_tokens: int = 0, bot_env_key: str | None = None) -> str:
+        captured["system"] = system
+        captured["user"] = user
+        return "# Bericht\n\nLeistungszusammenfassung."
+
+    monkeypatch.setattr(analyzer, "chat", _fake_chat)
+
+    result = analyzer.get_bot_result(
+        report_file,
+        mode="translate",
+        target_language="de",
+    )
+
+    assert result.status == BotStatus.SUCCESS
+    assert result.summary == "Translated report to German: audit.md"
+    assert result.markdown_report == "# Bericht\n\nLeistungszusammenfassung."
+    assert "Translate the following markdown report into German (de)." in captured["user"]
+    assert result.data["target_language"] == "de"
+
+
 def test_get_bot_result_fails_for_missing_report_file(tmp_path: Path) -> None:
     result = analyzer.get_bot_result(tmp_path / "missing.md")
 
     assert result.status == BotStatus.FAILED
     assert "Report file not found" in result.summary
+
+
+def test_get_bot_result_requires_target_language_for_translate(tmp_path: Path) -> None:
+    report_file = tmp_path / "audit.md"
+    report_file.write_text("# Audit", encoding="utf-8")
+
+    result = analyzer.get_bot_result(report_file, mode="translate")
+
+    assert result.status == BotStatus.FAILED
+    assert "target_language is required" in result.summary

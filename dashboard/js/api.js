@@ -139,6 +139,39 @@ const API = {
         return await this._mutate(CONFIG.API.REPORT_IMPROVEMENTS, 'POST', { path, improved });
     },
 
+    async translateReport(path, targetLanguage) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120000);
+        try {
+            const response = await fetch(`${CONFIG.API.REPORT_TRANSLATIONS}/preview`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path, target_language: targetLanguage }),
+                signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            const data = await response.json();
+            if (!response.ok) {
+                return { error: data.error || `HTTP ${response.status}`, status: response.status };
+            }
+            return { data, status: response.status };
+        } catch (error) {
+            clearTimeout(timeout);
+            if (error.name === 'AbortError') {
+                return { error: 'Request timed out.', status: 0 };
+            }
+            return { error: error.message, status: 0 };
+        }
+    },
+
+    async saveTranslatedReport(path, translated, targetLanguage) {
+        return await this._mutate(CONFIG.API.REPORT_TRANSLATIONS, 'POST', {
+            path,
+            translated,
+            target_language: targetLanguage,
+        });
+    },
+
     async executeVoiceCommand(payload) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), CONFIG.UI.VOICE_COMMAND_TIMEOUT_MS || 120000);
