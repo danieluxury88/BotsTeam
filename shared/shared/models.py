@@ -188,6 +188,20 @@ class IssueState(str, Enum):
     ALL    = "all"
 
 
+class IssueTrackerPlatform(str, Enum):
+    """Supported issue tracker backends."""
+    GITHUB = "github"
+    GITLAB = "gitlab"
+
+
+class IssueTrackerCapability(str, Enum):
+    """Discrete issue tracker operations bots can check for."""
+    FETCH_ISSUES = "fetch_issues"
+    GET_ISSUE = "get_issue"
+    CREATE_ISSUE = "create_issue"
+    UPDATE_ISSUE_DESCRIPTION = "update_issue_description"
+
+
 class IssuePriority(str, Enum):
     """Derived by project-manager's AI planner — not a GitLab native field."""
     CRITICAL = "critical"
@@ -203,6 +217,15 @@ class EffortSize(str, Enum):
     M  = "M"    # 1 day
     L  = "L"    # 2-3 days
     XL = "XL"   # 1 week+
+
+
+@dataclass
+class IssueDraft:
+    """Normalized issue creation payload shared across trackers."""
+    title: str
+    description: str = ""
+    labels: list[str] = field(default_factory=list)
+    assignees: list[str] = field(default_factory=list)
 
 
 @dataclass

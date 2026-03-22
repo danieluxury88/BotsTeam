@@ -13,7 +13,15 @@ from typing import Iterator
 import gitlab
 
 from shared.config import Config
-from shared.models import Issue, IssueSet, IssueState
+from shared.issue_tracker import UnsupportedIssueTrackerCapabilityError
+from shared.models import (
+    Issue,
+    IssueDraft,
+    IssueSet,
+    IssueState,
+    IssueTrackerCapability,
+    IssueTrackerPlatform,
+)
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -86,6 +94,13 @@ class GitLabClient:
     Instantiate once and reuse across commands.
     """
 
+    platform = IssueTrackerPlatform.GITLAB
+    _CAPABILITIES = frozenset({
+        IssueTrackerCapability.FETCH_ISSUES,
+        IssueTrackerCapability.GET_ISSUE,
+        IssueTrackerCapability.UPDATE_ISSUE_DESCRIPTION,
+    })
+
     def __init__(
         self,
         token: str | None = None,
@@ -95,6 +110,14 @@ class GitLabClient:
         self._url   = url or Config.gitlab_url()
         self._gl    = gitlab.Gitlab(self._url, private_token=self._token)
         self._gl.auth()  # Validates token immediately — fails fast on bad creds
+
+    def capabilities(self) -> frozenset[IssueTrackerCapability]:
+        """Return the operations supported by this client."""
+        return self._CAPABILITIES
+
+    def supports(self, capability: IssueTrackerCapability) -> bool:
+        """Check whether the client supports a capability."""
+        return capability in self._CAPABILITIES
 
     def get_project(self, project_id: str):
         """
@@ -188,10 +211,29 @@ class GitLabClient:
         project_id: str,
         issue_iid: int,
         description: str,
-    ) -> None:
-        """Update a single issue's description in GitLab (atomic PUT, no re-fetch)."""
+    ) -> Issue:
+        """Update a single issue's description in GitLab and return the normalized issue."""
+        if not self.supports(IssueTrackerCapability.UPDATE_ISSUE_DESCRIPTION):
+            raise UnsupportedIssueTrackerCapabilityError(
+                f"{self.platform.value} does not support issue updates."
+            )
+
         project = self.get_project(project_id)
-        project.issues.update(issue_iid, {"description": description})
+        try:
+            project.issues.update(issue_iid, {"description": description})
+            raw = project.issues.get(issue_iid)
+        except gitlab.exceptions.GitlabError as e:
+            raise ValueError(
+                f"Failed to update issue #{issue_iid} in project '{project_id}'.\n"
+                f"GitLab error: {e}"
+            )
+        return _normalise_issue(raw)
+
+    def create_issue(self, project_id: str, draft: IssueDraft) -> Issue:
+        """Placeholder for GitLab issue creation support."""
+        raise UnsupportedIssueTrackerCapabilityError(
+            f"{self.platform.value} does not support issue creation yet."
+        )
 
 
 # ── Convenience function ─────────────────────────────────────────────────────
@@ -228,9 +270,9 @@ def update_issue_description(
     description: str,
     token: str | None = None,
     url: str | None = None,
-) -> None:
+) -> Issue:
     """
     Module-level convenience — creates a client and updates an issue description.
     """
     client = GitLabClient(token=token, url=url)
-    client.update_issue_description(project_id, issue_iid, description)
+    return client.update_issue_description(project_id, issue_iid, description)

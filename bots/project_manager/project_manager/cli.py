@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
@@ -20,11 +21,19 @@ import json
 
 from shared.config import Config, load_env
 from shared.data_manager import save_report, get_registry_path, get_personal_registry_path
+from shared.github_client import GitHubClient
 from shared.gitlab_client import fetch_issues as gitlab_fetch_issues
-from shared.gitlab_client import get_issue as gitlab_get_issue
-from shared.gitlab_client import update_issue_description as gitlab_update_description
+from shared.gitlab_client import GitLabClient
 from shared.github_client import fetch_issues as github_fetch_issues
-from shared.models import BotStatus, IssueSet, IssueState
+from shared.issue_tracker import UnsupportedIssueTrackerCapabilityError
+from shared.models import (
+    BotStatus,
+    IssueDraft,
+    IssueSet,
+    IssueState,
+    IssueTrackerCapability,
+    IssueTrackerPlatform,
+)
 
 from project_manager.analyzer import analyze, plan, review
 
@@ -67,6 +76,20 @@ MaxOpt = Annotated[
 ]
 
 
+@dataclass
+class IssueTrackerTarget:
+    """Resolved issue-tracker context for a CLI operation."""
+
+    client: GitHubClient | GitLabClient
+    target_id: str
+    source_name: str
+    platform: IssueTrackerPlatform
+
+    @property
+    def source_label(self) -> str:
+        return "GitHub" if self.platform == IssueTrackerPlatform.GITHUB else "GitLab"
+
+
 def _resolve_project(project: str) -> str:
     resolved = project or Config.gitlab_project_id()
     if not resolved:
@@ -79,6 +102,169 @@ def _resolve_project(project: str) -> str:
     return resolved
 
 
+def _load_issue_tracker_projects() -> list[dict]:
+    """Load all projects with GitLab or GitHub integration from both registries."""
+    projects = []
+    for registry_path in (get_registry_path(), get_personal_registry_path()):
+        if not registry_path.exists():
+            continue
+        try:
+            data = json.loads(registry_path.read_text())
+            for name, cfg in data.items():
+                if cfg.get("gitlab_project_id") or cfg.get("github_repo"):
+                    projects.append({
+                        "name": name,
+                        "gitlab_project_id": cfg.get("gitlab_project_id"),
+                        "gitlab_url": cfg.get("gitlab_url", "https://gitlab.com"),
+                        "github_repo": cfg.get("github_repo"),
+                        "description": cfg.get("description", ""),
+                    })
+        except Exception:
+            continue
+    return projects
+
+
+def _split_multi_values(values: tuple[str, ...] | list[str]) -> list[str]:
+    """Accept repeated options or comma-separated values and normalize them."""
+    result: list[str] = []
+    for value in values:
+        for part in value.split(","):
+            cleaned = part.strip()
+            if cleaned and cleaned not in result:
+                result.append(cleaned)
+    return result
+
+
+def _read_optional_text(
+    value: str,
+    path: Path | None,
+    option_label: str,
+) -> str:
+    """Load text from inline option or file, but not both."""
+    if value and path:
+        rprint(
+            f"[red]Error:[/red] Pass either [bold]{option_label}[/bold] or "
+            f"[bold]{option_label}-file[/bold], not both."
+        )
+        raise typer.Exit(1)
+
+    if path:
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError as e:
+            rprint(f"[red]Error reading {path}:[/red] {e}")
+            raise typer.Exit(1)
+    return value
+
+
+def _resolve_issue_tracker_target(
+    project: str,
+    github_repo: str,
+    *,
+    allow_gitlab_picker: bool = False,
+) -> IssueTrackerTarget:
+    """Resolve CLI source arguments to a tracker client and target identifier."""
+    if github_repo:
+        return IssueTrackerTarget(
+            client=GitHubClient(),
+            target_id=github_repo,
+            source_name=github_repo,
+            platform=IssueTrackerPlatform.GITHUB,
+        )
+
+    if project:
+        registry = _load_issue_tracker_projects()
+        name_lower = project.lower()
+
+        for entry in registry:
+            if entry["name"].lower() != name_lower:
+                continue
+            if entry.get("github_repo"):
+                return IssueTrackerTarget(
+                    client=GitHubClient(),
+                    target_id=entry["github_repo"],
+                    source_name=entry["name"],
+                    platform=IssueTrackerPlatform.GITHUB,
+                )
+            if entry.get("gitlab_project_id"):
+                return IssueTrackerTarget(
+                    client=GitLabClient(),
+                    target_id=entry["gitlab_project_id"],
+                    source_name=entry["name"],
+                    platform=IssueTrackerPlatform.GITLAB,
+                )
+
+        gitlab_project_id, project_name = _resolve_gitlab_project(project)
+    elif allow_gitlab_picker:
+        gitlab_project_id, project_name = _pick_gitlab_project()
+    else:
+        gitlab_project_id = _resolve_project(project)
+        project_name = gitlab_project_id
+
+    return IssueTrackerTarget(
+        client=GitLabClient(),
+        target_id=gitlab_project_id,
+        source_name=project_name,
+        platform=IssueTrackerPlatform.GITLAB,
+    )
+
+
+def _load_issue_tracker_target(
+    project: str,
+    github_repo: str,
+    *,
+    allow_gitlab_picker: bool = False,
+) -> IssueTrackerTarget:
+    """Resolve a tracker target and convert backend exceptions to CLI exits."""
+    try:
+        return _resolve_issue_tracker_target(
+            project,
+            github_repo,
+            allow_gitlab_picker=allow_gitlab_picker,
+        )
+    except EnvironmentError as e:
+        rprint(f"[red]Config error:[/red] {e}")
+        raise typer.Exit(1)
+    except ValueError as e:
+        label = "Repository" if github_repo else "Project"
+        rprint(f"[red]{label} error:[/red] {e}")
+        raise typer.Exit(1)
+    except Exception as e:
+        source_label = "GitHub" if github_repo else "GitLab"
+        rprint(f"[red]{source_label} API error:[/red] {e}")
+        raise typer.Exit(1)
+
+
+def _require_tracker_capability(
+    target: IssueTrackerTarget,
+    capability: IssueTrackerCapability,
+) -> None:
+    """Exit with a consistent message when a tracker lacks an operation."""
+    if target.client.supports(capability):
+        return
+
+    label = capability.value.replace("_", " ")
+    rprint(
+        f"[red]Unsupported:[/red] {target.source_label} does not support "
+        f"[bold]{label}[/bold] in this bot yet."
+    )
+    raise typer.Exit(1)
+
+
+def _capability_labels(capabilities: frozenset[IssueTrackerCapability]) -> list[str]:
+    ordered = [
+        IssueTrackerCapability.FETCH_ISSUES,
+        IssueTrackerCapability.GET_ISSUE,
+        IssueTrackerCapability.CREATE_ISSUE,
+        IssueTrackerCapability.UPDATE_ISSUE_DESCRIPTION,
+    ]
+    labels: list[str] = []
+    for capability in ordered:
+        if capability in capabilities:
+            labels.append(capability.value.replace("_", " "))
+    return labels
+
+
 def _fetch_issues(
     project: str,
     github_repo: str,
@@ -86,31 +272,21 @@ def _fetch_issues(
     max_issues: int,
 ) -> IssueSet:
     """Fetch issues from GitHub or GitLab depending on which option is set."""
-    if github_repo:
-        try:
-            return github_fetch_issues(github_repo, state=state, max_issues=max_issues)
-        except EnvironmentError as e:
-            rprint(f"[red]Config error:[/red] {e}")
-            raise typer.Exit(1)
-        except ValueError as e:
-            rprint(f"[red]Repository error:[/red] {e}")
-            raise typer.Exit(1)
-        except Exception as e:
-            rprint(f"[red]GitHub API error:[/red] {e}")
-            raise typer.Exit(1)
-    else:
-        project = _resolve_project(project)
-        try:
-            return gitlab_fetch_issues(project, state=state, max_issues=max_issues)
-        except EnvironmentError as e:
-            rprint(f"[red]Config error:[/red] {e}")
-            raise typer.Exit(1)
-        except ValueError as e:
-            rprint(f"[red]Project error:[/red] {e}")
-            raise typer.Exit(1)
-        except Exception as e:
-            rprint(f"[red]GitLab API error:[/red] {e}")
-            raise typer.Exit(1)
+    target = _load_issue_tracker_target(project, github_repo)
+    try:
+        if target.platform == IssueTrackerPlatform.GITHUB:
+            return github_fetch_issues(target.target_id, state=state, max_issues=max_issues)
+        return gitlab_fetch_issues(target.target_id, state=state, max_issues=max_issues)
+    except EnvironmentError as e:
+        rprint(f"[red]Config error:[/red] {e}")
+        raise typer.Exit(1)
+    except ValueError as e:
+        entity = "Repository" if target.platform == IssueTrackerPlatform.GITHUB else "Project"
+        rprint(f"[red]{entity} error:[/red] {e}")
+        raise typer.Exit(1)
+    except Exception as e:
+        rprint(f"[red]{target.source_label} API error:[/red] {e}")
+        raise typer.Exit(1)
 
 
 def _spinner(msg: str) -> Progress:
@@ -124,23 +300,11 @@ def _spinner(msg: str) -> Progress:
 
 def _load_gitlab_projects() -> list[dict]:
     """Load all projects with GitLab integration from both registries."""
-    projects = []
-    for registry_path in (get_registry_path(), get_personal_registry_path()):
-        if not registry_path.exists():
-            continue
-        try:
-            data = json.loads(registry_path.read_text())
-            for name, cfg in data.items():
-                if cfg.get("gitlab_project_id"):
-                    projects.append({
-                        "name": name,
-                        "gitlab_project_id": cfg["gitlab_project_id"],
-                        "gitlab_url": cfg.get("gitlab_url", "https://gitlab.com"),
-                        "description": cfg.get("description", ""),
-                    })
-        except Exception:
-            continue
-    return projects
+    return [
+        project
+        for project in _load_issue_tracker_projects()
+        if project.get("gitlab_project_id")
+    ]
 
 
 def _resolve_gitlab_project(project_arg: str) -> tuple[str, str]:
@@ -212,6 +376,130 @@ def _pick_gitlab_project() -> tuple[str, str]:
 
     p = registry[idx]
     return p["gitlab_project_id"], p["name"]
+
+
+@app.command("capabilities")
+def capabilities(
+    project: ProjectArg = "",
+    github_repo: GitHubRepoOpt = "",
+):
+    """Show the issue-tracker capabilities currently available to PMBot."""
+    target = _load_issue_tracker_target(
+        project,
+        github_repo,
+        allow_gitlab_picker=not github_repo and not project,
+    )
+
+    console.print()
+    console.print(Panel(
+        f"[bold yellow]IssueBot[/bold yellow] capabilities for [bold]{target.source_name}[/bold]\n"
+        f"[dim]Source: {target.source_label}[/dim]",
+        border_style="yellow",
+    ))
+    console.print()
+
+    table = Table(show_header=True, header_style="bold yellow")
+    table.add_column("Capability", style="cyan")
+    table.add_column("Status", style="bold")
+
+    for label in _capability_labels(target.client.capabilities()):
+        table.add_row(label, "available")
+
+    missing = [
+        capability.value.replace("_", " ")
+        for capability in IssueTrackerCapability
+        if capability not in target.client.capabilities()
+    ]
+    for label in missing:
+        table.add_row(label, "[dim]not available[/dim]")
+
+    console.print(table)
+    console.print()
+
+
+@app.command("create")
+def create_issue(
+    project: ProjectArg = "",
+    github_repo: GitHubRepoOpt = "",
+    title: Annotated[
+        str,
+        typer.Option("--title", "-t", help="Issue title"),
+    ] = "",
+    description: Annotated[
+        str,
+        typer.Option("--description", "-d", help="Issue description/body"),
+    ] = "",
+    description_file: Annotated[
+        Path | None,
+        typer.Option("--description-file", help="Read issue description from a file"),
+    ] = None,
+    labels: Annotated[
+        list[str] | None,
+        typer.Option("--label", "-l", help="Issue label; repeat or use comma-separated values"),
+    ] = None,
+    assignees: Annotated[
+        list[str] | None,
+        typer.Option("--assignee", "-a", help="Assignee username; repeat or use comma-separated values"),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Show the issue draft without creating it"),
+    ] = False,
+):
+    """Create a new issue through the configured tracker integration."""
+    if not title.strip():
+        rprint("[red]Error:[/red] --title is required.")
+        raise typer.Exit(1)
+
+    target = _load_issue_tracker_target(project, github_repo)
+    _require_tracker_capability(target, IssueTrackerCapability.CREATE_ISSUE)
+
+    issue_description = _read_optional_text(description, description_file, "--description")
+    draft = IssueDraft(
+        title=title.strip(),
+        description=issue_description,
+        labels=_split_multi_values(labels or []),
+        assignees=_split_multi_values(assignees or []),
+    )
+
+    console.print()
+    mode_suffix = "  •  [bold red]DRY RUN[/bold red]" if dry_run else ""
+    console.print(Panel(
+        f"[bold yellow]IssueBot[/bold yellow] creating an issue in [bold]{target.source_name}[/bold]\n"
+        f"[dim]Source: {target.source_label}{mode_suffix}[/dim]",
+        border_style="yellow",
+    ))
+    console.print()
+
+    preview = Table(show_header=False, box=None, padding=(0, 2))
+    preview.add_column("Field", style="dim")
+    preview.add_column("Value", style="bold")
+    preview.add_row("Title", draft.title)
+    preview.add_row("Labels", ", ".join(draft.labels) or "—")
+    preview.add_row("Assignees", ", ".join(draft.assignees) or "—")
+    preview.add_row("Description", draft.description[:200] + ("…" if len(draft.description) > 200 else "") or "—")
+    console.print(preview)
+    console.print()
+
+    if dry_run:
+        console.print("[dim]Dry run — no issue was created.[/dim]")
+        console.print()
+        return
+
+    with _spinner(f"Creating issue in {target.source_label}..."):
+        try:
+            created = target.client.create_issue(target.target_id, draft)
+        except UnsupportedIssueTrackerCapabilityError as e:
+            rprint(f"[red]Unsupported:[/red] {e}")
+            raise typer.Exit(1)
+        except Exception as e:
+            rprint(f"[red]{target.source_label} API error:[/red] {e}")
+            raise typer.Exit(1)
+
+    console.print(f"[green]✓[/green] Created issue [bold]#{created.iid}[/bold] in {target.source_label}")
+    if created.web_url:
+        console.print(f"[dim]{created.web_url}[/dim]")
+    console.print()
 
 
 # ── list command ─────────────────────────────────────────────────────────────
@@ -482,9 +770,10 @@ def review_descriptions(
         typer.Option(
             "--project", "-p",
             help='Project name from registry (e.g. "UniLi"), or raw GitLab ID/path. '
-                 'If omitted, picks from registered GitLab projects.',
+                 'If omitted and GitHub is not selected, picks from registered GitLab projects.',
         ),
     ] = "",
+    github_repo: GitHubRepoOpt = "",
     state: Annotated[
         str,
         typer.Option("--state", "-s", help="Issue state filter: open | closed | all"),
@@ -515,15 +804,17 @@ def review_descriptions(
     Examples:\n
       issuebot review                          (pick from registry)\n
       issuebot review --project UniLi          (by registered name)\n
+      issuebot review --github-repo owner/repo\n
       issuebot review --project UniLi --issue 36\n
       issuebot review --project UniLi --dry-run\n
       issuebot review --project UniLi --state all --max 20
     """
-    # Resolve project from registry or prompt user to pick
-    if project:
-        gitlab_project_id, project_name = _resolve_gitlab_project(project)
-    else:
-        gitlab_project_id, project_name = _pick_gitlab_project()
+    target = _load_issue_tracker_target(
+        project,
+        github_repo,
+        allow_gitlab_picker=not github_repo and not project,
+    )
+    _require_tracker_capability(target, IssueTrackerCapability.UPDATE_ISSUE_DESCRIPTION)
 
     state_map = {"open": IssueState.OPEN, "closed": IssueState.CLOSED, "all": IssueState.ALL}
     issue_state = state_map.get(state, IssueState.OPEN)
@@ -532,9 +823,10 @@ def review_descriptions(
     console.print()
     console.print(Panel(
         f"[bold yellow]IssueBot[/bold yellow] → [bold cyan]Description Reviewer[/bold cyan] "
-        f"for [bold]{project_name}[/bold]\n"
+        f"for [bold]{target.source_name}[/bold]\n"
         f"[dim]{scope_label}"
         + ("  •  [bold red]DRY RUN[/bold red]" if dry_run else "")
+        + f"  •  Source: {target.source_label}"
         + "[/dim]",
         border_style="yellow",
     ))
@@ -543,23 +835,28 @@ def review_descriptions(
     if issue_iid is not None:
         # Single-issue mode
         try:
-            with _spinner(f"Fetching issue #{issue_iid} from GitLab..."):
-                single = gitlab_get_issue(gitlab_project_id, issue_iid)
+            with _spinner(f"Fetching issue #{issue_iid} from {target.source_label}..."):
+                single = target.client.get_issue(target.target_id, issue_iid)
         except ValueError as e:
             rprint(f"[red]Error:[/red] {e}")
             raise typer.Exit(1)
         except Exception as e:
-            rprint(f"[red]GitLab API error:[/red] {e}")
+            rprint(f"[red]{target.source_label} API error:[/red] {e}")
             raise typer.Exit(1)
         issue_set = IssueSet(
-            project_id=gitlab_project_id,
-            project_name=project_name,
+            project_id=target.target_id,
+            project_name=target.source_name,
             fetched_at=datetime.now(tz=timezone.utc),
             issues=[single],
         )
     else:
-        with _spinner(f"Fetching {state} issues from GitLab..."):
-            issue_set = _fetch_issues(gitlab_project_id, "", state=issue_state, max_issues=max_issues)
+        with _spinner(f"Fetching {state} issues from {target.source_label}..."):
+            issue_set = _fetch_issues(
+                target.target_id if target.platform == IssueTrackerPlatform.GITLAB else "",
+                target.target_id if target.platform == IssueTrackerPlatform.GITHUB else "",
+                state=issue_state,
+                max_issues=max_issues,
+            )
 
     total = len(issue_set.issues)
     console.print(
@@ -633,11 +930,11 @@ def review_descriptions(
         action_taken = "skipped (dry run)" if dry_run else "pending"
 
         if not dry_run:
-            confirm = typer.confirm(f"  Update #{iid} in GitLab?", default=False)
+            confirm = typer.confirm(f"  Update #{iid} in {target.source_label}?", default=False)
             if confirm:
                 try:
-                    gitlab_update_description(gitlab_project_id, iid, improved)
-                    console.print(f"  [green]✓[/green] #{iid} updated in GitLab\n")
+                    target.client.update_issue_description(target.target_id, iid, improved)
+                    console.print(f"  [green]✓[/green] #{iid} updated in {target.source_label}\n")
                     updated_count += 1
                     action_taken = "updated"
                 except Exception as e:

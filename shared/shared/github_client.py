@@ -13,7 +13,15 @@ from typing import Iterator
 from github import Auth, Github, GithubException
 
 from shared.config import Config
-from shared.models import Issue, IssueSet, IssueState
+from shared.issue_tracker import UnsupportedIssueTrackerCapabilityError
+from shared.models import (
+    Issue,
+    IssueDraft,
+    IssueSet,
+    IssueState,
+    IssueTrackerCapability,
+    IssueTrackerPlatform,
+)
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -73,6 +81,14 @@ class GitHubClient:
     Instantiate once and reuse across commands.
     """
 
+    platform = IssueTrackerPlatform.GITHUB
+    _CAPABILITIES = frozenset({
+        IssueTrackerCapability.FETCH_ISSUES,
+        IssueTrackerCapability.GET_ISSUE,
+        IssueTrackerCapability.CREATE_ISSUE,
+        IssueTrackerCapability.UPDATE_ISSUE_DESCRIPTION,
+    })
+
     def __init__(
         self,
         token: str | None = None,
@@ -92,6 +108,14 @@ class GitHubClient:
         # Validate token by fetching authenticated user
         self._gh.get_user().login
 
+    def capabilities(self) -> frozenset[IssueTrackerCapability]:
+        """Return the operations supported by this client."""
+        return self._CAPABILITIES
+
+    def supports(self, capability: IssueTrackerCapability) -> bool:
+        """Check whether the client supports a capability."""
+        return capability in self._CAPABILITIES
+
     def get_repo(self, repo: str):
         """
         Resolve a repository by full name (owner/repo).
@@ -103,6 +127,24 @@ class GitHubClient:
                 f"Repository '{repo}' not found or no access.\n"
                 f"GitHub error: {e}"
             )
+
+    def get_issue(self, repo: str, issue_number: int) -> Issue:
+        """Fetch a single GitHub issue by its repository-scoped number."""
+        gh_repo = self.get_repo(repo)
+        try:
+            raw = gh_repo.get_issue(number=issue_number)
+        except GithubException as e:
+            raise ValueError(
+                f"Issue #{issue_number} not found in repository '{repo}'.\n"
+                f"GitHub error: {e}"
+            )
+
+        try:
+            return _normalise_issue(raw)
+        except ValueError as e:
+            raise ValueError(
+                f"Item #{issue_number} in repository '{repo}' is not an issue."
+            ) from e
 
     def fetch_issues(
         self,
@@ -177,6 +219,51 @@ class GitHubClient:
             except ValueError:
                 continue
 
+    def create_issue(self, repo: str, draft: IssueDraft) -> Issue:
+        """Create a GitHub issue and return the normalized issue."""
+        if not self.supports(IssueTrackerCapability.CREATE_ISSUE):
+            raise UnsupportedIssueTrackerCapabilityError(
+                f"{self.platform.value} does not support issue creation."
+            )
+
+        gh_repo = self.get_repo(repo)
+        try:
+            raw = gh_repo.create_issue(
+                title=draft.title,
+                body=draft.description or None,
+                labels=draft.labels or None,
+                assignees=draft.assignees or None,
+            )
+        except GithubException as e:
+            raise ValueError(
+                f"Failed to create issue in repository '{repo}'.\n"
+                f"GitHub error: {e}"
+            )
+        return _normalise_issue(raw)
+
+    def update_issue_description(
+        self,
+        repo: str,
+        issue_number: int,
+        description: str,
+    ) -> Issue:
+        """Update a GitHub issue description and return the normalized issue."""
+        if not self.supports(IssueTrackerCapability.UPDATE_ISSUE_DESCRIPTION):
+            raise UnsupportedIssueTrackerCapabilityError(
+                f"{self.platform.value} does not support issue updates."
+            )
+
+        gh_repo = self.get_repo(repo)
+        try:
+            raw = gh_repo.get_issue(number=issue_number)
+            raw.edit(body=description)
+        except GithubException as e:
+            raise ValueError(
+                f"Failed to update issue #{issue_number} in repository '{repo}'.\n"
+                f"GitHub error: {e}"
+            )
+        return _normalise_issue(raw)
+
 
 # ── Convenience function ─────────────────────────────────────────────────────
 
@@ -194,3 +281,37 @@ def fetch_issues(
     """
     client = GitHubClient(token=token, base_url=base_url)
     return client.fetch_issues(repo, state=state, max_issues=max_issues)
+
+
+def get_issue(
+    repo: str,
+    issue_number: int,
+    token: str | None = None,
+    base_url: str | None = None,
+) -> Issue:
+    """Module-level convenience — fetch a single issue by number."""
+    client = GitHubClient(token=token, base_url=base_url)
+    return client.get_issue(repo, issue_number)
+
+
+def create_issue(
+    repo: str,
+    draft: IssueDraft,
+    token: str | None = None,
+    base_url: str | None = None,
+) -> Issue:
+    """Module-level convenience — create a single issue."""
+    client = GitHubClient(token=token, base_url=base_url)
+    return client.create_issue(repo, draft)
+
+
+def update_issue_description(
+    repo: str,
+    issue_number: int,
+    description: str,
+    token: str | None = None,
+    base_url: str | None = None,
+) -> Issue:
+    """Module-level convenience — update a single issue description."""
+    client = GitHubClient(token=token, base_url=base_url)
+    return client.update_issue_description(repo, issue_number, description)
