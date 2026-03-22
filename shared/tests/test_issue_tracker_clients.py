@@ -8,7 +8,6 @@ from github.GithubObject import NotSet
 
 from shared.github_client import GitHubClient
 from shared.gitlab_client import GitLabClient
-from shared.issue_tracker import UnsupportedIssueTrackerCapabilityError
 from shared.models import (
     BotResult,
     IssueDraft,
@@ -168,7 +167,75 @@ def test_github_client_probe_capabilities_reports_blocked_write_access(monkeypat
     assert by_capability[IssueTrackerCapability.UPDATE_ISSUE_DESCRIPTION].effective_status == "blocked"
 
 
-def test_gitlab_client_updates_issue_description_and_reports_missing_creation_support(monkeypatch):
+def test_gitlab_client_creates_issue_with_labels_and_assignees(monkeypatch):
+    created_calls = []
+
+    class FakeIssues:
+        def create(self, payload):
+            created_calls.append(payload)
+            return _gitlab_raw_issue(
+                iid=11,
+                title=payload["title"],
+                description=payload.get("description", ""),
+            )
+
+    class FakeProject:
+        name = "repo"
+        path_with_namespace = "group/repo"
+        issues = FakeIssues()
+        members_all = SimpleNamespace(get=lambda user_id: SimpleNamespace(id=user_id))
+
+    user_map = {
+        "alice": [SimpleNamespace(id=101, username="alice")],
+        "bob": [SimpleNamespace(id=202, username="bob")],
+    }
+
+    client = object.__new__(GitLabClient)
+    client._gl = SimpleNamespace(
+        users=SimpleNamespace(list=lambda username: user_map.get(username, []))
+    )
+    monkeypatch.setattr(client, "get_project", lambda project_id: FakeProject())
+
+    issue = client.create_issue(
+        "group/repo",
+        IssueDraft(
+            title="Ship GitLab issue creation",
+            description="Create this from PMBot.",
+            labels=["bug", "backend"],
+            assignees=["alice", "bob"],
+        ),
+    )
+
+    assert created_calls == [{
+        "title": "Ship GitLab issue creation",
+        "description": "Create this from PMBot.",
+        "labels": ["bug", "backend"],
+        "assignee_ids": [101, 202],
+    }]
+    assert issue.iid == 11
+    assert issue.title == "Ship GitLab issue creation"
+    assert issue.state == IssueState.OPEN
+
+
+def test_gitlab_client_create_issue_rejects_unknown_assignee(monkeypatch):
+    class FakeProject:
+        name = "repo"
+        path_with_namespace = "group/repo"
+        issues = SimpleNamespace(create=lambda payload: payload)
+        members_all = SimpleNamespace(get=lambda user_id: SimpleNamespace(id=user_id))
+
+    client = object.__new__(GitLabClient)
+    client._gl = SimpleNamespace(users=SimpleNamespace(list=lambda username: []))
+    monkeypatch.setattr(client, "get_project", lambda project_id: FakeProject())
+
+    with pytest.raises(ValueError, match="GitLab user 'missing' was not found"):
+        client.create_issue(
+            "group/repo",
+            IssueDraft(title="Test", assignees=["missing"]),
+        )
+
+
+def test_gitlab_client_updates_issue_description(monkeypatch):
     updated_calls = []
 
     class FakeIssues:
@@ -185,16 +252,13 @@ def test_gitlab_client_updates_issue_description_and_reports_missing_creation_su
     monkeypatch.setattr(client, "get_project", lambda project_id: FakeProject())
 
     assert client.supports(IssueTrackerCapability.GET_ISSUE)
-    assert not client.supports(IssueTrackerCapability.CREATE_ISSUE)
+    assert client.supports(IssueTrackerCapability.CREATE_ISSUE)
 
     issue = client.update_issue_description("group/repo", 7, "Updated body")
 
     assert updated_calls == [(7, {"description": "Updated body"})]
     assert issue.iid == 7
     assert issue.description == "Updated body"
-
-    with pytest.raises(UnsupportedIssueTrackerCapabilityError):
-        client.create_issue("group/repo", IssueDraft(title="Not yet"))
 
 
 def test_gitlab_client_probe_capabilities_distinguishes_support_from_token_access(monkeypatch):
@@ -222,10 +286,10 @@ def test_gitlab_client_probe_capabilities_distinguishes_support_from_token_acces
     by_capability = {status.capability: status for status in report.capability_statuses}
 
     assert report.platform == "gitlab"
-    assert by_capability[IssueTrackerCapability.CREATE_ISSUE].supported is False
+    assert by_capability[IssueTrackerCapability.CREATE_ISSUE].supported is True
     assert by_capability[IssueTrackerCapability.CREATE_ISSUE].authorized is True
-    assert by_capability[IssueTrackerCapability.CREATE_ISSUE].effective_status == "unsupported"
-    assert "does have issue write access" in by_capability[IssueTrackerCapability.CREATE_ISSUE].detail
+    assert by_capability[IssueTrackerCapability.CREATE_ISSUE].effective_status == "ready"
+    assert "write access" in by_capability[IssueTrackerCapability.CREATE_ISSUE].detail
 
 
 def test_botresult_failure_normalizes_empty_messages():

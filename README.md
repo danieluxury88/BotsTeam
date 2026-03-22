@@ -91,7 +91,7 @@ uv run pmbot plan --project 12345 --output sprint-plan.md
 # List issues in a Rich table
 uv run pmbot list --project 12345 --state open --label bug
 
-# Create a GitHub issue
+# Create an issue through the configured tracker
 uv run pmbot create --project BotsTeam \
   --title "Dashboard: investigate Header Navigation problem" \
   --description "Investigate the Dashboard header navigation problem."

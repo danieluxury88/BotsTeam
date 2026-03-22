@@ -114,6 +114,7 @@ class GitLabClient:
     _CAPABILITIES = frozenset({
         IssueTrackerCapability.FETCH_ISSUES,
         IssueTrackerCapability.GET_ISSUE,
+        IssueTrackerCapability.CREATE_ISSUE,
         IssueTrackerCapability.UPDATE_ISSUE_DESCRIPTION,
     })
 
@@ -139,6 +140,51 @@ class GitLabClient:
 
     def _issues_enabled(self, project) -> bool:
         return getattr(project, "issues_access_level", "enabled") != "disabled"
+
+    def _project_label(self, project, project_id: str) -> str:
+        return (
+            getattr(project, "path_with_namespace", None)
+            or getattr(project, "name", None)
+            or str(project_id)
+        )
+
+    def _resolve_assignee_ids(self, project, project_id: str, usernames: list[str]) -> list[int]:
+        """Resolve GitLab usernames to project member IDs for issue assignment."""
+        if not usernames:
+            return []
+
+        assignee_ids: list[int] = []
+        project_label = self._project_label(project, project_id)
+
+        for username in usernames:
+            try:
+                matches = self._gl.users.list(username=username)
+            except gitlab_exceptions.GitlabError as e:
+                raise ValueError(
+                    f"Failed to resolve GitLab user '{username}'.\n"
+                    f"GitLab error: {_format_gitlab_error(e)}"
+                ) from e
+
+            match = next(
+                (user for user in matches if getattr(user, "username", "") == username),
+                None,
+            )
+            if match is None or getattr(match, "id", None) is None:
+                raise ValueError(f"GitLab user '{username}' was not found.")
+
+            member_manager = getattr(project, "members_all", None)
+            if member_manager is not None:
+                try:
+                    member_manager.get(match.id)
+                except gitlab_exceptions.GitlabGetError as e:
+                    raise ValueError(
+                        f"GitLab user '{username}' is not a member of project '{project_label}'.\n"
+                        f"GitLab error: {_format_gitlab_error(e)}"
+                    ) from e
+
+            assignee_ids.append(match.id)
+
+        return assignee_ids
 
     def _probe_issue_read_access(self, project) -> tuple[bool, str]:
         """Verify issue read access with a lightweight list call."""
@@ -177,19 +223,10 @@ class GitLabClient:
         read_ok, read_detail = self._probe_issue_read_access(project)
         write_ok, write_detail = self._probe_issue_write_access(project_id, project)
 
-        create_detail = "PMBot does not implement GitLab issue creation yet."
-        if write_ok:
-            create_detail = (
-                "PMBot does not implement GitLab issue creation yet. "
-                "The configured token does have issue write access."
-            )
-        elif write_detail:
-            create_detail = f"{create_detail} {write_detail}"
-
         return IssueTrackerAccessReport(
             platform=self.platform,
             target_id=str(project_id),
-            target_name=getattr(project, "path_with_namespace", None) or getattr(project, "name", str(project_id)),
+            target_name=self._project_label(project, project_id),
             authenticated_as=getattr(self, "_authenticated_as", ""),
             capability_statuses=[
                 IssueTrackerCapabilityStatus(
@@ -206,9 +243,9 @@ class GitLabClient:
                 ),
                 IssueTrackerCapabilityStatus(
                     capability=IssueTrackerCapability.CREATE_ISSUE,
-                    supported=False,
+                    supported=True,
                     authorized=write_ok,
-                    detail=create_detail,
+                    detail=write_detail,
                 ),
                 IssueTrackerCapabilityStatus(
                     capability=IssueTrackerCapability.UPDATE_ISSUE_DESCRIPTION,
@@ -330,10 +367,33 @@ class GitLabClient:
         return _normalise_issue(raw)
 
     def create_issue(self, project_id: str, draft: IssueDraft) -> Issue:
-        """Placeholder for GitLab issue creation support."""
-        raise UnsupportedIssueTrackerCapabilityError(
-            f"{self.platform.value} does not support issue creation yet."
-        )
+        """Create a GitLab issue and return the normalized issue."""
+        if not self.supports(IssueTrackerCapability.CREATE_ISSUE):
+            raise UnsupportedIssueTrackerCapabilityError(
+                f"{self.platform.value} does not support issue creation."
+            )
+
+        project = self.get_project(project_id)
+        payload: dict[str, object] = {"title": draft.title}
+        if draft.description:
+            payload["description"] = draft.description
+        if draft.labels:
+            payload["labels"] = draft.labels
+        if draft.assignees:
+            payload["assignee_ids"] = self._resolve_assignee_ids(
+                project,
+                project_id,
+                draft.assignees,
+            )
+
+        try:
+            raw = project.issues.create(payload)
+        except gitlab_exceptions.GitlabError as e:
+            raise ValueError(
+                f"Failed to create issue in project '{project_id}'.\n"
+                f"GitLab error: {_format_gitlab_error(e)}"
+            ) from e
+        return _normalise_issue(raw)
 
 
 # ── Convenience function ─────────────────────────────────────────────────────
@@ -376,3 +436,14 @@ def update_issue_description(
     """
     client = GitLabClient(token=token, url=url)
     return client.update_issue_description(project_id, issue_iid, description)
+
+
+def create_issue(
+    project_id: str,
+    draft: IssueDraft,
+    token: str | None = None,
+    url: str | None = None,
+) -> Issue:
+    """Module-level convenience — create a single GitLab issue."""
+    client = GitLabClient(token=token, url=url)
+    return client.create_issue(project_id, draft)

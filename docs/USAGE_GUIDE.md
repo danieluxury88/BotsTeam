@@ -100,7 +100,7 @@ uv run pmbot review --project BotsTeam --dry-run
 # Verify tracker access before mutating issues
 uv run pmbot check --project BotsTeam
 
-# Create a GitHub issue
+# Create an issue through the configured tracker
 uv run pmbot create --project BotsTeam \
   --title "Dashboard: investigate Header Navigation problem" \
   --description "Investigate the Dashboard header navigation issue."

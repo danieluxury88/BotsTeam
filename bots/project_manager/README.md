@@ -20,7 +20,7 @@ data/{project-name}/reports/pmbot/
 - 🤖 AI-powered issue analysis
 - 📅 Sprint planning with priority and effort estimates
 - ✍️ Issue description review and improvement
-- 🆕 GitHub issue creation
+- 🆕 GitHub and GitLab issue creation
 - 🔌 Programmatic runner for orchestrator and other bots
 
 ## Installation
@@ -44,7 +44,7 @@ GITHUB_TOKEN=github_pat_xxxxx
 GITHUB_API_URL=https://api.github.com
 ```
 
-For GitHub issue creation or description updates, the token must have issue write access.
+For GitHub or GitLab issue creation and description updates, the token must have issue write access on the target repository or project.
 
 - Fine-grained PAT: grant the target repository and set `Issues` to `Read and write`
 - Classic PAT: use `repo` for private repositories or `public_repo` for public ones
@@ -150,6 +150,6 @@ print(result.markdown_report)
 
 ## Notes
 
-- GitLab issue creation is not implemented yet
-- GitHub issue creation and description updates are supported
+- GitHub and GitLab issue creation are supported
+- Description review and updates are supported on both GitHub and GitLab
 - Analysis and planning work with both GitLab and GitHub issue sources
