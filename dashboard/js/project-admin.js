@@ -2,6 +2,13 @@
 const ProjectAdmin = {
     _editingName: null, // non-null when editing an existing project
 
+    _joinValues(values, fallback = '') {
+        if (Array.isArray(values) && values.length) {
+            return values.join(', ');
+        }
+        return fallback;
+    },
+
     openAddModal() {
         this._editingName = null;
         const modal = document.getElementById('project-modal');
@@ -26,7 +33,11 @@ const ProjectAdmin = {
         document.getElementById('field-name').disabled = true;
         document.getElementById('field-path').value = project.path || '';
         document.getElementById('field-description').value = project.description || '';
-        document.getElementById('field-language').value = project.language || 'python';
+        document.getElementById('field-languages').value = this._joinValues(
+            project.languages,
+            project.language || 'python'
+        );
+        document.getElementById('field-frameworks').value = this._joinValues(project.frameworks);
         document.getElementById('field-scope').value = project.scope || 'team';
         document.getElementById('field-gitlab-id').value = project.gitlab_id || '';
         document.getElementById('field-gitlab-url').value = project.gitlab_url || '';
@@ -95,13 +106,21 @@ const ProjectAdmin = {
             name: document.getElementById('field-name').value.trim(),
             path: document.getElementById('field-path').value.trim(),
             description: document.getElementById('field-description').value.trim(),
-            language: document.getElementById('field-language').value,
+            language: '',
+            languages: document.getElementById('field-languages').value,
+            frameworks: document.getElementById('field-frameworks').value,
             scope,
             report_branding_profile: document.getElementById('field-report-branding-profile').value.trim() || null,
             report_prepared_by: document.getElementById('field-report-prepared-by').value.trim() || null,
             report_client_name: document.getElementById('field-report-client-name').value.trim() || null,
             report_footer_text: document.getElementById('field-report-footer-text').value.trim() || null,
         };
+
+        const languageValues = body.languages
+            .split(',')
+            .map(value => value.trim())
+            .filter(Boolean);
+        body.language = languageValues[0] || 'python';
 
         if (scope === 'personal') {
             body.notes_dir = document.getElementById('field-notes-dir').value.trim() || null;

@@ -15,6 +15,8 @@ class Project:
     path: Path
     description: str = ""
     language: str = "python"
+    languages: list[str] | None = None
+    frameworks: list[str] | None = None
     scope: ProjectScope = ProjectScope.TEAM
 
     # Team integrations (optional)
@@ -105,11 +107,17 @@ class Project:
         ensure_project_structure(self.name, self.scope)
 
     def to_dict(self) -> dict:
+        languages = list(self.languages or [])
+        if not languages and self.language:
+            languages = [self.language]
+
         base = {
             "name": self.name,
             "path": str(self.path),
             "description": self.description,
-            "language": self.language,
+            "language": languages[0] if languages else self.language,
+            "languages": languages,
+            "frameworks": self.frameworks,
             "scope": self.scope.value,
         }
         optional = {
@@ -142,7 +150,9 @@ class Project:
             name=data["name"],
             path=Path(data["path"]),
             description=data.get("description", ""),
-            language=data.get("language", "python"),
+            language=(data.get("languages") or [data.get("language", "python")])[0],
+            languages=data.get("languages") or ([data.get("language")] if data.get("language") else None),
+            frameworks=data.get("frameworks"),
             scope=scope,
             gitlab_project_id=data.get("gitlab_project_id"),
             gitlab_url=data.get("gitlab_url"),
@@ -229,6 +239,8 @@ class ProjectRegistry:
         path: Path | str,
         description: str = "",
         language: str = "python",
+        languages: list[str] | None = None,
+        frameworks: list[str] | None = None,
         scope: ProjectScope = ProjectScope.TEAM,
         gitlab_project_id: str | None = None,
         gitlab_url: str | None = None,
@@ -254,7 +266,9 @@ class ProjectRegistry:
             name=name,
             path=path,
             description=description,
-            language=language,
+            language=(languages or [language])[0],
+            languages=languages or [language],
+            frameworks=frameworks,
             scope=scope,
             gitlab_project_id=gitlab_project_id,
             gitlab_url=gitlab_url,

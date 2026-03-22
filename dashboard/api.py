@@ -109,6 +109,27 @@ def _clean_optional_text(value):
     return text or None
 
 
+def _parse_multi_values(value):
+    """Normalize repeated/comma-separated metadata values into a unique list."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        raw_values = [value]
+    else:
+        raw_values = list(value)
+
+    parsed = []
+    seen = set()
+    for raw in raw_values:
+        for part in str(raw).replace("\n", ",").split(","):
+            cleaned = part.strip()
+            key = cleaned.lower()
+            if cleaned and key not in seen:
+                seen.add(key)
+                parsed.append(cleaned)
+    return parsed or None
+
+
 def _report_settings_for_project(project) -> ReportSettings:
     if not project:
         return ReportSettings()
@@ -397,6 +418,8 @@ def create_project(data):
         path=str(path_obj),
         description=data.get("description", ""),
         language=data.get("language", "python"),
+        languages=_parse_multi_values(data.get("languages")) or [data.get("language", "python")],
+        frameworks=_parse_multi_values(data.get("frameworks")),
         scope=scope,
         gitlab_project_id=data.get("gitlab_project_id") or None,
         gitlab_url=data.get("gitlab_url") or None,
@@ -434,6 +457,13 @@ def update_project(name, data):
         project.description = data["description"]
     if "language" in data:
         project.language = data["language"]
+        if not getattr(project, "languages", None):
+            project.languages = [data["language"]]
+    if "languages" in data:
+        project.languages = _parse_multi_values(data["languages"]) or [project.language]
+        project.language = project.languages[0]
+    if "frameworks" in data:
+        project.frameworks = _parse_multi_values(data["frameworks"])
     if "gitlab_project_id" in data:
         project.gitlab_project_id = data["gitlab_project_id"] or None
     if "gitlab_url" in data:

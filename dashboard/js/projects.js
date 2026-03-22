@@ -71,6 +71,9 @@ function filterProjects(query) {
     const filtered = allProjects.filter(p =>
         p.name.toLowerCase().includes(q) ||
         (p.description && p.description.toLowerCase().includes(q)) ||
+        (p.language && p.language.toLowerCase().includes(q)) ||
+        (p.languages && p.languages.some(language => language.toLowerCase().includes(q))) ||
+        (p.frameworks && p.frameworks.some(framework => framework.toLowerCase().includes(q))) ||
         (p.github_repo && p.github_repo.toLowerCase().includes(q)) ||
         (p.site_url && p.site_url.toLowerCase().includes(q)) ||
         (p.audit_urls && p.audit_urls.some(url => url.toLowerCase().includes(q)))

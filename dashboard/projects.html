@@ -101,16 +101,14 @@
                     <input type="text" id="field-description" class="form-input" placeholder="Short description">
                 </div>
                 <div class="form-group">
-                    <label for="field-language">Language</label>
-                    <select id="field-language" class="form-input">
-                        <option value="python">Python</option>
-                        <option value="javascript">JavaScript</option>
-                        <option value="typescript">TypeScript</option>
-                        <option value="go">Go</option>
-                        <option value="rust">Rust</option>
-                        <option value="java">Java</option>
-                        <option value="other">Other</option>
-                    </select>
+                    <label for="field-languages">Languages</label>
+                    <input type="text" id="field-languages" class="form-input" placeholder="php, javascript">
+                    <span class="form-hint">Primary language first. Use commas for multiple languages.</span>
+                </div>
+                <div class="form-group">
+                    <label for="field-frameworks">Frameworks / CMS</label>
+                    <input type="text" id="field-frameworks" class="form-input" placeholder="Drupal, Symfony">
+                    <span class="form-hint">Optional stack metadata such as Drupal, Laravel, React, or Symfony.</span>
                 </div>
                 <fieldset class="form-fieldset" id="team-fields">
                     <legend>Integrations (optional)</legend>

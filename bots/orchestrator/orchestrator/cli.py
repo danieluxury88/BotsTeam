@@ -33,6 +33,20 @@ def _is_success_status(status: object) -> bool:
     value = getattr(status, "value", status)
     return value == "success"
 
+
+def _split_multi_values(values: list[str] | tuple[str, ...] | None) -> list[str]:
+    """Normalize repeated or comma-separated CLI values."""
+    if not values:
+        return []
+
+    result: list[str] = []
+    for value in values:
+        for part in value.split(","):
+            cleaned = part.strip()
+            if cleaned and cleaned not in result:
+                result.append(cleaned)
+    return result
+
 # ── Shared option types ──────────────────────────────────────────────────────
 GitLabProjectIdOpt = Annotated[
     str | None,
@@ -285,6 +299,14 @@ def add(
     path: Annotated[Path, typer.Argument(help="Project path")],
     description: Annotated[str, typer.Option("--desc", "-d", help="Project description")] = "",
     language: Annotated[str, typer.Option("--lang", "-l", help="Primary language")] = "python",
+    languages: Annotated[
+        list[str] | None,
+        typer.Option("--language", help="Project language; repeat or use comma-separated values"),
+    ] = None,
+    frameworks: Annotated[
+        list[str] | None,
+        typer.Option("--framework", help="Framework/CMS/runtime; repeat or use comma-separated values"),
+    ] = None,
     scope: ScopeOpt = "team",
     gitlab_project_id: GitLabProjectIdOpt = None,
     gitlab_url: GitLabUrlOpt = None,
@@ -323,6 +345,8 @@ def add(
             name, path,
             description=description,
             language=language,
+            languages=_split_multi_values(languages) or [language],
+            frameworks=_split_multi_values(frameworks) or None,
             scope=project_scope,
             gitlab_project_id=gitlab_project_id,
             gitlab_url=gitlab_url,
@@ -344,6 +368,10 @@ def add(
             console.print(f"[dim]  GitHub: {github_repo}[/dim]")
         if site_url:
             console.print(f"[dim]  Site URL: {site_url}[/dim]")
+        resolved_languages = _split_multi_values(languages) or [language]
+        console.print(f"[dim]  Languages: {', '.join(resolved_languages)}[/dim]")
+        if frameworks:
+            console.print(f"[dim]  Frameworks: {', '.join(_split_multi_values(frameworks))}[/dim]")
         if audit_urls:
             console.print(f"[dim]  Audit URLs: {', '.join(audit_urls)}[/dim]")
         if notes_dir:

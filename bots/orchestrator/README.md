@@ -242,7 +242,9 @@ Projects are stored in the repo-local registries:
     "name": "uni.li",
     "path": "/home/user/projects/uni.li",
     "description": "University Liechtenstein Project",
-    "language": "python",
+    "language": "php",
+    "languages": ["php", "javascript"],
+    "frameworks": ["Drupal"],
     "gitlab_project_id": "76261915"
   }
 }
@@ -256,6 +258,18 @@ GITHUB_TOKEN=ghp-xxxxx
 ```
 
 **Per-project credentials** override global settings when specified during `add`.
+
+Projects can store one primary language in `language` plus richer stack metadata in `languages` and `frameworks`.
+Example:
+
+```bash
+uv run orchestrator add uni.li /home/user/projects/uni.li \
+  --lang php \
+  --language php \
+  --language javascript \
+  --framework Drupal \
+  --gitlab-id 76261915
+```
 
 ## Integration Requirements
 

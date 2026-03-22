@@ -80,6 +80,33 @@ def test_create_team_project_allows_url_only_setup(
     assert (data_root / "_url_projects" / "UniLiLegacy").is_dir()
 
 
+def test_create_project_stores_languages_and_frameworks(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    registry = api.ProjectRegistry(tmp_path / "projects.json")
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    monkeypatch.setattr(api, "_registry", lambda: registry)
+    monkeypatch.setattr(api, "_regenerate_dashboard", lambda: None)
+
+    body, status = api.create_project(
+        {
+            "name": "UniLi",
+            "scope": "team",
+            "path": str(repo_path),
+            "language": "php",
+            "languages": "php, javascript",
+            "frameworks": "Drupal, Symfony",
+        }
+    )
+
+    assert status == 201
+    assert body["language"] == "php"
+    assert body["languages"] == ["php", "javascript"]
+    assert body["frameworks"] == ["Drupal", "Symfony"]
+
+
 def test_create_team_project_still_requires_path_without_site_url(
     monkeypatch,
     tmp_path: Path,

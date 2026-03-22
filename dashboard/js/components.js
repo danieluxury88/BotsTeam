@@ -60,6 +60,12 @@ const Components = {
                           project.github_repo ? `GitHub: ${project.github_repo}` :
                           project.site_url ? `Site: ${project.site_url}` :
                           isPersonal ? 'Local files' : 'No integration';
+        const languages = Array.isArray(project.languages) && project.languages.length
+            ? project.languages.join(', ')
+            : (project.language || 'unknown');
+        const frameworks = Array.isArray(project.frameworks) && project.frameworks.length
+            ? project.frameworks.join(', ')
+            : '';
 
         const actions = [
             `
@@ -106,6 +112,8 @@ const Components = {
                     <p class="card-description">${Utils.escapeHtml(project.description || 'No description')}</p>
                     <ul class="card-meta">
                         <li>${Utils.escapeHtml(integration)}</li>
+                        <li>Languages: ${Utils.escapeHtml(languages)}</li>
+                        ${frameworks ? `<li>Frameworks: ${Utils.escapeHtml(frameworks)}</li>` : ''}
                         ${project.site_url ? `<li>${Utils.escapeHtml(project.site_url)}</li>` : ''}
                         ${project.audit_urls && project.audit_urls.length ? `<li>${project.audit_urls.length} extra audit URLs</li>` : ''}
                         <li>Last activity: ${Utils.formatDate(project.last_activity)}</li>
