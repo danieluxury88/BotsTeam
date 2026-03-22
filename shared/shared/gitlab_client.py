@@ -11,11 +11,15 @@ from datetime import datetime, timezone
 from typing import Iterator
 
 import gitlab
+from gitlab import exceptions as gitlab_exceptions
+from gitlab.utils import EncodedId
 
 from shared.config import Config
 from shared.issue_tracker import UnsupportedIssueTrackerCapabilityError
 from shared.models import (
     Issue,
+    IssueTrackerAccessReport,
+    IssueTrackerCapabilityStatus,
     IssueDraft,
     IssueSet,
     IssueState,
@@ -86,6 +90,18 @@ def _normalise_issue(raw) -> Issue:
     )
 
 
+def _format_gitlab_error(exc: gitlab_exceptions.GitlabError) -> str:
+    """Return a readable GitLab API error message."""
+    raw = str(exc).strip()
+    if raw and raw != "None":
+        return raw
+
+    code = getattr(exc, "response_code", None)
+    if code is not None:
+        return f"GitLab API error status {code}"
+    return exc.__class__.__name__
+
+
 # ── Client ───────────────────────────────────────────────────────────────────
 
 class GitLabClient:
@@ -110,6 +126,8 @@ class GitLabClient:
         self._url   = url or Config.gitlab_url()
         self._gl    = gitlab.Gitlab(self._url, private_token=self._token)
         self._gl.auth()  # Validates token immediately — fails fast on bad creds
+        user = getattr(self._gl, "user", None)
+        self._authenticated_as = getattr(user, "username", "") or getattr(user, "name", "")
 
     def capabilities(self) -> frozenset[IssueTrackerCapability]:
         """Return the operations supported by this client."""
@@ -118,6 +136,88 @@ class GitLabClient:
     def supports(self, capability: IssueTrackerCapability) -> bool:
         """Check whether the client supports a capability."""
         return capability in self._CAPABILITIES
+
+    def _issues_enabled(self, project) -> bool:
+        return getattr(project, "issues_access_level", "enabled") != "disabled"
+
+    def _probe_issue_read_access(self, project) -> tuple[bool, str]:
+        """Verify issue read access with a lightweight list call."""
+        if not self._issues_enabled(project):
+            return False, "Issues are disabled for this project."
+
+        try:
+            project.issues.list(state="all", page=1, per_page=1)
+        except gitlab_exceptions.GitlabError as e:
+            return False, f"Read access failed: {_format_gitlab_error(e)}"
+
+        return True, "Verified issue read access."
+
+    def _probe_issue_write_access(self, project_id: str, project) -> tuple[bool, str]:
+        """Verify issue write access without creating a GitLab issue."""
+        if not self._issues_enabled(project):
+            return False, "Issues are disabled for this project."
+
+        try:
+            self._gl.http_post(
+                f"/projects/{EncodedId(project_id)}/issues",
+                post_data={"title": ""},
+            )
+        except gitlab_exceptions.GitlabHttpError as e:
+            if getattr(e, "response_code", None) in {400, 422}:
+                return True, "Verified issue write access with a validation-only create probe."
+            return False, f"Write access failed: {_format_gitlab_error(e)}"
+        except gitlab_exceptions.GitlabError as e:
+            return False, f"Write access failed: {_format_gitlab_error(e)}"
+
+        return False, "Unexpected success from write probe; permission status is uncertain."
+
+    def probe_capabilities(self, project_id: str) -> IssueTrackerAccessReport:
+        """Verify runtime access for GitLab issue operations."""
+        project = self.get_project(project_id)
+        read_ok, read_detail = self._probe_issue_read_access(project)
+        write_ok, write_detail = self._probe_issue_write_access(project_id, project)
+
+        create_detail = "PMBot does not implement GitLab issue creation yet."
+        if write_ok:
+            create_detail = (
+                "PMBot does not implement GitLab issue creation yet. "
+                "The configured token does have issue write access."
+            )
+        elif write_detail:
+            create_detail = f"{create_detail} {write_detail}"
+
+        return IssueTrackerAccessReport(
+            platform=self.platform,
+            target_id=str(project_id),
+            target_name=getattr(project, "path_with_namespace", None) or getattr(project, "name", str(project_id)),
+            authenticated_as=getattr(self, "_authenticated_as", ""),
+            capability_statuses=[
+                IssueTrackerCapabilityStatus(
+                    capability=IssueTrackerCapability.FETCH_ISSUES,
+                    supported=True,
+                    authorized=read_ok,
+                    detail=read_detail,
+                ),
+                IssueTrackerCapabilityStatus(
+                    capability=IssueTrackerCapability.GET_ISSUE,
+                    supported=True,
+                    authorized=read_ok,
+                    detail=f"Uses issue read access. {read_detail}",
+                ),
+                IssueTrackerCapabilityStatus(
+                    capability=IssueTrackerCapability.CREATE_ISSUE,
+                    supported=False,
+                    authorized=write_ok,
+                    detail=create_detail,
+                ),
+                IssueTrackerCapabilityStatus(
+                    capability=IssueTrackerCapability.UPDATE_ISSUE_DESCRIPTION,
+                    supported=True,
+                    authorized=write_ok,
+                    detail=f"Uses issue write access. {write_detail}",
+                ),
+            ],
+        )
 
     def get_project(self, project_id: str):
         """

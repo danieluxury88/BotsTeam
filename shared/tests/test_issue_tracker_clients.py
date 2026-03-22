@@ -9,7 +9,12 @@ from github.GithubObject import NotSet
 from shared.github_client import GitHubClient
 from shared.gitlab_client import GitLabClient
 from shared.issue_tracker import UnsupportedIssueTrackerCapabilityError
-from shared.models import BotResult, IssueDraft, IssueState, IssueTrackerCapability
+from shared.models import (
+    BotResult,
+    IssueDraft,
+    IssueState,
+    IssueTrackerCapability,
+)
 
 
 def _github_raw_issue(*, number: int, title: str, body: str = "Body"):
@@ -107,6 +112,62 @@ def test_github_client_uses_notset_for_empty_optional_create_fields(monkeypatch)
     }]
 
 
+def test_github_client_probe_capabilities_reports_verified_write_access(monkeypatch):
+    class FakeRepo:
+        full_name = "acme/repo"
+        has_issues = True
+
+    client = object.__new__(GitHubClient)
+    client._authenticated_as = "alice"
+    monkeypatch.setattr(client, "get_repo", lambda repo: FakeRepo())
+    monkeypatch.setattr(
+        client,
+        "_probe_issue_read_access",
+        lambda repo: (True, "Verified issue read access."),
+    )
+    monkeypatch.setattr(
+        client,
+        "_probe_issue_write_access",
+        lambda repo: (True, "Verified issue write access with a validation-only create probe."),
+    )
+
+    report = client.probe_capabilities("acme/repo")
+
+    assert report.platform == "github"
+    assert report.authenticated_as == "alice"
+    assert [status.effective_status for status in report.capability_statuses] == [
+        "ready",
+        "ready",
+        "ready",
+        "ready",
+    ]
+
+
+def test_github_client_probe_capabilities_reports_blocked_write_access(monkeypatch):
+    class FakeRepo:
+        full_name = "acme/repo"
+        has_issues = True
+
+    client = object.__new__(GitHubClient)
+    monkeypatch.setattr(client, "get_repo", lambda repo: FakeRepo())
+    monkeypatch.setattr(
+        client,
+        "_probe_issue_read_access",
+        lambda repo: (True, "Verified issue read access."),
+    )
+    monkeypatch.setattr(
+        client,
+        "_probe_issue_write_access",
+        lambda repo: (False, "Write access failed: Resource not accessible by personal access token."),
+    )
+
+    report = client.probe_capabilities("acme/repo")
+    by_capability = {status.capability: status for status in report.capability_statuses}
+
+    assert by_capability[IssueTrackerCapability.CREATE_ISSUE].effective_status == "blocked"
+    assert by_capability[IssueTrackerCapability.UPDATE_ISSUE_DESCRIPTION].effective_status == "blocked"
+
+
 def test_gitlab_client_updates_issue_description_and_reports_missing_creation_support(monkeypatch):
     updated_calls = []
 
@@ -134,6 +195,37 @@ def test_gitlab_client_updates_issue_description_and_reports_missing_creation_su
 
     with pytest.raises(UnsupportedIssueTrackerCapabilityError):
         client.create_issue("group/repo", IssueDraft(title="Not yet"))
+
+
+def test_gitlab_client_probe_capabilities_distinguishes_support_from_token_access(monkeypatch):
+    project = SimpleNamespace(
+        name="repo",
+        path_with_namespace="group/repo",
+        issues_access_level="enabled",
+    )
+
+    client = object.__new__(GitLabClient)
+    client._authenticated_as = "alice"
+    monkeypatch.setattr(client, "get_project", lambda project_id: project)
+    monkeypatch.setattr(
+        client,
+        "_probe_issue_read_access",
+        lambda raw_project: (True, "Verified issue read access."),
+    )
+    monkeypatch.setattr(
+        client,
+        "_probe_issue_write_access",
+        lambda project_id, raw_project: (True, "Verified issue write access with a validation-only create probe."),
+    )
+
+    report = client.probe_capabilities("group/repo")
+    by_capability = {status.capability: status for status in report.capability_statuses}
+
+    assert report.platform == "gitlab"
+    assert by_capability[IssueTrackerCapability.CREATE_ISSUE].supported is False
+    assert by_capability[IssueTrackerCapability.CREATE_ISSUE].authorized is True
+    assert by_capability[IssueTrackerCapability.CREATE_ISSUE].effective_status == "unsupported"
+    assert "does have issue write access" in by_capability[IssueTrackerCapability.CREATE_ISSUE].detail
 
 
 def test_botresult_failure_normalizes_empty_messages():

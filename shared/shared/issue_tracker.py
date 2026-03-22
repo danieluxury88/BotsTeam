@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from shared.models import IssueTrackerCapability, IssueTrackerPlatform
+from shared.models import (
+    IssueTrackerAccessReport,
+    IssueTrackerCapability,
+    IssueTrackerPlatform,
+)
 
 
 class UnsupportedIssueTrackerCapabilityError(NotImplementedError):
@@ -21,3 +25,6 @@ class IssueTrackerClient(Protocol):
 
     def supports(self, capability: IssueTrackerCapability) -> bool:
         """Check whether the client supports a capability."""
+
+    def probe_capabilities(self, target_id: str) -> IssueTrackerAccessReport:
+        """Verify runtime tracker access for a concrete repository or project."""

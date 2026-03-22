@@ -205,6 +205,38 @@ class IssueTrackerCapability(str, Enum):
     UPDATE_ISSUE_DESCRIPTION = "update_issue_description"
 
 
+@dataclass(frozen=True)
+class IssueTrackerCapabilityStatus:
+    """Runtime status for one tracker capability on a concrete target."""
+
+    capability: IssueTrackerCapability
+    supported: bool
+    authorized: bool | None = None
+    detail: str = ""
+
+    @property
+    def effective_status(self) -> str:
+        """Collapsed status for user-facing output."""
+        if not self.supported:
+            return "unsupported"
+        if self.authorized is True:
+            return "ready"
+        if self.authorized is False:
+            return "blocked"
+        return "unverified"
+
+
+@dataclass(frozen=True)
+class IssueTrackerAccessReport:
+    """Auth and capability preflight for a tracker target."""
+
+    platform: IssueTrackerPlatform
+    target_id: str
+    target_name: str
+    authenticated_as: str = ""
+    capability_statuses: list[IssueTrackerCapabilityStatus] = field(default_factory=list)
+
+
 class IssuePriority(str, Enum):
     """Derived by project-manager's AI planner — not a GitLab native field."""
     CRITICAL = "critical"

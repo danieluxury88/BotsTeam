@@ -56,7 +56,13 @@ For GitHub issue creation or description updates, the token must have issue writ
 ```bash
 uv run pmbot capabilities --project BotsTeam
 uv run pmbot capabilities --github-repo owner/repo
+
+# Runtime auth and permission preflight
+uv run pmbot check --project BotsTeam
+uv run pmbot check --github-repo owner/repo
 ```
+
+`capabilities` shows what PMBot implements. `check` verifies what the configured token can actually do on the target repository or project.
 
 ### List and analyze issues
 

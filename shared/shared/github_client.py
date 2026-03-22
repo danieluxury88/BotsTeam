@@ -17,6 +17,8 @@ from shared.config import Config
 from shared.issue_tracker import UnsupportedIssueTrackerCapabilityError
 from shared.models import (
     Issue,
+    IssueTrackerAccessReport,
+    IssueTrackerCapabilityStatus,
     IssueDraft,
     IssueSet,
     IssueState,
@@ -131,7 +133,7 @@ class GitHubClient:
             self._gh = Github(auth=auth)
 
         # Validate token by fetching authenticated user
-        self._gh.get_user().login
+        self._authenticated_as = self._gh.get_user().login
 
     def capabilities(self) -> frozenset[IssueTrackerCapability]:
         """Return the operations supported by this client."""
@@ -140,6 +142,83 @@ class GitHubClient:
     def supports(self, capability: IssueTrackerCapability) -> bool:
         """Check whether the client supports a capability."""
         return capability in self._CAPABILITIES
+
+    def _issues_enabled(self, gh_repo) -> bool:
+        return getattr(gh_repo, "has_issues", True) is not False
+
+    def _probe_issue_read_access(self, gh_repo) -> tuple[bool, str]:
+        """Verify issue read access with a single lightweight API call."""
+        if not self._issues_enabled(gh_repo):
+            return False, "Issues are disabled for this repository."
+
+        try:
+            next(iter(gh_repo.get_issues(state="all", sort="updated", direction="desc")), None)
+        except GithubException as e:
+            if getattr(e, "status", None) == 410:
+                return False, "Issues are disabled for this repository."
+            return False, f"Read access failed: {_format_github_error(e)}"
+
+        return True, "Verified issue read access."
+
+    def _probe_issue_write_access(self, gh_repo) -> tuple[bool, str]:
+        """Verify issue write access without creating an issue."""
+        if not self._issues_enabled(gh_repo):
+            return False, "Issues are disabled for this repository."
+
+        try:
+            gh_repo._requester.requestJsonAndCheck(
+                "POST",
+                f"{gh_repo.url}/issues",
+                input={"title": ""},
+            )
+        except GithubException as e:
+            status = getattr(e, "status", None)
+            if status == 422:
+                return True, "Verified issue write access with a validation-only create probe."
+            if status == 410:
+                return False, "Issues are disabled for this repository."
+            return False, f"Write access failed: {_format_github_error(e)}"
+
+        return False, "Unexpected success from write probe; permission status is uncertain."
+
+    def probe_capabilities(self, repo: str) -> IssueTrackerAccessReport:
+        """Verify runtime access for supported GitHub issue operations."""
+        gh_repo = self.get_repo(repo)
+        read_ok, read_detail = self._probe_issue_read_access(gh_repo)
+        write_ok, write_detail = self._probe_issue_write_access(gh_repo)
+
+        return IssueTrackerAccessReport(
+            platform=self.platform,
+            target_id=repo,
+            target_name=getattr(gh_repo, "full_name", repo),
+            authenticated_as=getattr(self, "_authenticated_as", ""),
+            capability_statuses=[
+                IssueTrackerCapabilityStatus(
+                    capability=IssueTrackerCapability.FETCH_ISSUES,
+                    supported=True,
+                    authorized=read_ok,
+                    detail=read_detail,
+                ),
+                IssueTrackerCapabilityStatus(
+                    capability=IssueTrackerCapability.GET_ISSUE,
+                    supported=True,
+                    authorized=read_ok,
+                    detail=f"Uses issue read access. {read_detail}",
+                ),
+                IssueTrackerCapabilityStatus(
+                    capability=IssueTrackerCapability.CREATE_ISSUE,
+                    supported=True,
+                    authorized=write_ok,
+                    detail=write_detail,
+                ),
+                IssueTrackerCapabilityStatus(
+                    capability=IssueTrackerCapability.UPDATE_ISSUE_DESCRIPTION,
+                    supported=True,
+                    authorized=write_ok,
+                    detail=f"Uses issue write access. {write_detail}",
+                ),
+            ],
+        )
 
     def get_repo(self, repo: str):
         """

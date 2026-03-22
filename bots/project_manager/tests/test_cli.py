@@ -5,7 +5,15 @@ from datetime import datetime
 from typer.testing import CliRunner
 
 from project_manager import cli
-from shared.models import Issue, IssueDraft, IssueState, IssueTrackerPlatform
+from shared.models import (
+    Issue,
+    IssueDraft,
+    IssueState,
+    IssueTrackerAccessReport,
+    IssueTrackerCapability,
+    IssueTrackerCapabilityStatus,
+    IssueTrackerPlatform,
+)
 
 
 runner = CliRunner()
@@ -19,7 +27,7 @@ class FakeTrackerClient:
         return True
 
     def capabilities(self):
-        return frozenset()
+        return frozenset(IssueTrackerCapability)
 
     def create_issue(self, target_id: str, draft: IssueDraft) -> Issue:
         self.created_draft = draft
@@ -35,6 +43,40 @@ class FakeTrackerClient:
             assignees=draft.assignees,
             description=draft.description,
             web_url=f"https://github.com/{target_id}/issues/123",
+        )
+
+    def probe_capabilities(self, target_id: str) -> IssueTrackerAccessReport:
+        return IssueTrackerAccessReport(
+            platform=IssueTrackerPlatform.GITHUB,
+            target_id=target_id,
+            target_name=target_id,
+            authenticated_as="alice",
+            capability_statuses=[
+                IssueTrackerCapabilityStatus(
+                    capability=IssueTrackerCapability.FETCH_ISSUES,
+                    supported=True,
+                    authorized=True,
+                    detail="Verified issue read access.",
+                ),
+                IssueTrackerCapabilityStatus(
+                    capability=IssueTrackerCapability.GET_ISSUE,
+                    supported=True,
+                    authorized=True,
+                    detail="Uses issue read access. Verified issue read access.",
+                ),
+                IssueTrackerCapabilityStatus(
+                    capability=IssueTrackerCapability.CREATE_ISSUE,
+                    supported=True,
+                    authorized=False,
+                    detail="Write access failed: missing scope.",
+                ),
+                IssueTrackerCapabilityStatus(
+                    capability=IssueTrackerCapability.UPDATE_ISSUE_DESCRIPTION,
+                    supported=True,
+                    authorized=False,
+                    detail="Uses issue write access. Write access failed: missing scope.",
+                ),
+            ],
         )
 
 
@@ -91,3 +133,31 @@ def test_resolve_issue_tracker_target_uses_registered_github_project(monkeypatch
     assert target.platform == IssueTrackerPlatform.GITHUB
     assert target.target_id == "danieluxury88/BotsTeam"
     assert target.source_name == "BotsTeam"
+
+
+def test_check_command_shows_runtime_auth_status(monkeypatch):
+    fake_client = FakeTrackerClient()
+
+    monkeypatch.setattr(
+        cli,
+        "_resolve_issue_tracker_target",
+        lambda project, github_repo, allow_gitlab_picker=False: cli.IssueTrackerTarget(
+            client=fake_client,
+            target_id="acme/repo",
+            source_name="acme/repo",
+            platform=IssueTrackerPlatform.GITHUB,
+        ),
+    )
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "check",
+            "--github-repo", "acme/repo",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "tracker check" in result.output.lower()
+    assert "verified" in result.output.lower()
+    assert "blocked" in result.output.lower()

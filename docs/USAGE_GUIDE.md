@@ -97,6 +97,9 @@ uv run pmbot plan --project 12345
 # Review issue descriptions
 uv run pmbot review --project BotsTeam --dry-run
 
+# Verify tracker access before mutating issues
+uv run pmbot check --project BotsTeam
+
 # Create a GitHub issue
 uv run pmbot create --project BotsTeam \
   --title "Dashboard: investigate Header Navigation problem" \
@@ -204,7 +207,7 @@ uv run orchestrator add myproject ~/Projects/myproject --gitlab-id 12345
 uv run orchestrator add myproject ~/Projects/myproject --github-repo owner/repo
 ```
 
-**GitHub says "Resource not accessible by personal access token"** — Update the token permissions.
+**GitHub says "Resource not accessible by personal access token"** — Update the token permissions, then verify with `uv run pmbot check --project <name>`.
 For fine-grained PATs, grant the repository and set `Issues` to `Read and write`.
 
 **Dashboard shows no data** — Regenerate: `uv run dashboard generate`

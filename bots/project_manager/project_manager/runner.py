@@ -18,6 +18,7 @@ from shared.models import (
     IssueDraft,
     IssueSet,
     IssueState,
+    IssueTrackerAccessReport,
     IssueTrackerPlatform,
 )
 
@@ -149,6 +150,39 @@ def _render_dry_run_report(target: IssueTrackerTarget, draft: IssueDraft) -> str
     return "\n".join(lines)
 
 
+def _render_access_report(target: IssueTrackerTarget, report: IssueTrackerAccessReport) -> str:
+    lines = [
+        f"# Issue Tracker Access Check — {target.source_name}",
+        "",
+        f"- Tracker: {target.source_label}",
+        f"- Target: {report.target_name}",
+    ]
+    if report.authenticated_as:
+        lines.append(f"- Authenticated as: {report.authenticated_as}")
+    lines.append("")
+    lines.append("| Capability | PMBot | Token | Effective | Detail |")
+    lines.append("| --- | --- | --- | --- | --- |")
+
+    for status in report.capability_statuses:
+        token_label = (
+            "verified"
+            if status.authorized is True
+            else "denied"
+            if status.authorized is False
+            else "unknown"
+        )
+        lines.append(
+            "| "
+            f"{status.capability.value.replace('_', ' ')} | "
+            f"{'supported' if status.supported else 'not yet'} | "
+            f"{token_label} | "
+            f"{status.effective_status} | "
+            f"{status.detail} |"
+        )
+
+    return "\n".join(lines)
+
+
 def _create_issue_result(
     target: IssueTrackerTarget,
     *,
@@ -193,6 +227,40 @@ def _create_issue_result(
             "tracker": target.platform.value,
             "target_id": target.target_id,
         },
+    )
+
+
+def _check_issue_tracker_result(target: IssueTrackerTarget) -> BotResult:
+    report = target.client.probe_capabilities(target.target_id)
+    blocked = sum(1 for status in report.capability_statuses if status.effective_status == "blocked")
+    unsupported = sum(1 for status in report.capability_statuses if status.effective_status == "unsupported")
+
+    summary = f"Verified issue-tracker access for {target.source_name}"
+    status = BotStatus.SUCCESS
+    if blocked and unsupported:
+        status = BotStatus.PARTIAL
+        summary = (
+            f"Verified issue-tracker access for {target.source_name} "
+            f"with {blocked} blocked and {unsupported} unsupported capabilities"
+        )
+    elif blocked:
+        status = BotStatus.PARTIAL
+        summary = (
+            f"Verified issue-tracker access for {target.source_name} "
+            f"with {blocked} blocked capabilities"
+        )
+    elif unsupported:
+        summary = (
+            f"Verified issue-tracker access for {target.source_name} "
+            f"with {unsupported} unsupported capabilities"
+        )
+
+    return BotResult(
+        bot_name="issuebot",
+        status=status,
+        summary=summary,
+        report_md=_render_access_report(target, report),
+        payload={"report": report},
     )
 
 
@@ -297,6 +365,9 @@ def get_bot_result(
                 assignees=assignees,
                 dry_run=dry_run,
             )
+
+        if mode == "check":
+            return _check_issue_tracker_result(target)
 
         if issue_iid is not None:
             issue_set = _get_single_issue_set(target, issue_iid)

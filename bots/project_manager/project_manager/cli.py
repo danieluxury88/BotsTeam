@@ -31,6 +31,7 @@ from shared.models import (
     IssueDraft,
     IssueSet,
     IssueState,
+    IssueTrackerAccessReport,
     IssueTrackerCapability,
     IssueTrackerPlatform,
 )
@@ -265,6 +266,39 @@ def _capability_labels(capabilities: frozenset[IssueTrackerCapability]) -> list[
     return labels
 
 
+def _authorized_label(authorized: bool | None) -> str:
+    if authorized is True:
+        return "verified"
+    if authorized is False:
+        return "denied"
+    return "unknown"
+
+
+def _effective_status_markup(status: str) -> str:
+    labels = {
+        "ready": "[green]ready[/green]",
+        "blocked": "[red]blocked[/red]",
+        "unsupported": "[dim]unsupported[/dim]",
+        "unverified": "[yellow]unverified[/yellow]",
+    }
+    return labels.get(status, status)
+
+
+def _probe_tracker_access(target: IssueTrackerTarget) -> IssueTrackerAccessReport:
+    try:
+        return target.client.probe_capabilities(target.target_id)
+    except EnvironmentError as e:
+        rprint(f"[red]Config error:[/red] {e}")
+        raise typer.Exit(1)
+    except ValueError as e:
+        entity = "Repository" if target.platform == IssueTrackerPlatform.GITHUB else "Project"
+        rprint(f"[red]{entity} error:[/red] {e}")
+        raise typer.Exit(1)
+    except Exception as e:
+        rprint(f"[red]{target.source_label} API error:[/red] {e}")
+        raise typer.Exit(1)
+
+
 def _fetch_issues(
     project: str,
     github_repo: str,
@@ -383,7 +417,7 @@ def capabilities(
     project: ProjectArg = "",
     github_repo: GitHubRepoOpt = "",
 ):
-    """Show the issue-tracker capabilities currently available to PMBot."""
+    """Show the issue-tracker capabilities implemented in PMBot."""
     target = _load_issue_tracker_target(
         project,
         github_repo,
@@ -412,6 +446,57 @@ def capabilities(
     ]
     for label in missing:
         table.add_row(label, "[dim]not available[/dim]")
+
+    console.print(table)
+    console.print()
+    console.print("[dim]Use `issuebot check` to verify runtime token access for each capability.[/dim]")
+    console.print()
+
+
+@app.command("check")
+def check_access(
+    project: ProjectArg = "",
+    github_repo: GitHubRepoOpt = "",
+):
+    """Verify issue-tracker access for the configured token and target."""
+    target = _load_issue_tracker_target(
+        project,
+        github_repo,
+        allow_gitlab_picker=not github_repo and not project,
+    )
+
+    with _spinner(f"Checking {target.source_label} issue access...") as progress:
+        progress.add_task("check", total=None)
+        report = _probe_tracker_access(target)
+
+    console.print()
+    subtitle = [
+        f"[dim]Source: {target.source_label}[/dim]",
+        f"[dim]Target: {report.target_name}[/dim]",
+    ]
+    if report.authenticated_as:
+        subtitle.append(f"[dim]Authenticated as: {report.authenticated_as}[/dim]")
+    console.print(Panel(
+        "[bold yellow]IssueBot[/bold yellow] tracker check\n" + "\n".join(subtitle),
+        border_style="yellow",
+    ))
+    console.print()
+
+    table = Table(show_header=True, header_style="bold yellow")
+    table.add_column("Capability", style="cyan")
+    table.add_column("PMBot", style="bold")
+    table.add_column("Token", style="bold")
+    table.add_column("Effective", style="bold")
+    table.add_column("Detail")
+
+    for status in report.capability_statuses:
+        table.add_row(
+            status.capability.value.replace("_", " "),
+            "supported" if status.supported else "not yet",
+            _authorized_label(status.authorized),
+            _effective_status_markup(status.effective_status),
+            status.detail,
+        )
 
     console.print(table)
     console.print()
@@ -793,7 +878,7 @@ def review_descriptions(
     output: OutputOpt = None,
 ):
     """
-    AI-powered issue description reviewer (GitLab only).
+    AI-powered issue description reviewer.
 
     Shows improved descriptions for each issue and optionally updates them
     in GitLab after interactive confirmation.
