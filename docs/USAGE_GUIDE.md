@@ -26,6 +26,15 @@ uv run orchestrator add myproject ~/Projects/myproject \
   --gitlab-id 12345 \
   --desc "My app"
 
+# With multiple languages and framework metadata
+uv run orchestrator add uni.li ~/Projects/uni.li \
+  --lang php \
+  --language php \
+  --language javascript \
+  --framework Drupal \
+  --gitlab-id 76261915 \
+  --desc "University Liechtenstein Project"
+
 # With GitHub
 uv run orchestrator add myproject ~/Projects/myproject \
   --github-repo owner/repo \
@@ -195,6 +204,8 @@ uv run orchestrator add <name> <path> [options]
 uv run orchestrator remove <name>
 uv run orchestrator projects
 ```
+
+Projects can keep `language` as the primary language and optionally store richer metadata in `languages` and `frameworks`.
 
 ## Troubleshooting
 

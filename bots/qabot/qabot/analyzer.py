@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from shared.config import get_default_model, load_env
-from shared.git_reader import CommitGroup, read_commits, group_commits_auto, format_groups_for_llm
+from shared.git_reader import format_groups_for_llm, group_commits_auto, read_commits
 from shared.llm import create_client
 from shared.models import ChangeSet, BotResult
 
@@ -58,7 +58,8 @@ def analyze_changes_for_testing(
     Returns structured test suggestions with priorities.
     """
     # Read recent commits
-    commits = read_commits(repo_path, max_commits=max_commits)
+    read_result = read_commits(repo_path, max_commits=max_commits)
+    commits = read_result.commits
     if not commits:
         return QAAnalysisResult(
             summary="No commits found to analyze.",

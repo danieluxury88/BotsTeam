@@ -291,6 +291,7 @@ get_bot_result(habit_source, since, until, model, project_name, scope) → BotRe
 **Key components:**
 
 - `registry.py` — `ProjectRegistry` and `Project` dataclasses; loads both `data/projects.json` (team) and `data/personal/projects.json` (personal). `Project` has `scope`, `notes_dir`, `task_file`, `habit_file` fields.
+- Team projects can also store stack metadata with a primary `language` plus optional `languages[]` and `frameworks[]` values (for example `php` + `javascript`, framework `Drupal`).
 - `bot_invoker.py` — `invoke_bot(bot_name, project, **params) → BotResult`; routes to all bots including personal ones
 - `cli.py` — Interactive chat loop, project CRUD (with scope), dashboard launcher
 

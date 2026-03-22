@@ -1,6 +1,6 @@
 # 🧪 QABot
 
-AI-powered test suggestion and execution bot. Analyzes recent code changes and suggests what to test, then optionally runs your test suite.
+AI-powered test suggestion, execution, coverage, and test-stub generation bot. Analyzes recent code changes, suggests what to test, optionally runs your test suite, and can draft targeted test files.
 
 ## 💾 Auto-Saved Reports
 
@@ -35,7 +35,7 @@ uv sync
 
 ## Usage
 
-QABot has three commands: `suggest`, `run`, and `full`.
+QABot has four commands: `suggest`, `run`, `generate`, and `full`.
 
 ### 1. Suggest Tests
 
@@ -77,7 +77,27 @@ Supports:
 - ✅ pytest (with pytest.ini, pyproject.toml, or test_*.py files)
 - ✅ unittest (Python's built-in test framework)
 
-### 3. Full Workflow
+### 3. Generate Test Stubs
+
+Draft targeted test files from recent changes:
+
+```bash
+# Preview generated test stubs
+uv run qabot generate /path/to/project
+
+# Limit how many stubs are proposed
+uv run qabot generate /path/to/project --max-stubs 2
+
+# Write generated stubs into the repository
+uv run qabot generate /path/to/project --write
+
+# Save the generation report to a custom file
+uv run qabot generate /path/to/project --output generated-tests.md
+```
+
+QABot uses recent commits, existing tests, and repository markers to choose likely paths and styles. For PHP/Drupal repositories it biases toward PHPUnit/Drupal-style test classes.
+
+### 4. Full Workflow
 
 Suggest tests, then run them:
 
@@ -139,6 +159,17 @@ print(analysis.risk_areas)
 | `--skip-tests` | — | false | Only suggest, don't run tests |
 | `--coverage` | — | false | Run tests under coverage.py and summarize low-coverage files |
 | `--min-coverage` | — | 80.0 | Flag files below this coverage percentage |
+
+### `generate` command
+
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--max-commits` | `-n` | 50 | Maximum commits to analyze |
+| `--model` | `-m` | — | Claude model override |
+| `--max-stubs` | — | 3 | Maximum number of test stubs to generate |
+| `--write` | — | false | Write generated files into the repository |
+| `--overwrite` | — | false | Replace existing files when used with `--write` |
+| `--output` | `-o` | — | Save generation report to markdown file |
 
 ## Example Output
 
@@ -245,6 +276,6 @@ This enables gitbot → qabot pipeline orchestration.
 - [x] Test execution (pytest, unittest)
 - [x] Programmatic API
 - [x] Test coverage analysis
-- [ ] Automatic test generation
+- [x] Automatic test generation
 - [ ] Test result parsing and diff analysis
 - [ ] Integration with CI/CD

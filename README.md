@@ -105,6 +105,10 @@ uv run pmbot review --project BotsTeam --dry-run
 ```bash
 # Register projects (with optional GitLab/GitHub integration)
 uv run orchestrator add uni.li /home/user/projects/uni.li \
+  --lang php \
+  --language php \
+  --language javascript \
+  --framework Drupal \
   --gitlab-id 76261915 \
   --desc "University Liechtenstein Project"
 
@@ -212,7 +216,7 @@ Each bot:
 - Can be called via CLI or programmatically
 - Uses the same Claude client and configuration
 
-**Project Registry:** Projects are registered in `data/projects.json` (repo-local) with paths, GitLab/GitHub metadata, and integration settings.
+**Project Registry:** Projects are registered in `data/projects.json` (repo-local) with paths, GitLab/GitHub metadata, integration settings, and optional stack metadata such as `languages` and `frameworks`.
 
 ### 📊 Visual Architecture
 

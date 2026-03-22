@@ -3,6 +3,7 @@ from __future__ import annotations
 from typer.testing import CliRunner
 
 from qabot import cli
+from qabot import generator as qa_generator
 from qabot import runner as qa_runner
 
 
@@ -50,3 +51,56 @@ def test_run_command_supports_coverage(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert "coverage" in result.output.lower()
     assert "pkg/service.py" in result.output
+
+
+def test_generate_command_can_preview_stubs(monkeypatch, tmp_path):
+    monkeypatch.setattr(cli, "generate_test_stubs", lambda repo_path, **kwargs: qa_generator.TestGenerationResult(
+        summary="Generated 1 stub.",
+        stubs=[
+            qa_generator.GeneratedTestStub(
+                path="tests/test_example.py",
+                rationale="Cover recent controller change.",
+                source_files=["app/example.py"],
+                content="def test_example():\n    assert True\n",
+            )
+        ],
+        markdown_report=(
+            "# QABot Test Stub Generation\n\n"
+            "Generated 1 stub.\n\n"
+            "## `tests/test_example.py`\n"
+        ),
+    ))
+    monkeypatch.setattr(cli, "save_report", lambda *args, **kwargs: (tmp_path / "latest.md", None))
+
+    result = runner.invoke(cli.app, ["generate", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "Generated 1 stub." in result.output
+    assert "Report saved" in result.output
+    assert not (tmp_path / "tests" / "test_example.py").exists()
+
+
+def test_generate_command_can_write_stubs(monkeypatch, tmp_path):
+    monkeypatch.setattr(cli, "generate_test_stubs", lambda repo_path, **kwargs: qa_generator.TestGenerationResult(
+        summary="Generated 1 stub.",
+        stubs=[
+            qa_generator.GeneratedTestStub(
+                path="tests/test_example.py",
+                rationale="Cover recent controller change.",
+                source_files=["app/example.py"],
+                content="def test_example():\n    assert True\n",
+            )
+        ],
+        markdown_report="# QABot Test Stub Generation\n\nGenerated 1 stub.\n",
+    ))
+    monkeypatch.setattr(cli, "save_report", lambda *args, **kwargs: (tmp_path / "latest.md", None))
+    monkeypatch.setattr(
+        cli,
+        "write_test_stubs",
+        lambda repo_path, stubs, overwrite=False: ([repo_path / "tests" / "test_example.py"], []),
+    )
+
+    result = runner.invoke(cli.app, ["generate", str(tmp_path), "--write"])
+
+    assert result.exit_code == 0
+    assert "Wrote" in result.output

@@ -14,6 +14,7 @@ from rich.rule import Rule
 from rich.table import Table
 
 from qabot.analyzer import analyze_changes_for_testing
+from qabot.generator import generate_test_stubs, write_test_stubs
 from qabot.runner import CoverageReport, detect_test_framework, run_tests
 from shared.data_manager import save_report
 
@@ -223,6 +224,113 @@ def run(
     console.print()
 
     raise typer.Exit(0 if result.passed else 1)
+
+
+@app.command()
+def generate(
+    repo_path: Annotated[
+        Path,
+        typer.Argument(help="Path to the repository"),
+    ] = Path("."),
+    max_commits: Annotated[
+        int,
+        typer.Option("--max-commits", "-n", help="Maximum number of commits to analyze"),
+    ] = 50,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", "-m", help="Claude model to use"),
+    ] = None,
+    max_stubs: Annotated[
+        int,
+        typer.Option("--max-stubs", help="Maximum number of test stub files to generate"),
+    ] = 3,
+    write: Annotated[
+        bool,
+        typer.Option("--write", help="Write generated test files into the repository"),
+    ] = False,
+    overwrite: Annotated[
+        bool,
+        typer.Option("--overwrite", help="Overwrite existing files when used with --write"),
+    ] = False,
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Save generation report to markdown file"),
+    ] = None,
+):
+    """
+    Generate test stub files from recent changes.
+
+    Examples:\n
+      qabot generate .\n
+      qabot generate /path/to/project --max-stubs 2\n
+      qabot generate . --write\n
+      qabot generate . --output generated-tests.md
+    """
+    repo_path = repo_path.resolve()
+
+    if not repo_path.exists():
+        rprint(f"[red]Error:[/red] Path does not exist: {repo_path}")
+        raise typer.Exit(1)
+
+    console.print()
+    console.print(Panel(
+        f"[bold cyan]QABot[/bold cyan] generating tests for [bold]{repo_path.name}[/bold]\n"
+        f"[dim]Path: {repo_path}  •  Commits: {max_commits}  •  Max stubs: {max_stubs}[/dim]",
+        border_style="cyan",
+    ))
+    console.print()
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+        console=console,
+    ) as progress:
+        progress.add_task("Generating test stubs...", total=None)
+        try:
+            result = generate_test_stubs(
+                repo_path,
+                max_commits=max_commits,
+                model=model,
+                max_stubs=max_stubs,
+            )
+        except Exception as e:
+            rprint(f"[red]Generation failed:[/red] {e}")
+            raise typer.Exit(1)
+
+    console.print(Markdown(result.markdown_report))
+    console.print()
+
+    latest, timestamped = save_report(repo_path.name, "qabot", result.markdown_report)
+    console.print(f"[green]✓[/green] Report saved to [bold]{latest}[/bold]")
+    if timestamped:
+        console.print(f"[dim]  Archived: {timestamped}[/dim]")
+
+    if output:
+        output_path = output.resolve()
+        try:
+            output_path.write_text(result.markdown_report, encoding="utf-8")
+            console.print(f"[green]✓[/green] Also saved to [bold]{output_path}[/bold]")
+        except Exception as e:
+            rprint(f"[yellow]Warning:[/yellow] Could not save report: {e}")
+
+    if write and result.stubs:
+        console.print()
+        console.print(Rule("[dim]Writing Test Files[/dim]"))
+        written, skipped = write_test_stubs(repo_path, result.stubs, overwrite=overwrite)
+        for path in written:
+            try:
+                display_path = path.relative_to(repo_path)
+            except ValueError:
+                display_path = path
+            console.print(f"[green]✓[/green] Wrote [bold]{display_path}[/bold]")
+        for message in skipped:
+            console.print(f"[yellow]⚠[/yellow] {message}")
+
+    console.print()
+    console.print(Rule())
+    console.print("[dim]QABot v0.1.0 — powered by Claude[/dim]")
+    console.print()
 
 
 @app.command()

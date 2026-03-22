@@ -12,7 +12,7 @@
 | Bot | CLI | Orchestrator | Dashboard | Notes |
 |-----|-----|-------------|-----------|-------|
 | GitBot | ✅ | ✅ | ✅ | `--since`/`--until` date filtering |
-| QABot | ✅ | ✅ | ✅ | suggest + run + full workflows, including optional coverage reporting |
+| QABot | ✅ | ✅ | ✅ | suggest + run + generate + full workflows, including optional coverage reporting |
 | PMBot | ✅ | ✅ | ✅ | GitLab & GitHub, analyze + plan modes |
 | Orchestrator | ✅ | — | ✅ | conversational chat, project registry |
 
@@ -113,7 +113,7 @@
 | Calendar: issue due/created events (pmbot) | Medium | Needs pmbot to export structured event data alongside `.md` |
 | Calendar: commit activity events (gitbot) | Low | Needs gitbot to export per-commit dates |
 | Multi-bot workflow (gitbot → qabot pipeline) | Medium | Orchestrator orchestrates sequential runs |
-| QABot: test generation | Low | Write test stubs from suggestions |
+| QABot: test generation | ✅ Done | `uv run qabot generate ...` drafts repo-local test stubs and can write them into the repository |
 | GitBot: compare two branches | Low | Diff-based analysis |
 
 ### Long-term / Nice-to-have
