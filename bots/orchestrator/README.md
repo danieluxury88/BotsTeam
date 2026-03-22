@@ -1,6 +1,6 @@
 # 🤖 Orchestrator (DevBot)
 
-Conversational bot that manages multiple projects and orchestrates gitbot, qabot, and pmbot. Chat naturally to analyze code, get test suggestions, and manage GitLab issues across all your projects.
+Conversational bot that manages multiple projects and orchestrates gitbot, qabot, and pmbot. Chat naturally to analyze code, get test suggestions, and manage GitLab/GitHub issues across all your projects.
 
 ## ✨ Features
 
@@ -22,7 +22,7 @@ From the workspace root:
 uv sync
 ```
 
-The orchestrator is also available as `devbot` command.
+The orchestrator is also available as `devbot`, and the default chat session is available directly as `uv run chat`.
 
 ## Quick Start
 
@@ -37,6 +37,7 @@ uv run orchestrator projects
 
 # 3. Start chatting!
 uv run orchestrator chat
+uv run chat
 ```
 
 ## Project Management
@@ -70,7 +71,7 @@ uv run orchestrator add myapp ~/projects/myapp \
   --gitlab-token glpat-xxxxx  # Overrides .env
 ```
 
-**With GitHub** (future support):
+**With GitHub**:
 ```bash
 uv run orchestrator add myapp ~/projects/myapp \
   --github-repo owner/repo
@@ -105,6 +106,7 @@ Start an interactive session:
 
 ```bash
 uv run orchestrator chat
+uv run chat
 ```
 
 ### Example Conversations
@@ -136,7 +138,7 @@ You: suggest tests for myapp
 ✓ Report saved to: data/myapp/reports/qabot/latest.md
 ```
 
-**Analyze GitLab issues** (requires GitLab integration):
+**Analyze remote issues** (requires GitLab or GitHub integration):
 ```
 You: analyze issues for uni.li
 
@@ -156,6 +158,24 @@ You: create sprint plan for uni.li
 [Sprint plan with prioritized issues and effort estimates]
 
 ✓ Report saved to: data/uni.li/reports/pmbot/latest.md
+```
+
+**Create a GitHub issue:**
+```
+You: create an issue for BotsTeam titled "Dashboard: investigate Header Navigation problem" with description "Investigate the Dashboard header navigation issue, define expected behavior, and propose or implement a fix if straightforward."
+
+→ Running pmbot on BotsTeam...
+
+[Issue creation summary with new issue URL]
+```
+
+**Review issue descriptions:**
+```
+You: review issues for BotsTeam
+
+→ Running pmbot on BotsTeam...
+
+[Issue description review report]
 ```
 
 **List projects:**
@@ -182,7 +202,7 @@ The orchestrator uses Claude to understand your request and automatically route 
 |---|---|---|
 | "git history", "changes", "commits" | **gitbot** | Local git repo |
 | "tests", "qa", "testing" | **qabot** | Local git repo |
-| "issues", "sprint", "backlog" | **pmbot** | GitLab integration |
+| "issues", "sprint", "backlog" | **pmbot** | GitLab or GitHub integration |
 
 ## Auto-Saved Reports
 
@@ -211,7 +231,10 @@ data/
 
 ## Configuration
 
-Projects are stored in `~/.devbot/projects.json`:
+Projects are stored in the repo-local registries:
+
+- Team projects: `data/projects.json`
+- Personal projects: `data/personal/projects.json`
 
 ```json
 {
@@ -240,16 +263,17 @@ GITHUB_TOKEN=ghp-xxxxx
 |---|---|
 | **GitBot** | Local git repository |
 | **QABot** | Local git repository |
-| **PMBot** | GitLab project ID + `GITLAB_TOKEN` in `.env` or per-project |
+| **PMBot** | GitLab or GitHub integration plus the corresponding token |
 
-If pmbot is requested for a project without GitLab integration, you'll see:
+If pmbot is requested for a project without GitLab or GitHub integration, you'll see:
 
 ```
-⚠ pmbot requires GitLab integration
-Project 'myapp' doesn't have a GitLab ID.
+⚠ pmbot requires GitLab or GitHub integration
+Project 'myapp' doesn't have remote issue tracker metadata.
 
 To enable pmbot:
   orchestrator add myapp /path/to/project --gitlab-id YOUR_PROJECT_ID
+  orchestrator add myapp /path/to/project --github-repo owner/repo
 ```
 
 ## Programmatic Usage
@@ -269,14 +293,14 @@ result = invoke_bot("gitbot", project=project, max_commits=50)
 print(result.markdown_report)
 
 # Invoke pmbot
-result = invoke_bot("pmbot", project=project, pmbot_mode="analyze")
+result = invoke_bot("pmbot", project=project, bot_params={"mode": "analyze"})
 print(result.report_md)
 ```
 
 ## Tips
 
 1. **Start with local projects** - Add projects without GitLab integration first to use gitbot/qabot
-2. **Add GitLab later** - Re-run `orchestrator add` with `--gitlab-id` to enable pmbot
+2. **Add remote issue tracking later** - Re-run `orchestrator add` with `--gitlab-id` or `--github-repo` to enable pmbot
 3. **Use descriptive names** - Short project names make chat easier
 4. **Check saved reports** - All analysis is saved to `data/{project}/reports/`
 5. **Per-project tokens** - Useful for working with multiple GitLab instances
@@ -288,13 +312,14 @@ print(result.report_md)
 - Try exact name match (case-insensitive)
 
 **pmbot not working:**
-- Verify project has GitLab integration: `orchestrator projects`
-- Check `GITLAB_TOKEN` in `.env`
-- Ensure GitLab project ID is correct
+- Verify project has GitLab or GitHub integration: `orchestrator projects`
+- Check `GITLAB_TOKEN` or `GITHUB_TOKEN` in `.env`
+- Ensure the remote project/repository identifier is correct
+- For GitHub issue creation and editing, ensure the token can write issues on the target repo
 
 **Reports not saving:**
 - Check file permissions on `data/` directory
-- Verify project is registered in `~/.devbot/projects.json`
+- Verify project is registered in `data/projects.json` or `data/personal/projects.json`
 
 ## Examples
 

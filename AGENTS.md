@@ -15,6 +15,7 @@
 - `uv run ruff check --fix .`: auto-fix lint issues where possible.
 - `uv run pytest`: run test suite (workspace-level).
 - `uv run orchestrator chat`: start the conversational orchestrator.
+- `uv run chat`: start the default orchestrator chat session directly.
 - `uv run dashboard`: generate dashboard data and start the web UI.
 - `uv run dashboard generate`: regenerate JSON data only.
 - `uv run <bot> --help` (for example `uv run gitbot --help`): inspect CLI options per bot.

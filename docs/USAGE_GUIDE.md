@@ -44,6 +44,7 @@ Start the interactive chat:
 
 ```bash
 uv run orchestrator chat
+uv run chat
 ```
 
 Then type natural language requests:
@@ -54,6 +55,8 @@ Then type natural language requests:
 | `suggest tests for myproject` | Suggests tests based on recent code changes |
 | `analyze issues for myproject` | Analyzes open issues and finds patterns (needs GitLab/GitHub) |
 | `create sprint plan for myproject` | Generates a sprint plan with priorities (needs GitLab/GitHub) |
+| `review issues for myproject` | Improves issue descriptions (needs GitLab/GitHub) |
+| `create an issue for myproject titled "..." with description "..."` | Creates a new GitHub issue (needs GitHub issue write access) |
 | `what projects do you know?` | Lists all registered projects |
 
 ### Chat Commands
@@ -83,13 +86,21 @@ uv run qabot suggest ~/Projects/myproject
 uv run qabot run ~/Projects/myproject
 
 # Issue analysis (GitLab)
-uv run pmbot analyze --project-id 12345
+uv run pmbot analyze --project 12345
 
 # Issue analysis (GitHub)
 uv run pmbot analyze --github-repo owner/repo
 
 # Sprint planning
-uv run pmbot plan --project-id 12345
+uv run pmbot plan --project 12345
+
+# Review issue descriptions
+uv run pmbot review --project BotsTeam --dry-run
+
+# Create a GitHub issue
+uv run pmbot create --project BotsTeam \
+  --title "Dashboard: investigate Header Navigation problem" \
+  --description "Investigate the Dashboard header navigation issue."
 ```
 
 ## 4. View Reports
@@ -138,7 +149,7 @@ Here's a common workflow to get a full project status update:
 
 ```bash
 # 1. Start the chat
-uv run orchestrator chat
+uv run chat
 
 # 2. Get a git summary
 > get gitbot report for myproject
@@ -169,6 +180,9 @@ uv run dashboard
 | `GITHUB_TOKEN` | For pmbot (GitHub) | GitHub personal access token |
 | `GITHUB_API_URL` | No | GitHub API URL (default: `https://api.github.com`) |
 
+For GitHub issue creation or editing, the token must be allowed to write issues on the target repository.
+Fine-grained PATs need repository access plus `Issues: Read and write`.
+
 ### Project Registry
 
 Projects are stored in `data/projects.json` (repo-local). You manage them with:
@@ -183,11 +197,15 @@ uv run orchestrator projects
 
 **"Project not found"** — Check the project name matches exactly: `uv run orchestrator projects`
 
-**pmbot says "requires GitLab integration"** — Re-add the project with `--gitlab-id`:
+**pmbot says "requires GitLab or GitHub integration"** — Re-add the project with `--gitlab-id` or `--github-repo`:
 
 ```bash
 uv run orchestrator add myproject ~/Projects/myproject --gitlab-id 12345
+uv run orchestrator add myproject ~/Projects/myproject --github-repo owner/repo
 ```
+
+**GitHub says "Resource not accessible by personal access token"** — Update the token permissions.
+For fine-grained PATs, grant the repository and set `Issues` to `Read and write`.
 
 **Dashboard shows no data** — Regenerate: `uv run dashboard generate`
 

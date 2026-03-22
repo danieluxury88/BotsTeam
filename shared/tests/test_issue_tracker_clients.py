@@ -4,11 +4,12 @@ from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
+from github.GithubObject import NotSet
 
 from shared.github_client import GitHubClient
 from shared.gitlab_client import GitLabClient
 from shared.issue_tracker import UnsupportedIssueTrackerCapabilityError
-from shared.models import IssueDraft, IssueState, IssueTrackerCapability
+from shared.models import BotResult, IssueDraft, IssueState, IssueTrackerCapability
 
 
 def _github_raw_issue(*, number: int, title: str, body: str = "Body"):
@@ -85,6 +86,27 @@ def test_github_client_exposes_capabilities_and_creates_issue(monkeypatch):
     assert issue.state == IssueState.OPEN
 
 
+def test_github_client_uses_notset_for_empty_optional_create_fields(monkeypatch):
+    created_calls = []
+
+    class FakeRepo:
+        def create_issue(self, **kwargs):
+            created_calls.append(kwargs)
+            return _github_raw_issue(number=43, title=kwargs["title"], body="")
+
+    client = object.__new__(GitHubClient)
+    monkeypatch.setattr(client, "get_repo", lambda repo: FakeRepo())
+
+    client.create_issue("acme/repo", IssueDraft(title="Only title"))
+
+    assert created_calls == [{
+        "title": "Only title",
+        "body": NotSet,
+        "labels": NotSet,
+        "assignees": NotSet,
+    }]
+
+
 def test_gitlab_client_updates_issue_description_and_reports_missing_creation_support(monkeypatch):
     updated_calls = []
 
@@ -112,3 +134,9 @@ def test_gitlab_client_updates_issue_description_and_reports_missing_creation_su
 
     with pytest.raises(UnsupportedIssueTrackerCapabilityError):
         client.create_issue("group/repo", IssueDraft(title="Not yet"))
+
+
+def test_botresult_failure_normalizes_empty_messages():
+    result = BotResult.failure("issuebot", "None")
+    assert result.summary == "Failed: Unknown error"
+    assert result.errors == ["Unknown error"]

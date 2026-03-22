@@ -172,6 +172,11 @@ def chat(
             break
 
 
+def quick_chat() -> None:
+    """Launch the default orchestrator chat session directly."""
+    chat()
+
+
 @app.command()
 def dashboard(
     port: Annotated[int, typer.Option("--port", "-p", help="Port to serve dashboard on")] = 8080,

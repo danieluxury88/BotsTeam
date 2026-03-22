@@ -19,6 +19,7 @@ dependencies = [
 [project.scripts]
 orchestrator = "orchestrator.cli:app"
 devbot = "orchestrator.cli:app"
+chat = "orchestrator.cli:quick_chat"
 
 [tool.uv.sources]
 shared = { workspace = true }

@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Iterator
 
 from github import Auth, Github, GithubException
+from github.GithubObject import NotSet
 
 from shared.config import Config
 from shared.issue_tracker import UnsupportedIssueTrackerCapabilityError
@@ -70,6 +71,30 @@ def _normalise_issue(raw) -> Issue:
         closed_at=closed_at,
         web_url=raw.html_url,
     )
+
+
+def _format_github_error(exc: GithubException) -> str:
+    """Return a readable GitHub API error message."""
+    raw = str(exc).strip()
+    if raw and raw != "None":
+        return raw
+
+    data = getattr(exc, "data", None)
+    if isinstance(data, dict):
+        message = data.get("message")
+        errors = data.get("errors")
+        parts: list[str] = []
+        if message:
+            parts.append(str(message))
+        if errors:
+            parts.append(str(errors))
+        if parts:
+            return " | ".join(parts)
+
+    status = getattr(exc, "status", None)
+    if status is not None:
+        return f"GitHub API error status {status}"
+    return exc.__class__.__name__
 
 
 # ── Client ───────────────────────────────────────────────────────────────────
@@ -230,14 +255,14 @@ class GitHubClient:
         try:
             raw = gh_repo.create_issue(
                 title=draft.title,
-                body=draft.description or None,
-                labels=draft.labels or None,
-                assignees=draft.assignees or None,
+                body=draft.description or NotSet,
+                labels=draft.labels or NotSet,
+                assignees=draft.assignees or NotSet,
             )
         except GithubException as e:
             raise ValueError(
                 f"Failed to create issue in repository '{repo}'.\n"
-                f"GitHub error: {e}"
+                f"GitHub error: {_format_github_error(e)}"
             )
         return _normalise_issue(raw)
 
@@ -260,7 +285,7 @@ class GitHubClient:
         except GithubException as e:
             raise ValueError(
                 f"Failed to update issue #{issue_number} in repository '{repo}'.\n"
-                f"GitHub error: {e}"
+                f"GitHub error: {_format_github_error(e)}"
             )
         return _normalise_issue(raw)
 

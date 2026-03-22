@@ -100,12 +100,15 @@ class BotResult:
 
     @classmethod
     def failure(cls, bot_name: str, error: str) -> "BotResult":
+        message = (error or "").strip()
+        if not message or message == "None":
+            message = "Unknown error"
         return cls(
             bot_name=bot_name,
             status=BotStatus.FAILED,
-            summary=f"Failed: {error}",
-            markdown_report=f"## ❌ {bot_name} failed\n\n{error}",
-            errors=[error],
+            summary=f"Failed: {message}",
+            markdown_report=f"## ❌ {bot_name} failed\n\n{message}",
+            errors=[message],
             timestamp=datetime.utcnow(),
         )
 

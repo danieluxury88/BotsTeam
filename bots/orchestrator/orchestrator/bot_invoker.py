@@ -2,26 +2,43 @@
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from gitbot.analyzer import get_bot_result as gitbot_get_result
 from qabot.analyzer import get_bot_result as qabot_get_result
-from project_manager.analyzer import get_bot_result as pmbot_get_result
+from project_manager.runner import get_bot_result as pmbot_get_result
 from pagespeedbot.analyzer import get_bot_result as pagespeedbot_get_result
 from journalbot.analyzer import get_bot_result as journalbot_get_result
 from taskbot.analyzer import get_bot_result as taskbot_get_result
 from habitbot.analyzer import get_bot_result as habitbot_get_result
 from notebot.analyzer import get_bot_result as notebot_get_result
-from shared.models import BotResult, IssueSet, ProjectScope
-from shared.gitlab_client import fetch_issues as gitlab_fetch_issues
-from shared.github_client import fetch_issues as github_fetch_issues
+from shared.models import BotResult, ProjectScope
 
 if TYPE_CHECKING:
     from orchestrator.registry import Project
 
 
 BotName = Literal["gitbot", "qabot", "pmbot", "pagespeedbot", "journalbot", "taskbot", "habitbot", "notebot"]
+
+
+def _call_runner(
+    runner,
+    /,
+    *args,
+    base_kwargs: dict | None = None,
+    bot_params: dict | None = None,
+):
+    """Call a bot runner with only the kwargs it actually accepts."""
+    supported = inspect.signature(runner).parameters
+    merged = {**(base_kwargs or {}), **(bot_params or {})}
+    filtered = {
+        key: value
+        for key, value in merged.items()
+        if key in supported and value is not None
+    }
+    return runner(*args, **filtered)
 
 
 def invoke_bot(
@@ -34,6 +51,7 @@ def invoke_bot(
     pmbot_mode: str = "analyze",
     since: str | None = None,
     until: str | None = None,
+    bot_params: dict | None = None,
 ) -> BotResult:
     """
     Invoke a bot programmatically.
@@ -138,20 +156,28 @@ def invoke_bot(
             )
 
         if bot_name == "gitbot":
-            return gitbot_get_result(
+            return _call_runner(
+                gitbot_get_result,
                 repo_path,
-                max_commits=max_commits,
-                model=model,
-                project_name=project.name if project else None,
-                since=since,
-                until=until,
+                base_kwargs={
+                    "max_commits": max_commits,
+                    "model": model,
+                    "project_name": project.name if project else None,
+                    "since": since,
+                    "until": until,
+                },
+                bot_params=bot_params,
             )
         else:
-            return qabot_get_result(
+            return _call_runner(
+                qabot_get_result,
                 repo_path,
-                max_commits=max_commits,
-                model=model,
-                project_name=project.name if project else None,
+                base_kwargs={
+                    "max_commits": max_commits,
+                    "model": model,
+                    "project_name": project.name if project else None,
+                },
+                bot_params=bot_params,
             )
 
     if bot_name == "pagespeedbot":
@@ -167,90 +193,59 @@ def invoke_bot(
                 summary=f"Project '{project.name}' has no site_url configured",
                 data={"error": "missing_site_url"}, markdown_report="",
             )
-        return pagespeedbot_get_result(
+        return _call_runner(
+            pagespeedbot_get_result,
             project.site_url,
-            audit_urls=tuple(project.audit_urls or []),
-            project_name=project.name,
-            scope=scope,
-            report_branding_profile=project.report_branding_profile,
-            report_prepared_by=project.report_prepared_by,
-            report_client_name=project.report_client_name,
-            report_footer_text=project.report_footer_text,
+            base_kwargs={
+                "audit_urls": tuple(project.audit_urls or []),
+                "project_name": project.name,
+                "scope": scope,
+                "report_branding_profile": project.report_branding_profile,
+                "report_prepared_by": project.report_prepared_by,
+                "report_client_name": project.report_client_name,
+                "report_footer_text": project.report_footer_text,
+            },
+            bot_params=bot_params,
         )
 
     if bot_name == "pmbot":
-        issue_set: IssueSet | None = None
-
         if project:
-            if project.has_gitlab():
-                gitlab_token = project.get_gitlab_token()
-                if not gitlab_token:
-                    return BotResult(
-                        bot_name=bot_name, status="error",
-                        summary="GitLab token not found (check .env or project credentials)",
-                        data={"error": "missing_gitlab_token"}, markdown_report="",
-                    )
-                try:
-                    issue_set = gitlab_fetch_issues(
-                        project_id=project.gitlab_project_id,
-                        token=gitlab_token,
-                        url=project.get_gitlab_url(),
-                    )
-                except Exception as e:
-                    return BotResult(
-                        bot_name=bot_name, status="error",
-                        summary=f"Failed to fetch GitLab issues: {e}",
-                        data={"error": "gitlab_fetch_failed"}, markdown_report="",
-                    )
-
-            elif project.has_github():
-                github_token = project.get_github_token()
-                if not github_token:
-                    return BotResult(
-                        bot_name=bot_name, status="error",
-                        summary="GitHub token not found (check .env or project credentials)",
-                        data={"error": "missing_github_token"}, markdown_report="",
-                    )
-                try:
-                    issue_set = github_fetch_issues(
-                        repo=project.github_repo,
-                        token=github_token,
-                        base_url=project.get_github_base_url(),
-                    )
-                except Exception as e:
-                    return BotResult(
-                        bot_name=bot_name, status="error",
-                        summary=f"Failed to fetch GitHub issues: {e}",
-                        data={"error": "github_fetch_failed"}, markdown_report="",
-                    )
-
-            else:
+            if not project.has_gitlab() and not project.has_github():
                 return BotResult(
                     bot_name=bot_name, status="error",
                     summary=f"Project '{project.name}' has no GitLab or GitHub integration",
                     data={"error": "no_issue_integration"}, markdown_report="",
                 )
+            return _call_runner(
+                pmbot_get_result,
+                base_kwargs={
+                    "project_name": project.name,
+                    "gitlab_project_id": project.gitlab_project_id,
+                    "gitlab_url": project.get_gitlab_url() if project.has_gitlab() else None,
+                    "gitlab_token": project.get_gitlab_token() if project.has_gitlab() else None,
+                    "github_repo": project.github_repo,
+                    "github_token": project.get_github_token() if project.has_github() else None,
+                    "github_base_url": project.get_github_base_url() if project.has_github() else None,
+                    "mode": pmbot_mode,
+                },
+                bot_params=bot_params,
+            )
 
-        else:
-            if not project_id:
-                return BotResult(
-                    bot_name=bot_name, status="error",
-                    summary="pmbot requires project_id or Project with GitLab/GitHub integration",
-                    data={"error": "missing_project_id"}, markdown_report="",
-                )
-            try:
-                issue_set = gitlab_fetch_issues(project_id=project_id)
-            except Exception as e:
-                return BotResult(
-                    bot_name=bot_name, status="error",
-                    summary=f"Failed to fetch issues: {e}",
-                    data={"error": "fetch_failed"}, markdown_report="",
-                )
+        if not project_id:
+            return BotResult(
+                bot_name=bot_name, status="error",
+                summary="pmbot requires project_id or Project with GitLab/GitHub integration",
+                data={"error": "missing_project_id"}, markdown_report="",
+            )
 
-        return pmbot_get_result(
-            issue_set,
-            mode=pmbot_mode,
-            project_name=project.name if project else None,
+        return _call_runner(
+            pmbot_get_result,
+            base_kwargs={
+                "project_name": project_id,
+                "gitlab_project_id": project_id,
+                "mode": pmbot_mode,
+            },
+            bot_params=bot_params,
         )
 
     return BotResult(

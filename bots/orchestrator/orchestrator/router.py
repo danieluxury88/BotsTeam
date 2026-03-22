@@ -47,7 +47,9 @@ Response format:
   "scope": "team" | "personal" | null,
   "params": {
     "max_commits": 50,
-    "pmbot_mode": "analyze" or "plan"
+    "mode": "analyze|plan|review|create",
+    "title": "issue title when needed",
+    "description": "issue body when needed"
   },
   "explanation": "Brief explanation of what you'll do"
 }
@@ -57,11 +59,14 @@ Examples:
 - "how was my week?" → {"action": "invoke_bot", "bot": "journalbot", "project": "<personal journal project>", "scope": "personal", ...}
 - "check my tasks" → {"action": "invoke_bot", "bot": "taskbot", "project": "<personal task project>", "scope": "personal", ...}
 - "how are my habits going?" → {"action": "invoke_bot", "bot": "habitbot", "project": "<personal habit project>", "scope": "personal", ...}
-- "analyze issues for project X" → {"action": "invoke_bot", "bot": "pmbot", "project": "X", "scope": "team", "params": {"pmbot_mode": "analyze"}, ...}
-- "create sprint plan for project Y" → {"action": "invoke_bot", "bot": "pmbot", "project": "Y", "scope": "team", "params": {"pmbot_mode": "plan"}, ...}
+- "analyze issues for project X" → {"action": "invoke_bot", "bot": "pmbot", "project": "X", "scope": "team", "params": {"mode": "analyze"}, ...}
+- "create sprint plan for project Y" → {"action": "invoke_bot", "bot": "pmbot", "project": "Y", "scope": "team", "params": {"mode": "plan"}, ...}
+- "review issues for project Y" → {"action": "invoke_bot", "bot": "pmbot", "project": "Y", "scope": "team", "params": {"mode": "review"}, ...}
+- "create an issue for project Y about broken nav" → {"action": "invoke_bot", "bot": "pmbot", "project": "Y", "scope": "team", "params": {"mode": "create", "title": "...", "description": "..."}, ...}
 - "what projects do you know?" → {"action": "list_projects", "scope": null, ...}
 
 IMPORTANT: pmbot only works if the project has GitLab or GitHub integration configured.
+IMPORTANT: For pmbot, infer the correct `mode` from the user's request and include any extra fields needed in `params`, such as `title`, `description`, `labels`, `assignees`, `issue_iid`, `state`, `max_issues`, or `dry_run`.
 IMPORTANT: journalbot/taskbot/habitbot only work for personal-scope projects with the matching data source configured.
 
 Be concise and helpful.
@@ -183,17 +188,18 @@ def process_user_request(user_message: str, registry: ProjectRegistry) -> Orches
         bot_result = invoke_bot(
             bot_name,
             project=project,
-            pmbot_mode=params.get("pmbot_mode", "analyze"),
+            bot_params=params,
         )
         return OrchestratorOutcome(action_plan=action_plan, bot_result=bot_result)
 
     if bot_name in ("journalbot", "taskbot", "habitbot", "notebot", "pagespeedbot"):
-        bot_result = invoke_bot(bot_name, project=project)
+        bot_result = invoke_bot(bot_name, project=project, bot_params=params)
         return OrchestratorOutcome(action_plan=action_plan, bot_result=bot_result)
 
     bot_result = invoke_bot(
         bot_name,
         project=project,
         max_commits=params.get("max_commits", 300),
+        bot_params=params,
     )
     return OrchestratorOutcome(action_plan=action_plan, bot_result=bot_result)

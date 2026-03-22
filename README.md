@@ -43,8 +43,8 @@ cp .env.example .env
 # 4. Use any bot!
 uv run gitbot /path/to/project
 uv run qabot suggest /path/to/project
-uv run pmbot analyze --project-id 12345
-uv run orchestrator chat
+uv run pmbot analyze --project 12345
+uv run chat
 uv run voicebot listen --language auto
 ```
 
@@ -76,17 +76,28 @@ uv run qabot run /path/to/project
 uv run qabot full /path/to/project
 ```
 
-### Project Manager - GitLab Issue Analysis
+### Project Manager - GitLab/GitHub Issue Management
 
 ```bash
 # Analyze GitLab issues (patterns, team workload, recommendations)
-uv run pmbot analyze --project-id 12345
+uv run pmbot analyze --project 12345
+
+# Analyze GitHub issues
+uv run pmbot analyze --github-repo owner/repo
 
 # Generate sprint plan with priorities and effort estimates
-uv run pmbot plan --project-id 12345 --output sprint-plan.md
+uv run pmbot plan --project 12345 --output sprint-plan.md
 
 # List issues in a Rich table
-uv run pmbot list --project-id 12345 --state opened --labels bug
+uv run pmbot list --project 12345 --state open --label bug
+
+# Create a GitHub issue
+uv run pmbot create --project BotsTeam \
+  --title "Dashboard: investigate Header Navigation problem" \
+  --description "Investigate the Dashboard header navigation problem."
+
+# Review and improve issue descriptions
+uv run pmbot review --project BotsTeam --dry-run
 ```
 
 ### Orchestrator - Multi-Project Management
@@ -102,11 +113,13 @@ uv run orchestrator projects
 
 # Start conversational chat
 uv run orchestrator chat
+uv run chat                  # shortcut
 
 # Then ask:
 # > get qabot report for uni.li
 # > show me gitbot analysis of myproject
-# > analyze issues for uni.li  # Uses GitLab integration
+# > analyze issues for uni.li
+# > create an issue for BotsTeam titled "Dashboard: investigate Header Navigation problem"
 # > what projects do you know?
 
 # Launch the visual dashboard (standalone)
@@ -223,6 +236,10 @@ Set up your `.env` file in the workspace root:
 | `GITLAB_URL` | `https://gitlab.com` | GitLab instance URL (for self-hosted) |
 | `GITHUB_TOKEN` | — | GitHub personal access token |
 | `GITHUB_API_URL` | `https://api.github.com` | GitHub API URL (for GitHub Enterprise) |
+
+For GitHub issue creation or editing, the token must be allowed to write issues on the target repository.
+For fine-grained PATs, grant repository access to the repo and set `Issues` to `Read and write`.
+For classic PATs, use `repo` for private repositories or `public_repo` for public ones.
 
 **Per-Project Configuration:**
 When adding projects to the orchestrator, you can specify per-project credentials:
