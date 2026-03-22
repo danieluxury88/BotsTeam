@@ -44,6 +44,31 @@ async function exportReport(path) {
     }
 }
 
+const HEADER_NAV_ITEMS = [
+    { id: 'dashboard', href: 'index.html', label: 'Dashboard' },
+    { id: 'projects', href: 'projects.html', label: 'Projects' },
+    { id: 'bots', href: 'bots.html', label: 'Bots' },
+    { id: 'activity', href: 'activity.html', label: 'Activity' },
+    { id: 'reports', href: 'reports.html', label: 'Reports' },
+    { id: 'calendar', href: 'calendar.html', label: 'Calendar' },
+    { id: 'notes', href: 'notes.html', label: 'Notes' }
+];
+
+function renderHeaderNavigation() {
+    const navigation = document.querySelector('.header-nav[data-page]');
+    if (!navigation) {
+        return;
+    }
+
+    const currentPage = navigation.dataset.page;
+    navigation.innerHTML = HEADER_NAV_ITEMS.map((item) => {
+        const isActive = item.id === currentPage;
+        const activeClass = isActive ? ' active' : '';
+        const currentPageAttr = isActive ? ' aria-current="page"' : '';
+        return `<a href="${item.href}" class="nav-link${activeClass}"${currentPageAttr}>${item.label}</a>`;
+    }).join('');
+}
+
 // Component rendering functions
 const Components = {
     // Render a project card
@@ -200,6 +225,8 @@ const Components = {
         `;
     }
 };
+
+document.addEventListener('DOMContentLoaded', renderHeaderNavigation);
 
 // Make Components globally available
 window.Components = Components;
