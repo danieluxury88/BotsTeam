@@ -14,9 +14,8 @@ from rich.rule import Rule
 from rich.table import Table
 
 from qabot.analyzer import analyze_changes_for_testing
-from qabot.runner import detect_test_framework, run_tests
+from qabot.runner import CoverageReport, detect_test_framework, run_tests
 from shared.data_manager import save_report
-from shared.models import BotResult
 
 app = typer.Typer(
     name="qabot",
@@ -138,6 +137,14 @@ def run(
         Path,
         typer.Argument(help="Path to the repository to test"),
     ] = Path("."),
+    coverage: Annotated[
+        bool,
+        typer.Option("--coverage", help="Run tests with coverage reporting"),
+    ] = False,
+    min_coverage: Annotated[
+        float,
+        typer.Option("--min-coverage", help="Flag files below this coverage percentage"),
+    ] = 80.0,
 ):
     """
     Detect and run tests in the repository.
@@ -182,10 +189,16 @@ def run(
 
     # Run tests
     console.print(Rule("[dim]Running Tests[/dim]"))
-    console.print(f"[dim]Command: {' '.join(framework_info.command)}[/dim]")
+    mode_label = " with coverage" if coverage else ""
+    console.print(f"[dim]Command: {' '.join(framework_info.command)}{mode_label}[/dim]")
     console.print()
 
-    result = run_tests(repo_path, framework_info)
+    result = run_tests(
+        repo_path,
+        framework_info,
+        with_coverage=coverage,
+        min_coverage=min_coverage,
+    )
 
     # Show output
     if result.stdout:
@@ -202,6 +215,10 @@ def run(
         console.print(f"[green]✓ Tests passed:[/green] {result.summary}")
     else:
         console.print(f"[red]✗ Tests failed:[/red] {result.summary}")
+
+    if result.coverage is not None:
+        console.print()
+        _print_coverage_report(result.coverage, min_coverage=min_coverage)
 
     console.print()
 
@@ -226,6 +243,14 @@ def full(
         bool,
         typer.Option("--skip-tests", help="Only analyze, don't run tests"),
     ] = False,
+    coverage: Annotated[
+        bool,
+        typer.Option("--coverage", help="Run tests with coverage reporting"),
+    ] = False,
+    min_coverage: Annotated[
+        float,
+        typer.Option("--min-coverage", help="Flag files below this coverage percentage"),
+    ] = 80.0,
 ):
     """
     Full QA workflow: suggest what to test, then run tests.
@@ -278,21 +303,20 @@ def full(
     console.print(Markdown(analysis.markdown_report))
     console.print()
 
-    # Auto-save report
-    if analysis.markdown_report:
-        latest, timestamped = save_report(repo_path.name, "qabot", analysis.markdown_report)
-        console.print(f"[green]✓[/green] Report saved to [bold]{latest}[/bold]")
-        if timestamped:
-            console.print(f"[dim]  Archived: {timestamped}[/dim]")
-        console.print()
-
     # Step 3: Run tests (if not skipped and framework exists)
+    test_result = None
     if not skip_tests and framework_info.name != "none":
         console.print(Rule("[dim]Running Tests[/dim]"))
-        console.print(f"[dim]Command: {' '.join(framework_info.command)}[/dim]")
+        mode_label = " with coverage" if coverage else ""
+        console.print(f"[dim]Command: {' '.join(framework_info.command)}{mode_label}[/dim]")
         console.print()
 
-        test_result = run_tests(repo_path, framework_info)
+        test_result = run_tests(
+            repo_path,
+            framework_info,
+            with_coverage=coverage,
+            min_coverage=min_coverage,
+        )
 
         if test_result.stdout:
             console.print(test_result.stdout)
@@ -308,6 +332,27 @@ def full(
         else:
             console.print(f"[red]✗ Tests failed:[/red] {test_result.summary}")
 
+        if test_result.coverage is not None:
+            console.print()
+            _print_coverage_report(test_result.coverage, min_coverage=min_coverage)
+
+    # Auto-save report after optional test execution so coverage can be included
+    if analysis.markdown_report:
+        full_report = _generate_markdown_report(
+            repo_name=repo_path.name,
+            repo_path=repo_path,
+            max_commits=max_commits,
+            framework_info=framework_info,
+            analysis=analysis.markdown_report,
+            test_result=test_result,
+            min_coverage=min_coverage,
+        )
+        latest, timestamped = save_report(repo_path.name, "qabot", full_report)
+        console.print()
+        console.print(f"[green]✓[/green] Report saved to [bold]{latest}[/bold]")
+        if timestamped:
+            console.print(f"[dim]  Archived: {timestamped}[/dim]")
+
     console.print()
     console.print(Rule())
     console.print("[dim]QABot v0.1.0 — powered by Claude[/dim]")
@@ -320,32 +365,108 @@ def _generate_markdown_report(
     max_commits: int,
     framework_info,
     analysis: str,
+    test_result=None,
+    min_coverage: float = 80.0,
 ) -> str:
     """Generate a complete markdown report."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     lines = [
-        f"# 🧪 QABot Test Analysis Report",
-        f"",
+        "# 🧪 QABot Test Analysis Report",
+        "",
         f"**Repository:** `{repo_name}`  ",
         f"**Path:** `{repo_path}`  ",
         f"**Commits Analyzed:** {max_commits}  ",
         f"**Test Framework:** {framework_info.name}  ",
         f"**Test Files:** {framework_info.test_files_count}  ",
         f"**Generated:** {timestamp}  ",
-        f"",
-        f"---",
-        f"",
-        f"## AI Test Analysis",
-        f"",
+        "",
+        "---",
+        "",
+        "## AI Test Analysis",
+        "",
         analysis,
-        f"",
-        f"---",
-        f"",
-        f"*Report generated by QABot v0.1.0 — powered by Claude*",
+        "",
     ]
 
+    if test_result is not None:
+        lines.extend([
+            "---",
+            "",
+            "## Test Run",
+            "",
+            f"- Framework: `{test_result.framework}`",
+            f"- Passed: {'yes' if test_result.passed else 'no'}",
+            f"- Exit Code: {test_result.exit_code}",
+            f"- Summary: {test_result.summary}",
+            "",
+        ])
+        if test_result.coverage is not None:
+            lines.extend([
+                "## Coverage",
+                "",
+                f"- Generated: {'yes' if test_result.coverage.generated else 'no'}",
+                f"- Summary: {test_result.coverage.summary}",
+                "",
+            ])
+            if test_result.coverage.generated:
+                lines.extend([
+                    f"- Total Coverage: {test_result.coverage.total_percent:.1f}%",
+                    f"- Measured Files: {test_result.coverage.measured_files}",
+                    f"- Covered Lines: {test_result.coverage.covered_lines}",
+                    f"- Total Statements: {test_result.coverage.total_statements}",
+                    "",
+                ])
+                if test_result.coverage.low_coverage_files:
+                    lines.extend([
+                        f"### Files Below {min_coverage:.1f}%",
+                        "",
+                    ])
+                    for item in test_result.coverage.low_coverage_files[:20]:
+                        lines.append(
+                            f"- `{item.path}` — {item.percent_covered:.1f}% "
+                            f"({item.missing_lines} missing lines)"
+                        )
+                    lines.append("")
+
+    lines.extend([
+        "---",
+        "",
+        "*Report generated by QABot v0.1.0 — powered by Claude*",
+    ])
+
     return "\n".join(lines)
+
+
+def _print_coverage_report(coverage_report: CoverageReport, *, min_coverage: float) -> None:
+    """Render a compact coverage summary in the terminal."""
+    console.print(Rule("[dim]Coverage[/dim]"))
+    if coverage_report.generated:
+        console.print(f"[green]✓ Coverage:[/green] {coverage_report.summary}")
+    else:
+        console.print(f"[yellow]⚠ Coverage unavailable:[/yellow] {coverage_report.summary}")
+
+    if not coverage_report.generated or not coverage_report.low_coverage_files:
+        return
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("File", style="cyan")
+    table.add_column("Coverage", justify="right")
+    table.add_column("Missing", justify="right")
+
+    for item in coverage_report.low_coverage_files[:10]:
+        table.add_row(
+            item.path,
+            f"{item.percent_covered:.1f}%",
+            str(item.missing_lines),
+        )
+
+    console.print()
+    console.print(
+        f"[dim]Files below {min_coverage:.1f}% coverage "
+        f"(showing up to 10):[/dim]"
+    )
+    console.print(table)
 
 
 if __name__ == "__main__":

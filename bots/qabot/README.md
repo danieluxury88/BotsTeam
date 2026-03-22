@@ -68,6 +68,9 @@ uv run qabot run .
 
 # Run tests in external project
 uv run qabot run /path/to/project
+
+# Run tests with coverage reporting
+uv run qabot run /path/to/project --coverage
 ```
 
 Supports:
@@ -84,6 +87,9 @@ uv run qabot full /path/to/project
 
 # Skip test execution (suggestions only)
 uv run qabot full /path/to/project --skip-tests
+
+# Include coverage reporting in the full workflow
+uv run qabot full /path/to/project --coverage
 
 # Customize analysis depth
 uv run qabot full . --max-commits 30
@@ -119,7 +125,10 @@ print(analysis.risk_areas)
 
 ### `run` command
 
-No options — automatically detects and runs tests.
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--coverage` | — | false | Run tests under coverage.py and summarize low-coverage files |
+| `--min-coverage` | — | 80.0 | Flag files below this coverage percentage |
 
 ### `full` command
 
@@ -128,6 +137,8 @@ No options — automatically detects and runs tests.
 | `--max-commits` | `-n` | 50 | Maximum commits to analyze |
 | `--model` | `-m` | — | Claude model override |
 | `--skip-tests` | — | false | Only suggest, don't run tests |
+| `--coverage` | — | false | Run tests under coverage.py and summarize low-coverage files |
+| `--min-coverage` | — | 80.0 | Flag files below this coverage percentage |
 
 ## Example Output
 
@@ -233,7 +244,7 @@ This enables gitbot → qabot pipeline orchestration.
 - [x] Test framework detection
 - [x] Test execution (pytest, unittest)
 - [x] Programmatic API
-- [ ] Test coverage analysis
+- [x] Test coverage analysis
 - [ ] Automatic test generation
 - [ ] Test result parsing and diff analysis
 - [ ] Integration with CI/CD
