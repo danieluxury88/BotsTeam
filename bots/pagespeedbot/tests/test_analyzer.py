@@ -95,6 +95,7 @@ def test_get_bot_result_collects_mobile_and_desktop_and_saves_files(monkeypatch,
 
     saved_reports: list[tuple[str, str, str, ProjectScope]] = []
     saved_artifacts: list[tuple[str, str, dict, ProjectScope]] = []
+    exported: dict[str, object] = {}
 
     monkeypatch.setattr(
         analyzer,
@@ -115,11 +116,13 @@ def test_get_bot_result_collects_mobile_and_desktop_and_saves_files(monkeypatch,
     monkeypatch.setattr(
         analyzer,
         "export_report_files",
-        lambda markdown_content, **kwargs: ReportExportResult(
-            html="<html><body>export</body></html>",
-            pdf_bytes=b"%PDF-1.7",
-            html_paths=(tmp_path / "latest.html", tmp_path / "timestamped.html"),
-            pdf_paths=(tmp_path / "latest.pdf", tmp_path / "timestamped.pdf"),
+        lambda markdown_content, **kwargs: (
+            exported.update({"markdown_content": markdown_content, **kwargs}) or ReportExportResult(
+                html="<html><body>export</body></html>",
+                pdf_bytes=b"%PDF-1.7",
+                html_paths=(tmp_path / "latest.html", tmp_path / "timestamped.html"),
+                pdf_paths=(tmp_path / "latest.pdf", tmp_path / "timestamped.pdf"),
+            )
         ),
     )
 
@@ -152,6 +155,59 @@ def test_get_bot_result_collects_mobile_and_desktop_and_saves_files(monkeypatch,
     assert set(saved_artifacts[0][2]["raw"]["https://example.com"].keys()) == {"mobile", "desktop"}
     assert result.data["export_saved"]["html"]["latest"].endswith("latest.html")
     assert result.data["export_saved"]["pdf"]["latest"].endswith("latest.pdf")
+    assert exported["template_name"] == "protonsystems_audit"
+    assert exported["branding_name"] == "protonsystems"
+    assert exported["metadata"]["project_name"] == "Demo"
+    assert exported["metadata"]["author"] == "ProtonSystems"
+
+
+def test_get_bot_result_applies_project_report_overrides(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        analyzer,
+        "fetch_pagespeed_payload",
+        lambda url, strategy, categories, timeout=120: _sample_payload(strategy),
+    )
+    monkeypatch.setattr(analyzer, "fetch_html", lambda url, timeout=30: _sample_html())
+    monkeypatch.setattr(analyzer, "fetch_text_response", _fake_text_response)
+    monkeypatch.setattr(
+        analyzer,
+        "save_report",
+        lambda project_name, bot, content, scope=ProjectScope.TEAM: (tmp_path / "latest.md", tmp_path / "timestamped.md"),
+    )
+    monkeypatch.setattr(
+        analyzer,
+        "save_json_artifact",
+        lambda project_name, bot, data, scope=ProjectScope.TEAM: (tmp_path / "latest.json", tmp_path / "timestamped.json"),
+    )
+    exported: dict[str, object] = {}
+    monkeypatch.setattr(
+        analyzer,
+        "export_report_files",
+        lambda markdown_content, **kwargs: (
+            exported.update({"markdown_content": markdown_content, **kwargs}) or ReportExportResult(
+                html="<html><body>export</body></html>",
+                pdf_bytes=b"%PDF-1.7",
+                html_paths=(tmp_path / "latest.html", None),
+                pdf_paths=(tmp_path / "latest.pdf", None),
+            )
+        ),
+    )
+
+    result = analyzer.get_bot_result(
+        "https://example.com",
+        project_name="Demo",
+        report_branding_profile="default",
+        report_prepared_by="Strategy Lab",
+        report_client_name="Acme Corp",
+        report_footer_text="Prepared by Strategy Lab for Acme Corp",
+    )
+
+    assert result.status == BotStatus.SUCCESS
+    assert exported["template_name"] == "pagespeed"
+    assert exported["branding_name"] == "default"
+    assert exported["metadata"]["project_name"] == "Acme Corp"
+    assert exported["metadata"]["author"] == "Strategy Lab"
+    assert exported["metadata"]["footer_text"] == "Prepared by Strategy Lab for Acme Corp"
 
 
 def test_get_bot_result_returns_partial_when_one_strategy_fails(monkeypatch) -> None:

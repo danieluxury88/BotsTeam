@@ -25,6 +25,10 @@ class Project:
     github_token: str | None = None
     site_url: str | None = None
     audit_urls: list[str] | None = None
+    report_branding_profile: str | None = None
+    report_prepared_by: str | None = None
+    report_client_name: str | None = None
+    report_footer_text: str | None = None
 
     # Personal bot data sources (optional — for journalbot, taskbot, habitbot)
     notes_dir: str | None = None    # journalbot: path to markdown notes directory
@@ -116,6 +120,10 @@ class Project:
             "github_token": self.github_token,
             "site_url": self.site_url,
             "audit_urls": self.audit_urls,
+            "report_branding_profile": self.report_branding_profile,
+            "report_prepared_by": self.report_prepared_by,
+            "report_client_name": self.report_client_name,
+            "report_footer_text": self.report_footer_text,
             "notes_dir": self.notes_dir,
             "task_file": self.task_file,
             "habit_file": self.habit_file,
@@ -143,6 +151,10 @@ class Project:
             github_token=data.get("github_token"),
             site_url=data.get("site_url"),
             audit_urls=data.get("audit_urls"),
+            report_branding_profile=data.get("report_branding_profile"),
+            report_prepared_by=data.get("report_prepared_by"),
+            report_client_name=data.get("report_client_name"),
+            report_footer_text=data.get("report_footer_text"),
             notes_dir=data.get("notes_dir"),
             task_file=data.get("task_file"),
             habit_file=data.get("habit_file"),
@@ -225,6 +237,10 @@ class ProjectRegistry:
         github_token: str | None = None,
         site_url: str | None = None,
         audit_urls: list[str] | None = None,
+        report_branding_profile: str | None = None,
+        report_prepared_by: str | None = None,
+        report_client_name: str | None = None,
+        report_footer_text: str | None = None,
         notes_dir: str | None = None,
         task_file: str | None = None,
         habit_file: str | None = None,
@@ -247,6 +263,10 @@ class ProjectRegistry:
             github_token=github_token,
             site_url=site_url,
             audit_urls=audit_urls,
+            report_branding_profile=report_branding_profile,
+            report_prepared_by=report_prepared_by,
+            report_client_name=report_client_name,
+            report_footer_text=report_footer_text,
             notes_dir=notes_dir,
             task_file=task_file,
             habit_file=habit_file,

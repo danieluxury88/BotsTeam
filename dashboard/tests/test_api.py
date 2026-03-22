@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from types import ModuleType
+from types import SimpleNamespace
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -195,3 +196,20 @@ def test_get_voice_command_job_returns_not_found_for_unknown_id() -> None:
 
     assert status == 404
     assert "was not found" in body["error"]
+
+
+def test_metadata_for_existing_pagespeed_report_uses_project_overrides(tmp_path: Path) -> None:
+    source = tmp_path / "report.md"
+    source.write_text("# Report\n\nDemo", encoding="utf-8")
+    project = SimpleNamespace(
+        report_branding_profile="default",
+        report_prepared_by="Strategy Lab",
+        report_client_name="Acme Corp",
+        report_footer_text="Prepared by Strategy Lab for Acme Corp",
+    )
+
+    metadata = api._metadata_for_existing_report("Demo", "pagespeedbot", source, project=project)
+
+    assert metadata["project_name"] == "Acme Corp"
+    assert metadata["author"] == "Strategy Lab"
+    assert metadata["footer_text"] == "Prepared by Strategy Lab for Acme Corp"

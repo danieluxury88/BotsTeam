@@ -33,6 +33,10 @@ const ProjectAdmin = {
         document.getElementById('field-github-repo').value = project.github_repo || '';
         document.getElementById('field-site-url').value = project.site_url || '';
         document.getElementById('field-audit-urls').value = (project.audit_urls || []).join('\n');
+        document.getElementById('field-report-branding-profile').value = project.report_branding_profile || '';
+        document.getElementById('field-report-prepared-by').value = project.report_prepared_by || '';
+        document.getElementById('field-report-client-name').value = project.report_client_name || '';
+        document.getElementById('field-report-footer-text').value = project.report_footer_text || '';
         document.getElementById('field-notes-dir').value = project.notes_dir || '';
         document.getElementById('field-task-file').value = project.task_file || '';
         document.getElementById('field-habit-file').value = project.habit_file || '';
@@ -82,6 +86,10 @@ const ProjectAdmin = {
             description: document.getElementById('field-description').value.trim(),
             language: document.getElementById('field-language').value,
             scope,
+            report_branding_profile: document.getElementById('field-report-branding-profile').value.trim() || null,
+            report_prepared_by: document.getElementById('field-report-prepared-by').value.trim() || null,
+            report_client_name: document.getElementById('field-report-client-name').value.trim() || null,
+            report_footer_text: document.getElementById('field-report-footer-text').value.trim() || null,
         };
 
         if (scope === 'personal') {

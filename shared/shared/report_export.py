@@ -604,6 +604,11 @@ AUDIT_TEMPLATE = Template(
           <div class="panel-divider"></div>
           <span class="panel-label">Generated</span>
           <div class="panel-value">{{ metadata.generated_at }}</div>
+          {% if metadata.author %}
+          <div class="panel-divider"></div>
+          <span class="panel-label">Prepared By</span>
+          <div class="panel-value">{{ metadata.author }}</div>
+          {% endif %}
         </aside>
       </div>
     </section>
@@ -665,6 +670,16 @@ class ReportBranding:
 
 
 @dataclass(frozen=True)
+class ReportSettings:
+    """Project-level report delivery overrides."""
+
+    branding_profile: str | None = None
+    prepared_by: str | None = None
+    client_name: str | None = None
+    footer_text: str | None = None
+
+
+@dataclass(frozen=True)
 class ReportHighlight:
     """Small summary card rendered near the top of the HTML/PDF report."""
 
@@ -709,6 +724,64 @@ BRANDING_PROFILES: dict[str, ReportBranding] = {
         footer_text="Prepared by ProtonSystems",
     ),
 }
+
+
+def resolve_report_branding_name(bot: str, branding_profile: str | None = None) -> str:
+    """Resolve the branding profile to use for a report export."""
+
+    if branding_profile:
+        return branding_profile
+    if bot == "pagespeedbot":
+        return "protonsystems"
+    return "default"
+
+
+def resolve_report_template_name(bot: str, branding_profile: str | None = None) -> str:
+    """Resolve the HTML template alias for a report export."""
+
+    branding_name = resolve_report_branding_name(bot, branding_profile)
+    if bot == "pagespeedbot":
+        return "protonsystems_audit" if branding_name == "protonsystems" else "pagespeed"
+    return "default"
+
+
+def resolve_report_presenter(bot: str, settings: ReportSettings | None = None) -> str:
+    """Resolve who is presented as the report author/delivery owner."""
+
+    settings = settings or ReportSettings()
+    if settings.prepared_by:
+        return settings.prepared_by
+    branding_name = resolve_report_branding_name(bot, settings.branding_profile)
+    return default_branding(branding_name).company_name
+
+
+def resolve_report_client_name(project_name: str, settings: ReportSettings | None = None) -> str:
+    """Resolve the final client/project name shown on the report."""
+
+    settings = settings or ReportSettings()
+    return settings.client_name or project_name
+
+
+def resolve_report_footer_text(
+    bot: str,
+    subject: str | None = None,
+    settings: ReportSettings | None = None,
+) -> str:
+    """Resolve footer text using project overrides plus branding defaults."""
+
+    settings = settings or ReportSettings()
+    if settings.footer_text:
+        return settings.footer_text
+
+    presenter = resolve_report_presenter(bot, settings)
+    prefix = (
+        f"Prepared by {presenter}"
+        if settings.prepared_by
+        else default_branding(resolve_report_branding_name(bot, settings.branding_profile)).footer_text
+    )
+    if subject:
+        return f"{prefix} for {subject}"
+    return prefix
 
 
 def default_branding(branding_name: str = "default") -> ReportBranding:

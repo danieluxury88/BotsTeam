@@ -14,7 +14,16 @@ from urllib.request import Request, urlopen
 
 from shared.data_manager import save_json_artifact, save_report
 from shared.models import BotResult, BotStatus, ProjectScope
-from shared.report_export import ReportHighlight, export_report_files
+from shared.report_export import (
+    ReportHighlight,
+    ReportSettings,
+    export_report_files,
+    resolve_report_branding_name,
+    resolve_report_client_name,
+    resolve_report_footer_text,
+    resolve_report_presenter,
+    resolve_report_template_name,
+)
 
 PAGESPEED_ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 DEFAULT_CATEGORIES = (
@@ -820,6 +829,7 @@ def _build_export_metadata(
     summary: str,
     project_name: str | None,
     errors: list[str],
+    report_settings: ReportSettings | None = None,
 ) -> dict[str, Any]:
     mobile_scores = [
         item.get("mobile", {}).get("scores", {}).get("performance")
@@ -827,20 +837,24 @@ def _build_export_metadata(
         if item.get("mobile")
     ]
     seo_scores = [seo_data.get("score") for seo_data in seo_by_url.values() if seo_data]
+    settings = report_settings or ReportSettings()
+    branding_name = resolve_report_branding_name("pagespeedbot", settings.branding_profile)
+    presenter = resolve_report_presenter("pagespeedbot", settings)
+    delivered_to = resolve_report_client_name(project_name or report["site_url"], settings)
 
     return {
         "title": "SEO & Performance Report",
         "subtitle": "Technical audit export for search visibility, crawl readiness, and performance signals",
-        "project_name": project_name or report["site_url"],
+        "project_name": delivered_to,
         "primary_url": report["site_url"],
         "generated_at": report["fetched_at"],
-        "author": "PageSpeedBot",
-        "kicker": "ProtonSystems Audit",
+        "author": presenter,
+        "kicker": f"{presenter or branding_name} Audit",
         "document_type": "SEO & Performance Audit",
         "primary_scope": "Search, Technical SEO, and Core Web Vitals",
         "confidentiality": "Client Confidential",
         "summary": summary,
-        "footer_text": f"Prepared by ProtonSystems using DevBots PageSpeedBot for {report['site_url']}",
+        "footer_text": resolve_report_footer_text("pagespeedbot", report["site_url"], settings),
         "highlights": [
             ReportHighlight("URLs Audited", str(len(report["urls"])), accent=True),
             ReportHighlight("Avg Mobile Performance", _average_score(mobile_scores)),
@@ -858,6 +872,10 @@ def get_bot_result(
     timeout: int = 120,
     project_name: str | None = None,
     scope: ProjectScope = ProjectScope.TEAM,
+    report_branding_profile: str | None = None,
+    report_prepared_by: str | None = None,
+    report_client_name: str | None = None,
+    report_footer_text: str | None = None,
 ) -> BotResult:
     if not site_url:
         return BotResult.failure("pagespeedbot", "No site URL configured.")
@@ -922,8 +940,15 @@ def get_bot_result(
         "summary": summary_by_url,
         "raw_report": report,
     }
+    report_settings = ReportSettings(
+        branding_profile=report_branding_profile,
+        prepared_by=report_prepared_by,
+        client_name=report_client_name,
+        footer_text=report_footer_text,
+    )
 
     if project_name:
+        branding_name = resolve_report_branding_name("pagespeedbot", report_settings.branding_profile)
         latest_report, timestamped_report = save_report(project_name, "pagespeedbot", report_md, scope=scope)
         latest_json, timestamped_json = save_json_artifact(project_name, "pagespeedbot", report, scope=scope)
         export_result = export_report_files(
@@ -931,8 +956,8 @@ def get_bot_result(
             project_name=project_name,
             bot="pagespeedbot",
             scope=scope,
-            template_name="protonsystems_audit",
-            branding_name="protonsystems",
+            template_name=resolve_report_template_name("pagespeedbot", report_settings.branding_profile),
+            branding_name=branding_name,
             metadata=_build_export_metadata(
                 report,
                 summary_by_url,
@@ -940,6 +965,7 @@ def get_bot_result(
                 summary,
                 project_name,
                 errors,
+                report_settings,
             ),
         )
         data["report_saved"] = {

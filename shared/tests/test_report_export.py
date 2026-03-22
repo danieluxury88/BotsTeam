@@ -6,9 +6,15 @@ from shared.models import ProjectScope
 from shared.report_export import (
     ReportBranding,
     ReportHighlight,
+    ReportSettings,
     export_report_file,
     export_report_files,
     render_report_html,
+    resolve_report_branding_name,
+    resolve_report_client_name,
+    resolve_report_footer_text,
+    resolve_report_presenter,
+    resolve_report_template_name,
 )
 
 
@@ -105,3 +111,28 @@ def test_export_report_file_writes_sibling_html_and_pdf(monkeypatch, tmp_path: P
     assert report_path.with_suffix(".pdf").exists()
     assert result.html_paths == (report_path.with_suffix(".html"), None)
     assert result.pdf_paths == (report_path.with_suffix(".pdf"), None)
+
+
+def test_report_settings_resolve_pagespeed_defaults() -> None:
+    settings = ReportSettings()
+
+    assert resolve_report_branding_name("pagespeedbot", settings.branding_profile) == "protonsystems"
+    assert resolve_report_template_name("pagespeedbot", settings.branding_profile) == "protonsystems_audit"
+    assert resolve_report_presenter("pagespeedbot", settings) == "ProtonSystems"
+    assert resolve_report_client_name("Demo", settings) == "Demo"
+    assert resolve_report_footer_text("pagespeedbot", "https://example.com", settings) == "Prepared by ProtonSystems for https://example.com"
+
+
+def test_report_settings_allow_custom_overrides() -> None:
+    settings = ReportSettings(
+        branding_profile="default",
+        prepared_by="Strategy Lab",
+        client_name="Acme Corp",
+        footer_text="Confidential draft for Acme Corp",
+    )
+
+    assert resolve_report_branding_name("pagespeedbot", settings.branding_profile) == "default"
+    assert resolve_report_template_name("pagespeedbot", settings.branding_profile) == "pagespeed"
+    assert resolve_report_presenter("pagespeedbot", settings) == "Strategy Lab"
+    assert resolve_report_client_name("Demo", settings) == "Acme Corp"
+    assert resolve_report_footer_text("pagespeedbot", "https://example.com", settings) == "Confidential draft for Acme Corp"

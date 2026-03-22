@@ -155,6 +155,33 @@
                         <span class="form-hint">For HabitBot — path to habit log (CSV or markdown)</span>
                     </div>
                 </fieldset>
+                <fieldset class="form-fieldset">
+                    <legend>Advanced Report Settings (optional)</legend>
+                    <div class="form-group">
+                        <label for="field-report-branding-profile">Branding Profile</label>
+                        <select id="field-report-branding-profile" class="form-input">
+                            <option value="">Auto</option>
+                            <option value="default">DevBots</option>
+                            <option value="protonsystems">ProtonSystems</option>
+                        </select>
+                        <span class="form-hint">Controls report logo, colors, and default PDF branding</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="field-report-prepared-by">Prepared By</label>
+                        <input type="text" id="field-report-prepared-by" class="form-input" placeholder="ProtonSystems">
+                        <span class="form-hint">Shown as the delivery owner on exported reports</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="field-report-client-name">Final Client</label>
+                        <input type="text" id="field-report-client-name" class="form-input" placeholder="Acme Corp">
+                        <span class="form-hint">Overrides the client/project label on exported reports</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="field-report-footer-text">Footer Text</label>
+                        <textarea id="field-report-footer-text" class="form-input" rows="3" placeholder="Prepared by ProtonSystems for Acme Corp"></textarea>
+                        <span class="form-hint">Optional full footer override for HTML/PDF exports</span>
+                    </div>
+                </fieldset>
                 <p class="form-error" id="form-error"></p>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="ProjectAdmin.closeModal()">Cancel</button>

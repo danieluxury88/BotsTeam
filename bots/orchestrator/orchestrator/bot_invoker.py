@@ -172,6 +172,10 @@ def invoke_bot(
             audit_urls=tuple(project.audit_urls or []),
             project_name=project.name,
             scope=scope,
+            report_branding_profile=project.report_branding_profile,
+            report_prepared_by=project.report_prepared_by,
+            report_client_name=project.report_client_name,
+            report_footer_text=project.report_footer_text,
         )
 
     if bot_name == "pmbot":

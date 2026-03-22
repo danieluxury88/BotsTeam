@@ -265,6 +265,10 @@ class DashboardDataGenerator:
                 "github_repo": project.get("github_repo"),
                 "site_url": project.get("site_url"),
                 "audit_urls": project.get("audit_urls"),
+                "report_branding_profile": project.get("report_branding_profile"),
+                "report_prepared_by": project.get("report_prepared_by"),
+                "report_client_name": project.get("report_client_name"),
+                "report_footer_text": project.get("report_footer_text"),
                 # Personal data source fields
                 "notes_dir": project.get("notes_dir"),
                 "task_file": project.get("task_file"),
