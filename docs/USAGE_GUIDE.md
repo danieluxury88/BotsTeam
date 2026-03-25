@@ -8,9 +8,11 @@ A quick-reference guide for using the DevBots orchestrator and dashboard.
 # Install everything
 uv sync
 
-# Add your API key
+# Configure your provider
 cp .env.example .env
-# Edit .env → set ANTHROPIC_API_KEY=sk-ant-...
+# For Anthropic → set ANTHROPIC_API_KEY=...
+# For OpenAI-compatible APIs → set DEVBOTS_PROVIDER=openai, OPENAI_API_KEY=...,
+# and change DEVBOTS_MODEL to a model your endpoint supports
 ```
 
 ## 1. Register a Project
@@ -186,8 +188,11 @@ uv run dashboard
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | Yes | Your Anthropic API key |
-| `DEVBOTS_MODEL` | No | Default model (default: `claude-haiku-4-5-20251001`) |
+| `DEVBOTS_PROVIDER` | No | LLM backend: `anthropic` (default), `openai`, or `gemini` |
+| `ANTHROPIC_API_KEY` | When `DEVBOTS_PROVIDER=anthropic` | Your Anthropic API key |
+| `OPENAI_API_KEY` | When `DEVBOTS_PROVIDER=openai` | API key for OpenAI or another OpenAI-compatible endpoint |
+| `OPENAI_BASE_URL` | No | Override base URL for OpenAI-compatible endpoints |
+| `DEVBOTS_MODEL` | No | Model name for the active provider; change it when switching providers |
 | `GITLAB_TOKEN` | For pmbot (GitLab) | GitLab personal access token |
 | `GITLAB_URL` | No | GitLab URL (default: `https://gitlab.com`) |
 | `GITHUB_TOKEN` | For pmbot (GitHub) | GitHub personal access token |

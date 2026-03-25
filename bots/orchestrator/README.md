@@ -7,7 +7,7 @@ Conversational bot that manages multiple projects and orchestrates gitbot, qabot
 - 💬 **Natural Language Interface** — Ask questions in plain English
 - 🗂️ **Multi-Project Registry** — Manage unlimited projects with metadata
 - 🔗 **GitLab/GitHub Integration** — Per-project remote repository connections
-- 🧠 **Smart Routing** — Uses Claude to understand requests and route to correct bot
+- 🧠 **Smart Routing** — Uses the configured LLM provider to understand requests and route to correct bot
 - 🔌 **Bot Invocation** — Calls gitbot, qabot, and pmbot programmatically
 - 🔄 **Pipeline Workflows** — Supports multi-bot flows like `gitbot -> qabot`
 - 💾 **Auto-Save Reports** — All reports automatically saved to `data/{project}/reports/`
@@ -24,6 +24,10 @@ uv sync
 ```
 
 The orchestrator is also available as `devbot`, and the default chat session is available directly as `uv run chat`.
+
+If you want to use an OpenAI-compatible backend for `uv run chat`, set
+`DEVBOTS_PROVIDER=openai`, add `OPENAI_API_KEY`, and change `DEVBOTS_MODEL`
+to a model your endpoint supports.
 
 ## Quick Start
 

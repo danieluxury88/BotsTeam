@@ -20,7 +20,7 @@ from orchestrator.registry import ProjectRegistry  # noqa: E402
 from orchestrator.router import process_user_request  # noqa: E402
 from generate_data import DashboardDataGenerator  # noqa: E402
 from shared.bot_registry import BOTS as _BOT_REGISTRY, runnable_bots as _runnable_bots  # noqa: E402
-from shared.config import load_env  # noqa: E402
+from shared.config import get_active_provider, get_default_model, get_provider_default_model, load_env  # noqa: E402
 from shared.data_manager import get_data_root, get_notes_dir, get_reports_dir  # noqa: E402
 from shared.models import ProjectScope  # noqa: E402
 from shared.report_export import (  # noqa: E402
@@ -52,6 +52,23 @@ _BOT_MODEL_ENV_KEYS: dict[str, str] = {
 }
 
 _ALLOWED_PROVIDERS = {"anthropic", "openai", "gemini"}
+_PROVIDER_MODEL_PRESETS: dict[str, list[str]] = {
+    "anthropic": [
+        "claude-haiku-4-5-20251001",
+        "claude-sonnet-4-5-20250929",
+    ],
+    "openai": [
+        "gpt-4o-mini",
+        "gpt-4o",
+        "gpt-4.1-mini",
+        "gpt-4.1",
+    ],
+    "gemini": [
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-pro",
+    ],
+}
 VOICE_COMMAND_JOBS: dict[str, dict] = {}
 VOICE_COMMAND_JOBS_LOCK = threading.Lock()
 MAX_VOICE_COMMAND_JOBS = 100
@@ -149,11 +166,28 @@ def _update_env_file(updates: dict[str, str]) -> None:
     env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
 
 
+def _is_obviously_wrong_model_for_provider(provider: str, model: str) -> bool:
+    normalized_provider = provider.strip().lower()
+    normalized_model = model.strip().lower()
+    if not normalized_model:
+        return False
+
+    wrong_prefixes = {
+        "anthropic": ("gpt-", "o1", "o3", "gemini-"),
+        "openai": ("claude-", "gemini-"),
+        "gemini": ("claude-", "gpt-", "o1", "o3"),
+    }
+    return normalized_model.startswith(wrong_prefixes.get(normalized_provider, ()))
+
+
 def get_settings() -> dict:
     """Return current LLM provider settings (API keys are never returned in plaintext)."""
+    provider = get_active_provider()
     return {
-        "provider":        os.environ.get("DEVBOTS_PROVIDER", "anthropic"),
-        "model":           os.environ.get("DEVBOTS_MODEL", "claude-haiku-4-5-20251001"),
+        "provider":        provider,
+        "model":           get_default_model(),
+        "provider_default_model": get_provider_default_model(provider),
+        "provider_model_presets": _PROVIDER_MODEL_PRESETS,
         "anthropic_key_set": bool(os.environ.get("ANTHROPIC_API_KEY")),
         "openai_key_set":    bool(os.environ.get("OPENAI_API_KEY")),
         "gemini_key_set":    bool(os.environ.get("GEMINI_API_KEY")),
@@ -169,14 +203,37 @@ def update_settings(body: dict) -> tuple[dict, int]:
     """Persist provider/model/key changes to .env and apply them to the live process."""
     updates: dict[str, str] = {}
 
+    current_provider = get_active_provider()
+    current_model = get_default_model()
     provider = str(body.get("provider", "")).strip().lower()
     if provider:
         if provider not in _ALLOWED_PROVIDERS:
             return {"error": f"Invalid provider '{provider}'. Choose: {', '.join(sorted(_ALLOWED_PROVIDERS))}"}, 400
         updates["DEVBOTS_PROVIDER"] = provider
+    else:
+        provider = current_provider
 
     if "model" in body:
-        updates["DEVBOTS_MODEL"] = str(body["model"]).strip()
+        submitted_model = str(body["model"]).strip()
+        provider_changed = provider != current_provider
+        current_provider_default = get_provider_default_model(current_provider)
+
+        if (
+            provider_changed
+            and submitted_model == current_model
+            and current_model == current_provider_default
+        ):
+            submitted_model = get_provider_default_model(provider)
+
+        if _is_obviously_wrong_model_for_provider(provider, submitted_model):
+            return {
+                "error": (
+                    f"Model '{submitted_model}' does not match provider '{provider}'. "
+                    "Choose a model for the selected provider or leave it blank to use the provider default."
+                )
+            }, 400
+
+        updates["DEVBOTS_MODEL"] = submitted_model
 
     for field, env_key in [
         ("anthropic_key", "ANTHROPIC_API_KEY"),

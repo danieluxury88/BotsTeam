@@ -19,7 +19,7 @@ class OpenAIProvider(LLMProvider):
         except ImportError as exc:
             raise ImportError(
                 "The openai package is required for the OpenAI provider. "
-                "Install it with: uv add openai"
+                "Run `uv sync` from the workspace root to install it."
             ) from exc
 
         api_key = get_openai_api_key()

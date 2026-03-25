@@ -159,6 +159,63 @@ def test_preview_report_improvement_returns_improved_markdown(
     assert body["source"]["filename"] == "report.md"
 
 
+def test_get_settings_uses_provider_default_model(monkeypatch) -> None:
+    monkeypatch.setenv("DEVBOTS_PROVIDER", "openai")
+    monkeypatch.delenv("DEVBOTS_MODEL", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+
+    settings = api.get_settings()
+
+    assert settings["provider"] == "openai"
+    assert settings["model"] == "gpt-4o-mini"
+    assert settings["provider_default_model"] == "gpt-4o-mini"
+    assert "gpt-4o-mini" in settings["provider_model_presets"]["openai"]
+
+
+def test_update_settings_switches_default_model_with_provider(monkeypatch, tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "DEVBOTS_PROVIDER=anthropic\n"
+        "DEVBOTS_MODEL=claude-haiku-4-5-20251001\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("DEVBOTS_PROVIDER", "anthropic")
+    monkeypatch.setenv("DEVBOTS_MODEL", "claude-haiku-4-5-20251001")
+
+    body, status = api.update_settings(
+        {
+            "provider": "openai",
+            "model": "claude-haiku-4-5-20251001",
+        }
+    )
+
+    assert status == 200
+    assert body["provider"] == "openai"
+    assert body["model"] == "gpt-4o-mini"
+    assert "DEVBOTS_PROVIDER=openai" in env_path.read_text(encoding="utf-8")
+    assert "DEVBOTS_MODEL=gpt-4o-mini" in env_path.read_text(encoding="utf-8")
+
+
+def test_update_settings_rejects_obviously_wrong_model_for_provider(monkeypatch, tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text("", encoding="utf-8")
+    monkeypatch.setattr(api, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("DEVBOTS_PROVIDER", "openai")
+    monkeypatch.setenv("DEVBOTS_MODEL", "gpt-4o-mini")
+
+    body, status = api.update_settings(
+        {
+            "provider": "openai",
+            "model": "claude-haiku-4-5-20251001",
+        }
+    )
+
+    assert status == 400
+    assert "does not match provider 'openai'" in body["error"]
+
+
 def test_save_report_improvement_writes_timestamped_sibling(
     monkeypatch,
     tmp_path: Path,

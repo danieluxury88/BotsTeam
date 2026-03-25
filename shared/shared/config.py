@@ -9,6 +9,14 @@ except ImportError:  # pragma: no cover - fallback for plain python environments
     load_dotenv = None
 
 
+DEFAULT_PROVIDER = "anthropic"
+DEFAULT_MODELS = {
+    "anthropic": "claude-haiku-4-5-20251001",
+    "openai": "gpt-4o-mini",
+    "gemini": "gemini-2.0-flash",
+}
+
+
 def _load_dotenv_fallback(env_path: Path) -> None:
     """Minimal .env loader for environments without python-dotenv."""
     if not env_path.exists():
@@ -36,6 +44,18 @@ def load_env() -> None:
         _load_dotenv_fallback(env_path)
 
 
+def get_active_provider() -> str:
+    """Return the configured LLM provider, defaulting to Anthropic."""
+    provider = os.environ.get("DEVBOTS_PROVIDER", DEFAULT_PROVIDER).strip().lower()
+    return provider if provider in DEFAULT_MODELS else DEFAULT_PROVIDER
+
+
+def get_provider_default_model(provider: str | None = None) -> str:
+    """Return the default model for a provider."""
+    active_provider = (provider or get_active_provider()).strip().lower()
+    return DEFAULT_MODELS.get(active_provider, DEFAULT_MODELS[DEFAULT_PROVIDER])
+
+
 def get_anthropic_api_key() -> str:
     """Get Anthropic API key from environment."""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -48,8 +68,8 @@ def get_anthropic_api_key() -> str:
 
 
 def get_default_model() -> str:
-    """Get the default LLM model from environment or return the built-in default."""
-    return os.environ.get("DEVBOTS_MODEL", "claude-haiku-4-5-20251001")
+    """Get the default LLM model from environment or return the provider default."""
+    return os.environ.get("DEVBOTS_MODEL") or get_provider_default_model()
 
 
 def get_openai_api_key() -> str:

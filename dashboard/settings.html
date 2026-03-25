@@ -93,11 +93,27 @@
             margin-top: var(--space-sm);
         }
 
+        .form-warning {
+            color: #8a5a00;
+            background: #fff3cd;
+            border: 1px solid #f1d48b;
+            border-radius: var(--radius-md);
+            padding: var(--space-sm) var(--space-md);
+            font-size: var(--font-size-sm);
+            line-height: 1.5;
+        }
+
         .settings-actions {
             display: flex;
             align-items: center;
             gap: var(--space-md);
             margin-top: var(--space-lg);
+        }
+
+        select.form-input,
+        select.form-input option {
+            color: var(--color-text-primary);
+            background: var(--color-bg-primary);
         }
     </style>
 </head>
@@ -222,12 +238,26 @@
                             <div class="form-group">
                                 <label for="field-model">Default Model</label>
                                 <input type="text" id="field-model" class="form-input"
+                                       list="field-model-suggestions"
                                        placeholder="e.g. claude-haiku-4-5-20251001 / gpt-4o-mini / gemini-2.0-flash">
+                                <datalist id="field-model-suggestions"></datalist>
                                 <span class="form-hint">
                                     Used by all bots that don't have a per-bot override below.
                                     Set <code>DEVBOTS_MODEL</code> in your <code>.env</code>.
                                 </span>
                             </div>
+
+                            <div class="form-group">
+                                <label for="field-model-preset">Suggested Models</label>
+                                <select id="field-model-preset" class="form-input">
+                                    <option value="">Choose a suggested model…</option>
+                                </select>
+                                <span class="form-hint" id="field-model-help">
+                                    Pick a provider-specific model or type a custom one.
+                                </span>
+                            </div>
+
+                            <p class="form-warning" id="field-model-warning" hidden></p>
 
                             <h4 style="margin: var(--space-lg) 0 var(--space-md); font-size: var(--font-size-base); color: var(--color-text-secondary);">
                                 Per-bot overrides <span style="font-weight: 400">(leave blank to use the default)</span>

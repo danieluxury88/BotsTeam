@@ -23,7 +23,7 @@ This workspace contains multiple specialized bots that share common infrastructu
 
 **[Dashboard](docs/DASHBOARD.md)** — Web-based visual interface for all projects and reports, including a browser voice bridge for spoken commands and spoken bot replies
 
-All bots use **Claude (Anthropic)** for AI analysis and share utilities for git reading, LLM access, and configuration.
+All bots share the same provider layer for AI analysis and support **Anthropic** by default plus **OpenAI-compatible** backends when configured.
 
 ## ⚡ Quick Start
 
@@ -36,9 +36,11 @@ git clone <your-repo-url>
 cd BotsTeam
 uv sync
 
-# 3. Configure API key
+# 3. Configure provider credentials
 cp .env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
+# For Anthropic: set ANTHROPIC_API_KEY
+# For OpenAI-compatible APIs: set DEVBOTS_PROVIDER=openai, OPENAI_API_KEY,
+# and change DEVBOTS_MODEL to a model available on that endpoint
 
 # 4. Use any bot!
 uv run gitbot /path/to/project
@@ -215,7 +217,7 @@ Each bot:
 - Returns structured `BotResult` for composition
 - **Auto-saves reports** when invoked through orchestrator
 - Can be called via CLI or programmatically
-- Uses the same Claude client and configuration
+- Uses the same shared LLM provider and configuration
 
 **Project Registry:** Projects are registered in `data/projects.json` (repo-local) with paths, GitLab/GitHub metadata, integration settings, and optional stack metadata such as `languages` and `frameworks`.
 

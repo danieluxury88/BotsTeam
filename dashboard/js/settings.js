@@ -1,6 +1,17 @@
 // Settings page controller
 const Settings = {
     _current: null,
+    _modelWasAutoFilled: false,
+    _providerModelPresets: {
+        anthropic: ['claude-haiku-4-5-20251001', 'claude-sonnet-4-5-20250929'],
+        openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'gpt-4.1'],
+        gemini: ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'],
+    },
+    _wrongModelPrefixes: {
+        anthropic: ['gpt-', 'o1', 'o3', 'gemini-'],
+        openai: ['claude-', 'gemini-'],
+        gemini: ['claude-', 'gpt-', 'o1', 'o3'],
+    },
 
     async init() {
         this._current = await API.getSettings();
@@ -13,9 +24,15 @@ const Settings = {
     },
 
     _populate(s) {
-        document.getElementById('field-provider').value = s.provider || 'anthropic';
+        const provider = s.provider || 'anthropic';
+        document.getElementById('field-provider').value = provider;
         document.getElementById('field-model').value = s.model || '';
         document.getElementById('field-openai-base-url').value = s.openai_base_url || '';
+        this._modelWasAutoFilled = false;
+        this._providerModelPresets = {
+            ...this._providerModelPresets,
+            ...(s.provider_model_presets || {}),
+        };
 
         this._updateKeyIndicator('anthropic', s.anthropic_key_set);
         this._updateKeyIndicator('openai', s.openai_key_set);
@@ -26,7 +43,9 @@ const Settings = {
             input.value = botModels[input.dataset.botModel] || '';
         });
 
-        this._updateProviderHints(s.provider || 'anthropic');
+        this._updateProviderHints(provider);
+        this._updateModelOptions(provider, s.model || '', s.provider_default_model || '', this._providerModelPresets);
+        this._updateModelWarning(provider, s.model || '');
     },
 
     _updateKeyIndicator(provider, isSet) {
@@ -47,9 +66,106 @@ const Settings = {
         });
     },
 
+    _updateModelOptions(provider, currentModel, providerDefaultModel, providerModelPresets) {
+        const presetSelect = document.getElementById('field-model-preset');
+        const datalist = document.getElementById('field-model-suggestions');
+        const help = document.getElementById('field-model-help');
+        if (!presetSelect || !datalist || !help) return;
+
+        const presets = providerModelPresets[provider] || [];
+        const resolvedDefaultModel = providerDefaultModel || presets[0] || '';
+
+        presetSelect.innerHTML = '<option value="">Choose a suggested model…</option>';
+        datalist.innerHTML = '';
+        presets.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model;
+            option.textContent = model;
+            presetSelect.appendChild(option);
+
+            const suggestion = document.createElement('option');
+            suggestion.value = model;
+            datalist.appendChild(suggestion);
+        });
+
+        presetSelect.value = presets.includes(currentModel) ? currentModel : '';
+        help.textContent = resolvedDefaultModel
+            ? `Default for ${provider} is ${resolvedDefaultModel}. Leave the field blank to use that default.`
+            : 'Pick a provider-specific model or type a custom one.';
+    },
+
+    _getModelWarning(provider, model) {
+        const normalizedProvider = (provider || '').trim().toLowerCase();
+        const normalizedModel = (model || '').trim().toLowerCase();
+        if (!normalizedProvider || !normalizedModel) return '';
+
+        const wrongPrefixes = this._wrongModelPrefixes[normalizedProvider] || [];
+        const isMismatch = wrongPrefixes.some(prefix => normalizedModel.startsWith(prefix));
+        if (!isMismatch) return '';
+
+        return `Model "${model}" does not look valid for provider "${provider}". Choose a ${provider}-compatible model before saving.`;
+    },
+
+    _updateModelWarning(provider, model) {
+        const warningEl = document.getElementById('field-model-warning');
+        if (!warningEl) return;
+
+        const message = this._getModelWarning(provider, model);
+        warningEl.textContent = message;
+        warningEl.hidden = !message;
+    },
+
+    _maybeSwitchModelForProvider(nextProvider) {
+        const providerField = document.getElementById('field-provider');
+        const modelField = document.getElementById('field-model');
+        if (!providerField || !modelField || !this._current) return;
+
+        const previousProvider = this._current.provider || 'anthropic';
+        const previousDefault = this._current.provider_default_model || '';
+        const currentValue = modelField.value.trim();
+        const nextDefault = (this._providerModelPresets[nextProvider] || [])[0] || '';
+        const shouldReplace = !currentValue || currentValue === previousDefault || this._modelWasAutoFilled;
+
+        this._updateProviderHints(nextProvider);
+        this._updateModelOptions(
+            nextProvider,
+            shouldReplace ? nextDefault : currentValue,
+            nextDefault,
+            this._providerModelPresets,
+        );
+
+        if (shouldReplace && nextDefault) {
+            modelField.value = nextDefault;
+            this._modelWasAutoFilled = true;
+        }
+
+        providerField.value = nextProvider;
+        this._updateModelWarning(nextProvider, modelField.value.trim());
+    },
+
     _bindEvents() {
         document.getElementById('field-provider').addEventListener('change', e => {
-            this._updateProviderHints(e.target.value);
+            this._maybeSwitchModelForProvider(e.target.value);
+        });
+
+        document.getElementById('field-model').addEventListener('input', () => {
+            this._modelWasAutoFilled = false;
+            const provider = document.getElementById('field-provider').value;
+            const presetSelect = document.getElementById('field-model-preset');
+            const modelValue = document.getElementById('field-model').value.trim();
+            if (presetSelect) {
+                const matchesPreset = Array.from(presetSelect.options).some(option => option.value === modelValue);
+                presetSelect.value = matchesPreset ? modelValue : '';
+            }
+            this._updateModelWarning(provider, modelValue);
+        });
+
+        document.getElementById('field-model-preset').addEventListener('change', e => {
+            const selectedModel = e.target.value.trim();
+            if (!selectedModel) return;
+            document.getElementById('field-model').value = selectedModel;
+            this._modelWasAutoFilled = false;
+            this._updateModelWarning(document.getElementById('field-provider').value, selectedModel);
         });
 
         document.querySelectorAll('.key-toggle').forEach(btn => {
@@ -115,6 +231,7 @@ const Settings = {
         document.getElementById('field-gemini-key').value = '';
 
         this._current = result.data;
+        this._populate(result.data);
         this._updateKeyIndicator('anthropic', result.data.anthropic_key_set);
         this._updateKeyIndicator('openai',    result.data.openai_key_set);
         this._updateKeyIndicator('gemini',    result.data.gemini_key_set);
