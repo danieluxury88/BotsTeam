@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from shared import llm
+from shared.providers import anthropic as anthropic_mod
 
 
 class _FakeMessages:
@@ -49,15 +50,22 @@ def _message(text: str):
     return SimpleNamespace(content=[SimpleNamespace(text=text)])
 
 
+def _make_provider(client: _FakeClient) -> anthropic_mod.AnthropicProvider:
+    """Build an AnthropicProvider with an injected fake client (bypasses API key check)."""
+    provider = anthropic_mod.AnthropicProvider.__new__(anthropic_mod.AnthropicProvider)
+    provider._client = client
+    return provider
+
+
 def test_chat_retries_on_529_overloaded_and_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
     overloaded_body = {"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}}
     client = _FakeClient([_status_error(529, overloaded_body), _message("ok")])
     sleep_calls: list[float] = []
 
-    monkeypatch.setattr(llm, "_MAX_ATTEMPTS", 3)
-    monkeypatch.setattr(llm.random, "uniform", lambda _a, _b: 0.0)
-    monkeypatch.setattr(llm.time, "sleep", lambda seconds: sleep_calls.append(seconds))
-    monkeypatch.setattr(llm, "create_client", lambda: client)
+    monkeypatch.setattr(anthropic_mod, "_MAX_ATTEMPTS", 3)
+    monkeypatch.setattr(anthropic_mod.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(anthropic_mod.time, "sleep", lambda seconds: sleep_calls.append(seconds))
+    monkeypatch.setattr(llm, "_get_provider", lambda: _make_provider(client))
     monkeypatch.setattr(llm, "get_default_model", lambda: "claude-test")
 
     output = llm.chat(system="sys", user="msg")
@@ -71,9 +79,9 @@ def test_chat_does_not_retry_non_retryable_status(monkeypatch: pytest.MonkeyPatc
     client = _FakeClient([_status_error(400)])
     sleep_calls: list[float] = []
 
-    monkeypatch.setattr(llm, "_MAX_ATTEMPTS", 3)
-    monkeypatch.setattr(llm.time, "sleep", lambda seconds: sleep_calls.append(seconds))
-    monkeypatch.setattr(llm, "create_client", lambda: client)
+    monkeypatch.setattr(anthropic_mod, "_MAX_ATTEMPTS", 3)
+    monkeypatch.setattr(anthropic_mod.time, "sleep", lambda seconds: sleep_calls.append(seconds))
+    monkeypatch.setattr(llm, "_get_provider", lambda: _make_provider(client))
     monkeypatch.setattr(llm, "get_default_model", lambda: "claude-test")
 
     with pytest.raises(anthropic.APIStatusError):
@@ -87,10 +95,10 @@ def test_chat_retries_connection_errors_until_exhausted(monkeypatch: pytest.Monk
     client = _FakeClient([_connection_error(), _connection_error(), _connection_error()])
     sleep_calls: list[float] = []
 
-    monkeypatch.setattr(llm, "_MAX_ATTEMPTS", 3)
-    monkeypatch.setattr(llm.random, "uniform", lambda _a, _b: 0.0)
-    monkeypatch.setattr(llm.time, "sleep", lambda seconds: sleep_calls.append(seconds))
-    monkeypatch.setattr(llm, "create_client", lambda: client)
+    monkeypatch.setattr(anthropic_mod, "_MAX_ATTEMPTS", 3)
+    monkeypatch.setattr(anthropic_mod.random, "uniform", lambda _a, _b: 0.0)
+    monkeypatch.setattr(anthropic_mod.time, "sleep", lambda seconds: sleep_calls.append(seconds))
+    monkeypatch.setattr(llm, "_get_provider", lambda: _make_provider(client))
     monkeypatch.setattr(llm, "get_default_model", lambda: "claude-test")
 
     with pytest.raises(anthropic.APIConnectionError):

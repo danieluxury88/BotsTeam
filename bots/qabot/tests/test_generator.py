@@ -5,20 +5,6 @@ from pathlib import Path
 from qabot import generator
 
 
-class _FakeMessage:
-    def __init__(self, text: str):
-        self.content = [type("TextBlock", (), {"text": text})()]
-
-
-class _FakeClient:
-    def __init__(self, text: str):
-        self._text = text
-        self.messages = self
-
-    def create(self, **kwargs):
-        return _FakeMessage(self._text)
-
-
 def test_extract_json_block_accepts_fenced_json():
     payload = generator._extract_json_block(
         '```json\n{"summary": "ok", "stubs": []}\n```'
@@ -82,8 +68,7 @@ def test_generate_test_stubs_parses_llm_json(monkeypatch, tmp_path: Path):
     )
     monkeypatch.setattr(generator, "group_commits_auto", lambda commits: [fake_group])
     monkeypatch.setattr(generator, "format_groups_for_llm", lambda groups: "- app/service.py changed")
-    monkeypatch.setattr(generator, "create_client", lambda: _FakeClient(
-        """
+    monkeypatch.setattr(generator, "chat", lambda **kwargs: """
         ```json
         {
           "summary": "Generated a pytest stub for the recent service change.",
@@ -97,8 +82,7 @@ def test_generate_test_stubs_parses_llm_json(monkeypatch, tmp_path: Path):
           ]
         }
         ```
-        """
-    ))
+        """)
 
     result = generator.generate_test_stubs(tmp_path, max_stubs=1)
 

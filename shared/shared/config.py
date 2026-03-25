@@ -48,8 +48,35 @@ def get_anthropic_api_key() -> str:
 
 
 def get_default_model() -> str:
-    """Get default Claude model from environment or return default."""
-    return os.environ.get("GITBOT_MODEL", "claude-haiku-4-5-20251001")
+    """Get the default LLM model from environment or return the built-in default."""
+    return os.environ.get("DEVBOTS_MODEL", "claude-haiku-4-5-20251001")
+
+
+def get_openai_api_key() -> str:
+    """Get OpenAI-compatible API key from environment."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise EnvironmentError(
+            "OPENAI_API_KEY is not set. "
+            "Add it to your .env file when using DEVBOTS_PROVIDER=openai."
+        )
+    return api_key
+
+
+def get_openai_base_url() -> str | None:
+    """Get OpenAI-compatible base URL (leave None to use the default OpenAI endpoint)."""
+    return os.environ.get("OPENAI_BASE_URL") or None
+
+
+def get_gemini_api_key() -> str:
+    """Get Google Gemini API key from environment."""
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise EnvironmentError(
+            "GEMINI_API_KEY is not set. "
+            "Add it to your .env file when using DEVBOTS_PROVIDER=gemini."
+        )
+    return api_key
 
 
 class Config:

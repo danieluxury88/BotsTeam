@@ -7,9 +7,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from qabot.runner import detect_test_framework
-from shared.config import get_default_model, load_env
+from shared.config import load_env
 from shared.git_reader import filter_commits, format_groups_for_llm, group_commits_auto, read_commits
-from shared.llm import create_client
+from shared.llm import chat
 
 load_env()
 
@@ -203,8 +203,6 @@ def generate_test_stubs(
 
     profile = _infer_repo_profile(repo_path, changed_files)
     test_samples = _sample_existing_tests(repo_path)
-    effective_model = model or get_default_model()
-    client = create_client()
 
     user_message = f"""\
 Generate up to {max_stubs} practical test stub files for the recent changes in the repository **{repo_path.name}**.
@@ -240,14 +238,7 @@ Return JSON with this shape:
 Choose file paths that fit the repository conventions. Keep the stubs minimal but useful.
 """
 
-    message = client.messages.create(
-        model=effective_model,
-        max_tokens=4096,
-        system=GENERATOR_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
-    )
-
-    raw_response = message.content[0].text
+    raw_response = chat(system=GENERATOR_SYSTEM_PROMPT, user=user_message, max_tokens=4096, model=model)
     payload = _extract_json_block(raw_response)
     stub_payloads = payload.get("stubs", []) or []
     stubs = [

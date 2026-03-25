@@ -3,9 +3,9 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from shared.config import get_default_model, load_env
+from shared.config import load_env
 from shared.git_reader import format_groups_for_llm, group_commits_auto, read_commits
-from shared.llm import create_client
+from shared.llm import chat
 from shared.models import ChangeSet, BotResult
 
 load_env()
@@ -70,10 +70,6 @@ def analyze_changes_for_testing(
     groups = group_commits_auto(commits)
     formatted_history = format_groups_for_llm(groups)
 
-    # Ask Claude what to test
-    effective_model = model or get_default_model()
-    client = create_client()
-
     repo_name = repo_path.name
 
     user_message = f"""\
@@ -96,14 +92,7 @@ Provide a structured QA analysis with:
 Be specific and actionable.
 """
 
-    message = client.messages.create(
-        model=effective_model,
-        max_tokens=2048,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
-    )
-
-    report = message.content[0].text
+    report = chat(system=SYSTEM_PROMPT, user=user_message, max_tokens=2048, model=model)
 
     # TODO: Parse structured suggestions from Claude's response
     # For now, return the full markdown report
@@ -127,9 +116,6 @@ def analyze_changeset_for_testing(
     if len(changeset.files_touched) > 20:
         files_summary += f"\n  ... and {len(changeset.files_touched) - 20} more files"
 
-    effective_model = model or get_default_model()
-    client = create_client()
-
     user_message = f"""\
 Analyze these recent code changes and suggest what should be tested.
 
@@ -152,14 +138,7 @@ Provide a structured QA analysis with:
 Be specific and actionable with concrete test scenarios.
 """
 
-    message = client.messages.create(
-        model=effective_model,
-        max_tokens=2048,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
-    )
-
-    report = message.content[0].text
+    report = chat(system=SYSTEM_PROMPT, user=user_message, max_tokens=2048, model=model)
 
     return QAAnalysisResult(
         summary="Analysis complete - see full report",

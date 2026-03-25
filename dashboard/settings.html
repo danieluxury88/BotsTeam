@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="DevBots Dashboard - Settings">
+    <meta name="theme-color" content="#3498db">
+    <title>Settings - DevBots Dashboard</title>
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/responsive.css">
+
+    <style>
+        .settings-grid {
+            display: grid;
+            gap: var(--space-xl);
+            max-width: 720px;
+        }
+
+        .settings-card {
+            background: var(--color-bg-primary);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+        }
+
+        .settings-card-title {
+            font-size: var(--font-size-lg);
+            font-weight: 600;
+            color: var(--color-text-primary);
+            margin-bottom: var(--space-lg);
+            padding-bottom: var(--space-sm);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .key-field-row {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: var(--space-sm);
+            align-items: center;
+        }
+
+        .key-indicator {
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .key-indicator--set   { color: var(--color-success); }
+        .key-indicator--unset { color: var(--color-text-tertiary); }
+
+        .key-toggle {
+            background: none;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            padding: var(--space-xs) var(--space-sm);
+            cursor: pointer;
+            font-size: var(--font-size-base);
+            line-height: 1;
+            color: var(--color-text-secondary);
+        }
+
+        .key-toggle:hover { background: var(--color-bg-secondary); }
+
+        .provider-hint {
+            margin-top: var(--space-xs);
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+            background: var(--color-bg-secondary);
+            border-radius: var(--radius-sm);
+            padding: var(--space-xs) var(--space-sm);
+        }
+
+        .bot-models-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-md);
+        }
+
+        .form-success {
+            color: var(--color-success);
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            margin-top: var(--space-sm);
+        }
+
+        .settings-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            margin-top: var(--space-lg);
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" role="banner">
+        <div class="header-content">
+            <div class="header-brand">
+                <span class="header-logo">🤖</span>
+                <h1 class="header-title">DevBots Dashboard</h1>
+            </div>
+            <nav class="header-nav" role="navigation" aria-label="Main navigation" data-page="settings"></nav>
+            <div class="header-actions">
+                <button class="btn-icon" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+                    <span class="icon">☀️</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main" role="main">
+        <div class="container">
+            <section class="page-section" aria-label="Settings">
+                <div class="section-header">
+                    <h2 class="section-title">⚙️ Settings</h2>
+                </div>
+
+                <form id="settings-form" novalidate>
+                    <div class="settings-grid">
+
+                        <!-- Provider -->
+                        <div class="settings-card">
+                            <h3 class="settings-card-title">LLM Provider</h3>
+
+                            <div class="form-group">
+                                <label for="field-provider">Active Provider</label>
+                                <select id="field-provider" class="form-input">
+                                    <option value="anthropic">Anthropic (Claude)</option>
+                                    <option value="openai">OpenAI / OpenAI-compatible</option>
+                                    <option value="gemini">Google Gemini</option>
+                                </select>
+                                <span class="form-hint">All bots use this provider unless a per-bot override is set.</span>
+                            </div>
+
+                            <p class="provider-hint" data-provider-hint="anthropic">
+                                Uses <strong>claude-haiku-4-5-20251001</strong> by default. Requires <code>ANTHROPIC_API_KEY</code>.
+                            </p>
+                            <p class="provider-hint" hidden data-provider-hint="openai">
+                                Compatible with OpenAI, Groq, Mistral, Ollama, and any OpenAI-compatible API.
+                                Set the Base URL below to point to a different endpoint.
+                            </p>
+                            <p class="provider-hint" hidden data-provider-hint="gemini">
+                                Uses Google Gemini. Get your key at
+                                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com</a>.
+                                Requires <code>uv add google-genai</code>.
+                            </p>
+                        </div>
+
+                        <!-- API Keys -->
+                        <div class="settings-card">
+                            <h3 class="settings-card-title">API Keys</h3>
+                            <p class="form-hint" style="margin-bottom: var(--space-lg)">
+                                Keys are stored in your <code>.env</code> file and are never returned by the API.
+                                Leave a field empty to keep the existing key unchanged.
+                            </p>
+
+                            <div class="form-group">
+                                <label for="field-anthropic-key">
+                                    Anthropic API Key
+                                    <span id="key-indicator-anthropic" class="key-indicator"></span>
+                                </label>
+                                <div class="key-field-row">
+                                    <input type="password" id="field-anthropic-key" class="form-input"
+                                           placeholder="sk-ant-… (leave blank to keep existing)"
+                                           autocomplete="new-password">
+                                    <button type="button" class="key-toggle" data-target="field-anthropic-key"
+                                            title="Show / hide key">👁</button>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="field-openai-key">
+                                    OpenAI API Key
+                                    <span id="key-indicator-openai" class="key-indicator"></span>
+                                </label>
+                                <div class="key-field-row">
+                                    <input type="password" id="field-openai-key" class="form-input"
+                                           placeholder="sk-… (leave blank to keep existing)"
+                                           autocomplete="new-password">
+                                    <button type="button" class="key-toggle" data-target="field-openai-key"
+                                            title="Show / hide key">👁</button>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="field-openai-base-url">OpenAI Base URL</label>
+                                <input type="url" id="field-openai-base-url" class="form-input"
+                                       placeholder="https://api.openai.com/v1 (leave blank for default)">
+                                <span class="form-hint">Change this to use Groq, Mistral, Ollama, or any compatible endpoint.</span>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="field-gemini-key">
+                                    Gemini API Key
+                                    <span id="key-indicator-gemini" class="key-indicator"></span>
+                                </label>
+                                <div class="key-field-row">
+                                    <input type="password" id="field-gemini-key" class="form-input"
+                                           placeholder="AIza… (leave blank to keep existing)"
+                                           autocomplete="new-password">
+                                    <button type="button" class="key-toggle" data-target="field-gemini-key"
+                                            title="Show / hide key">👁</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Models -->
+                        <div class="settings-card">
+                            <h3 class="settings-card-title">Models</h3>
+
+                            <div class="form-group">
+                                <label for="field-model">Default Model</label>
+                                <input type="text" id="field-model" class="form-input"
+                                       placeholder="e.g. claude-haiku-4-5-20251001 / gpt-4o-mini / gemini-2.0-flash">
+                                <span class="form-hint">
+                                    Used by all bots that don't have a per-bot override below.
+                                    Set <code>DEVBOTS_MODEL</code> in your <code>.env</code>.
+                                </span>
+                            </div>
+
+                            <h4 style="margin: var(--space-lg) 0 var(--space-md); font-size: var(--font-size-base); color: var(--color-text-secondary);">
+                                Per-bot overrides <span style="font-weight: 400">(leave blank to use the default)</span>
+                            </h4>
+                            <div class="bot-models-grid">
+                                <div class="form-group">
+                                    <label for="bot-model-gitbot">🔍 GitBot</label>
+                                    <input type="text" id="bot-model-gitbot" class="form-input"
+                                           data-bot-model="gitbot" placeholder="inherits default">
+                                </div>
+                                <div class="form-group">
+                                    <label for="bot-model-qabot">🧪 QABot</label>
+                                    <input type="text" id="bot-model-qabot" class="form-input"
+                                           data-bot-model="qabot" placeholder="inherits default">
+                                </div>
+                                <div class="form-group">
+                                    <label for="bot-model-pmbot">📋 PMBot</label>
+                                    <input type="text" id="bot-model-pmbot" class="form-input"
+                                           data-bot-model="pmbot" placeholder="inherits default">
+                                </div>
+                                <div class="form-group">
+                                    <label for="bot-model-orchestrator">🎯 Orchestrator</label>
+                                    <input type="text" id="bot-model-orchestrator" class="form-input"
+                                           data-bot-model="orchestrator" placeholder="inherits default">
+                                </div>
+                                <div class="form-group">
+                                    <label for="bot-model-journalbot">📓 JournalBot</label>
+                                    <input type="text" id="bot-model-journalbot" class="form-input"
+                                           data-bot-model="journalbot" placeholder="inherits default">
+                                </div>
+                                <div class="form-group">
+                                    <label for="bot-model-taskbot">✅ TaskBot</label>
+                                    <input type="text" id="bot-model-taskbot" class="form-input"
+                                           data-bot-model="taskbot" placeholder="inherits default">
+                                </div>
+                                <div class="form-group">
+                                    <label for="bot-model-habitbot">📊 HabitBot</label>
+                                    <input type="text" id="bot-model-habitbot" class="form-input"
+                                           data-bot-model="habitbot" placeholder="inherits default">
+                                </div>
+                                <div class="form-group">
+                                    <label for="bot-model-notebot">📝 NoteBot</label>
+                                    <input type="text" id="bot-model-notebot" class="form-input"
+                                           data-bot-model="notebot" placeholder="inherits default">
+                                </div>
+                            </div>
+                        </div>
+
+                    </div><!-- /.settings-grid -->
+
+                    <!-- Actions -->
+                    <div class="settings-actions">
+                        <button type="submit" id="save-btn" class="btn btn-primary">Save Settings</button>
+                        <p class="form-error" id="form-error" hidden></p>
+                        <p class="form-success" id="form-success" hidden>✓ Settings saved successfully.</p>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </main>
+
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <p>DevBots Dashboard</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/components.js"></script>
+    <script src="js/settings.js"></script>
+    <script src="js/sw-register.js"></script>
+</body>
+</html>

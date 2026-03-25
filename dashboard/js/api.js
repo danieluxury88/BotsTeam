@@ -60,6 +60,15 @@ const API = {
         }
     },
 
+    // Settings
+    async getSettings() {
+        return await this.fetchJSON(CONFIG.API.SETTINGS_API);
+    },
+
+    async updateSettings(body) {
+        return await this._mutate(CONFIG.API.SETTINGS_API, 'PUT', body);
+    },
+
     // Create a new project
     async createProject(body) {
         return await this._mutate(CONFIG.API.PROJECTS_API, 'POST', body);

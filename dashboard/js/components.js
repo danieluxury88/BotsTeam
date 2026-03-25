@@ -51,7 +51,8 @@ const HEADER_NAV_ITEMS = [
     { id: 'activity', href: 'activity.html', label: 'Activity' },
     { id: 'reports', href: 'reports.html', label: 'Reports' },
     { id: 'calendar', href: 'calendar.html', label: 'Calendar' },
-    { id: 'notes', href: 'notes.html', label: 'Notes' }
+    { id: 'notes', href: 'notes.html', label: 'Notes' },
+    { id: 'settings', href: 'settings.html', label: 'Settings' },
 ];
 
 function renderHeaderNavigation() {

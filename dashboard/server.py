@@ -32,6 +32,7 @@ from api import (  # noqa: E402
     generate_reports,
     get_note,
     get_project,
+    get_settings,
     get_voice_command_job,
     improve_note_api,
     list_notes,
@@ -43,6 +44,7 @@ from api import (  # noqa: E402
     start_voice_command_job,
     update_note,
     update_project,
+    update_settings,
 )
 
 
@@ -121,6 +123,9 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self._clean_path()
+        if path == '/api/settings':
+            self._call_api(get_settings)
+            return
         voice_api = self._parse_voice_command_api(path)
         if voice_api is not None:
             _, job_id = voice_api
@@ -231,6 +236,13 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_PUT(self):
         path = self._clean_path()
+
+        if path == '/api/settings':
+            body = self._read_json_body()
+            if body is None:
+                return
+            self._call_api(update_settings, body)
+            return
 
         # PUT /api/projects/{name}/notes/{file} — update note
         notes = self._parse_notes_api(path)

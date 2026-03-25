@@ -17,3 +17,7 @@ dependencies = [
     "PyGithub>=2.0.0",
     "WeasyPrint>=62.0",
 ]
+
+[project.optional-dependencies]
+openai = ["openai>=1.0.0"]
+gemini = ["google-genai>=1.0.0"]

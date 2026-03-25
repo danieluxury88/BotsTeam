@@ -1,11 +1,10 @@
 """Analyzer — sends grouped git history to Claude and returns a summary."""
 
-import os
 from pathlib import Path
 
-from shared.config import get_anthropic_api_key, get_default_model, load_env
+from shared.config import load_env
 from shared.git_reader import read_commits, filter_commits, group_commits_auto, format_groups_for_llm
-from shared.llm import create_client
+from shared.llm import chat
 from shared.models import ChangeSet, BotResult
 
 load_env()
@@ -37,12 +36,10 @@ def analyze_history(
 ) -> str:
     """Send commit history to Claude and return a markdown summary."""
 
-    effective_model = model or get_default_model()
     truncation_note = (
         "\n**Note:** This is a partial history — the repository has more commits than were analyzed.\n"
         if truncated else ""
     )
-    client = create_client()
 
     user_message = f"""\
 Please analyze the following git history for the **{repo_name}** repository and provide a high-level summary.
@@ -56,14 +53,7 @@ Produce a structured report with:
 4. **Observations** — any patterns, concerns, or highlights worth noting
 """
 
-    message = client.messages.create(
-        model=effective_model,
-        max_tokens=1024,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
-    )
-
-    return message.content[0].text
+    return chat(system=SYSTEM_PROMPT, user=user_message, max_tokens=1024, model=model)
 
 
 def get_changeset(

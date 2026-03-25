@@ -8,7 +8,7 @@ from typing import Any
 
 from orchestrator.bot_invoker import PIPELINES, invoke_bot, invoke_pipeline
 from orchestrator.registry import Project, ProjectRegistry
-from shared.llm import create_client
+from shared.llm import chat
 from shared.models import BotResult, ProjectScope
 
 SYSTEM_PROMPT = """\
@@ -87,9 +87,7 @@ class OrchestratorOutcome:
 
 
 def parse_user_request(user_message: str, available_projects: list[str]) -> dict[str, Any]:
-    """Use Claude to parse a request and determine the next orchestrator action."""
-    client = create_client()
-
+    """Use the configured LLM to parse a request and determine the next orchestrator action."""
     projects_list = ", ".join(available_projects) if available_projects else "none registered"
     user_prompt = f"""Available projects: {projects_list}
 
@@ -97,14 +95,12 @@ User request: {user_message}
 
 What should I do? Respond with valid JSON only."""
 
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=500,
+    response_text = chat(
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
-
-    response_text = message.content[0].text.strip()
+        user=user_prompt,
+        max_tokens=500,
+        bot_env_key="ORCHESTRATOR_MODEL",
+    ).strip()
 
     if "```json" in response_text:
         response_text = response_text.split("```json")[1].split("```")[0].strip()

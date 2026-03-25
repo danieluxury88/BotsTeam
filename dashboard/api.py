@@ -38,6 +38,20 @@ load_env()
 
 NAME_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*$')
 AI_BOTS = {"gitbot", "qabot", "pmbot", "journalbot", "taskbot", "habitbot", "notebot", "orchestrator"}
+
+# Maps bot id → env var name for per-bot model overrides
+_BOT_MODEL_ENV_KEYS: dict[str, str] = {
+    "gitbot":      "GITBOT_MODEL",
+    "qabot":       "QABOT_MODEL",
+    "pmbot":       "ISSUEBOT_MODEL",
+    "orchestrator": "ORCHESTRATOR_MODEL",
+    "journalbot":  "JOURNALBOT_MODEL",
+    "taskbot":     "TASKBOT_MODEL",
+    "habitbot":    "HABITBOT_MODEL",
+    "notebot":     "NOTEBOT_MODEL",
+}
+
+_ALLOWED_PROVIDERS = {"anthropic", "openai", "gemini"}
 VOICE_COMMAND_JOBS: dict[str, dict] = {}
 VOICE_COMMAND_JOBS_LOCK = threading.Lock()
 MAX_VOICE_COMMAND_JOBS = 100
@@ -92,6 +106,104 @@ def _prune_voice_command_jobs() -> None:
         while len(VOICE_COMMAND_JOBS) > MAX_VOICE_COMMAND_JOBS and removable:
             job_id, _ = removable.pop(0)
             VOICE_COMMAND_JOBS.pop(job_id, None)
+
+
+def _update_env_file(updates: dict[str, str]) -> None:
+    """
+    Update key=value entries in the workspace .env file.
+
+    - Non-empty value  → uncomment and set the key
+    - Empty string     → comment the key out (preserves the hint for later use)
+    - Key not in dict  → leave the line untouched
+    - New keys         → appended at the end (only if value is non-empty)
+    """
+    env_path = REPO_ROOT / ".env"
+    example_path = REPO_ROOT / ".env.example"
+
+    if not env_path.exists():
+        if example_path.exists():
+            import shutil
+            shutil.copy(example_path, env_path)
+        else:
+            env_path.write_text("", encoding="utf-8")
+
+    lines = env_path.read_text(encoding="utf-8").splitlines()
+    updated_keys: set[str] = set()
+    new_lines: list[str] = []
+
+    for line in lines:
+        match = re.match(r'^#?\s*([A-Z_][A-Z0-9_]*)=', line.strip())
+        if match:
+            key = match.group(1)
+            if key in updates:
+                value = updates[key]
+                new_lines.append(f"{key}={value}" if value else f"# {key}=")
+                updated_keys.add(key)
+                continue
+        new_lines.append(line)
+
+    for key, value in updates.items():
+        if key not in updated_keys and value:
+            new_lines.append(f"{key}={value}")
+
+    env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+
+
+def get_settings() -> dict:
+    """Return current LLM provider settings (API keys are never returned in plaintext)."""
+    return {
+        "provider":        os.environ.get("DEVBOTS_PROVIDER", "anthropic"),
+        "model":           os.environ.get("DEVBOTS_MODEL", "claude-haiku-4-5-20251001"),
+        "anthropic_key_set": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "openai_key_set":    bool(os.environ.get("OPENAI_API_KEY")),
+        "gemini_key_set":    bool(os.environ.get("GEMINI_API_KEY")),
+        "openai_base_url": os.environ.get("OPENAI_BASE_URL", ""),
+        "bot_models": {
+            bot: os.environ.get(env_key, "")
+            for bot, env_key in _BOT_MODEL_ENV_KEYS.items()
+        },
+    }
+
+
+def update_settings(body: dict) -> tuple[dict, int]:
+    """Persist provider/model/key changes to .env and apply them to the live process."""
+    updates: dict[str, str] = {}
+
+    provider = str(body.get("provider", "")).strip().lower()
+    if provider:
+        if provider not in _ALLOWED_PROVIDERS:
+            return {"error": f"Invalid provider '{provider}'. Choose: {', '.join(sorted(_ALLOWED_PROVIDERS))}"}, 400
+        updates["DEVBOTS_PROVIDER"] = provider
+
+    if "model" in body:
+        updates["DEVBOTS_MODEL"] = str(body["model"]).strip()
+
+    for field, env_key in [
+        ("anthropic_key", "ANTHROPIC_API_KEY"),
+        ("openai_key",    "OPENAI_API_KEY"),
+        ("gemini_key",    "GEMINI_API_KEY"),
+    ]:
+        if field in body:
+            updates[env_key] = str(body[field]).strip()
+
+    if "openai_base_url" in body:
+        updates["OPENAI_BASE_URL"] = str(body["openai_base_url"]).strip()
+
+    for bot, env_key in _BOT_MODEL_ENV_KEYS.items():
+        bot_models = body.get("bot_models", {})
+        if bot in bot_models:
+            updates[env_key] = str(bot_models[bot]).strip()
+
+    _update_env_file(updates)
+
+    # Apply to the running process immediately so no restart is needed
+    for key, value in updates.items():
+        if value:
+            os.environ[key] = value
+        elif key in os.environ:
+            del os.environ[key]
+
+    return get_settings(), 200
 
 
 def _project_to_dict(project):
