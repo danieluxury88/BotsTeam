@@ -23,6 +23,22 @@ data/{project-name}/reports/pmbot/
 - 🆕 GitHub and GitLab issue creation
 - 🔌 Programmatic runner for orchestrator and other bots
 
+## When to Use PMBot
+
+Use `pmbot` first when the question starts from the issue tracker:
+
+- "What do we know about issue #37?"
+- "Which blockers are related to this GitLab issue?"
+- "What context do I need before I start implementing a fix?"
+
+For example, to gather context for UniLi issue `#37`:
+
+```bash
+uv run pmbot review --project UniLi --issue 37 --dry-run
+```
+
+After PMBot identifies the relevant subsystem and related issues, switch to `gitbot` for repo history and `qabot` for testing guidance.
+
 ## Installation
 
 From the workspace root:
@@ -96,6 +112,7 @@ uv run pmbot create \
 ```bash
 uv run pmbot review --project BotsTeam --dry-run
 uv run pmbot review --project BotsTeam --issue 42
+uv run pmbot review --project UniLi --issue 37 --dry-run
 uv run pmbot review --github-repo owner/repo --state all --max 20
 ```
 

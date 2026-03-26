@@ -27,11 +27,15 @@ These bots analyze code repositories and project management data.
 
 Connects to GitLab or GitHub to fetch open issues, identify patterns, surface blockers, and summarize team workload. Answers: *"What is the team working on? What is stuck? What's the priority?"*
 
+Use this bot first when you need information about a specific tracker item before touching code. Example: *"What do we already know about UniLi issue #37, and what related blockers should I check?"*
+
 ### Solution Architect
 
 **Bot:** gitbot + qabot (combined)
 
 Analyzes recent git history to understand what changed and why, then suggests tests to validate those changes. Answers: *"What was built recently? Is it tested?"*
+
+Use these after `pmbot` has narrowed the issue to a subsystem or likely code path.
 
 ### Sprint Planner
 

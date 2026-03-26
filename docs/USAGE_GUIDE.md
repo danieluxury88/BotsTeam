@@ -109,6 +109,12 @@ uv run pmbot plan --project 12345
 # Review issue descriptions
 uv run pmbot review --project BotsTeam --dry-run
 
+# Investigate a single issue before coding
+uv run pmbot review --project UniLi --issue 37 --dry-run
+
+# Then inspect recent code changes in the project repo
+uv run gitbot /home/daniel24/Clients/ProtonSystems/uni.li
+
 # Verify tracker access before mutating issues
 uv run pmbot check --project BotsTeam
 
@@ -181,6 +187,8 @@ uv run chat
 # 6. View everything in the dashboard
 uv run dashboard
 ```
+
+For a specific tracker item, start with `pmbot`, not `gitbot`. Example: if you need context to solve UniLi issue `#37`, run `uv run pmbot review --project UniLi --issue 37 --dry-run` first to gather tracker context and related blockers, then use `gitbot` and `qabot` on the UniLi repository for code-history and testing follow-up.
 
 ## Configuration Reference
 
