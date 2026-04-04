@@ -25,7 +25,7 @@ from shared.models import (
 
 SYSTEM_PROMPT = """\
 You are IssueBot, an expert software project manager and engineering lead.
-You analyze GitLab issues to help teams understand their backlog, identify patterns,
+You analyze GitLab and GitHub issues to help teams understand their backlog, identify patterns,
 and plan work effectively.
 Be concise, direct, and actionable. Format responses in clean Markdown.
 """
@@ -37,8 +37,12 @@ def _format_issue_list(issues: list[Issue], max_issues: int = 60) -> str:
     """Compact text representation of issues for LLM prompts."""
     lines: list[str] = []
     for i in issues[:max_issues]:
-        labels = f" [{', '.join(i.labels)}]" if i.labels else ""
-        assignee = f" @{', '.join(i.assignees)}" if i.assignees else " (unassigned)"
+        labels = f" | labels: {', '.join(i.labels)}" if i.labels else " | labels: none"
+        assignee = (
+            f" | assignees: @{', @'.join(i.assignees)}"
+            if i.assignees
+            else " | assignees: unassigned"
+        )
         milestone = f" | milestone: {i.milestone}" if i.milestone else ""
         age = f" | {i.age_days}d old"
         desc = f"\n     {i.short_desc}" if i.short_desc else ""
@@ -48,6 +52,66 @@ def _format_issue_list(issues: list[Issue], max_issues: int = 60) -> str:
     if len(issues) > max_issues:
         lines.append(f"... and {len(issues) - max_issues} more issues not shown.")
     return "\n".join(lines)
+
+
+def _label_distribution(issues: list[Issue]) -> dict[str, int]:
+    """Count label frequency across a list of issues."""
+    label_dist: dict[str, int] = {}
+    for issue in issues:
+        for label in issue.labels:
+            label_dist[label] = label_dist.get(label, 0) + 1
+    return label_dist
+
+
+def _label_summary(issues: list[Issue], max_labels: int = 15) -> str:
+    """Human-readable label frequency summary for prompts."""
+    label_dist = _label_distribution(issues)
+    return ", ".join(
+        f"{label} ({count})"
+        for label, count in sorted(
+            label_dist.items(),
+            key=lambda item: (-item[1], item[0].lower()),
+        )[:max_labels]
+    )
+
+
+def _render_open_tasks_by_assignee(open_issues: list[Issue]) -> str:
+    """Render a deterministic assignee view of the current open backlog."""
+    lines = ["## Open Tasks By Assignee", ""]
+
+    if not open_issues:
+        lines.append("No open tasks.")
+        return "\n".join(lines)
+
+    buckets: dict[str, list[Issue]] = {}
+    for issue in open_issues:
+        assignees = issue.assignees or ["Unassigned"]
+        for assignee in assignees:
+            buckets.setdefault(assignee, []).append(issue)
+
+    assigned_names = sorted(
+        (name for name in buckets if name != "Unassigned"),
+        key=str.lower,
+    )
+    ordered_names = assigned_names + (["Unassigned"] if "Unassigned" in buckets else [])
+
+    for assignee in ordered_names:
+        heading = f"@{assignee}" if assignee != "Unassigned" else assignee
+        items = sorted(
+            buckets[assignee],
+            key=lambda issue: (-issue.age_days, issue.iid),
+        )
+        lines.append(f"### {heading} ({len(items)})")
+        for issue in items:
+            link = f"[#{issue.iid}]({issue.web_url})" if issue.web_url else f"#{issue.iid}"
+            labels = f" — labels: {', '.join(issue.labels[:4])}" if issue.labels else ""
+            milestone = f" — milestone: {issue.milestone}" if issue.milestone else ""
+            lines.append(
+                f"- {link} **{issue.title}**{labels}{milestone} — {issue.age_days}d old"
+            )
+        lines.append("")
+
+    return "\n".join(lines).rstrip()
 
 
 # ── 1. Issue pattern analysis ────────────────────────────────────────────────
@@ -60,19 +124,13 @@ def analyze(issue_set: IssueSet) -> BotResult:
     open_text   = _format_issue_list(issue_set.open_issues)
     closed_text = _format_issue_list(issue_set.closed_issues, max_issues=30)
 
-    label_dist = {}
-    for i in issue_set.issues:
-        for lbl in i.labels:
-            label_dist[lbl] = label_dist.get(lbl, 0) + 1
-    label_summary = ", ".join(
-        f"{lbl} ({n})" for lbl, n in
-        sorted(label_dist.items(), key=lambda x: x[1], reverse=True)[:15]
-    )
+    label_dist = _label_distribution(issue_set.issues)
+    label_summary = _label_summary(issue_set.issues)
 
     stale = issue_set.stale()
 
     user_message = f"""\
-Please analyze the GitLab issues for **{issue_set.project_name}**.
+Please analyze the issue tracker backlog for **{issue_set.project_name}**.
 
 ## Stats
 - Open issues: {len(issue_set.open_issues)}
@@ -103,6 +161,7 @@ Please produce a structured report:
             max_tokens=1500,
             bot_env_key="ISSUEBOT_MODEL",
         )
+        report_md = f"{report_md.rstrip()}\n\n{_render_open_tasks_by_assignee(issue_set.open_issues)}"
 
         return BotResult(
             bot_name="issuebot",
@@ -131,7 +190,7 @@ Please produce a structured report:
 
 _PLAN_SYSTEM = """\
 You are IssueBot acting as a sprint planner.
-Your job is to take a list of open issues and return a structured JSON workload plan.
+Your job is to take a list of open GitLab or GitHub issues and return a structured JSON workload plan.
 
 Return ONLY valid JSON — no markdown fences, no preamble, no explanation.
 
@@ -165,6 +224,13 @@ Effort guide (working hours):
 
 Assign weeks (1 = this week, 2 = next week, etc.) based on priority and effort.
 Assume one developer working on this, ~5 effective hours per day.
+
+Label usage rules:
+- Treat issue labels as first-class planning signals, not optional metadata.
+- Use labels to infer severity, component ownership, risk, workflow stage, and dependency clusters.
+- If labels suggest a blocker, regression, production risk, or cross-cutting subsystem, raise priority accordingly.
+- If several issues share the same label cluster, group them logically across adjacent weeks when that reduces context switching.
+- Do not invent meaning for labels that is not supported by the issue title/description, but do use reasonable tracker conventions such as bug, regression, security, performance, UX, backend, frontend, API, infra, blocked, urgent, and similar labels.
 """
 
 
@@ -191,13 +257,19 @@ def plan(issue_set: IssueSet) -> tuple[WorkloadPlan, BotResult]:
         )
 
     issues_text = _format_issue_list(open_issues)
+    label_summary = _label_summary(open_issues, max_labels=20)
+    labels_present = sum(1 for issue in open_issues if issue.labels)
 
     user_message = f"""\
 Project: {issue_set.project_name}
+Open issue label coverage: {labels_present}/{len(open_issues)} issues have labels
+Open issue labels by frequency: {label_summary or "none"}
+
 Open issues to plan ({len(open_issues)} total):
 
 {issues_text}
 
+When assigning priority and week, explicitly use issue labels where they add planning signal.
 Return the JSON plan for all {len(open_issues)} issues.
 """
 
@@ -249,7 +321,7 @@ Return the JSON plan for all {len(open_issues)} issues.
             summary=data.get("summary", ""),
         )
 
-        report_md = _render_plan_markdown(plan_obj)
+        report_md = _render_plan_markdown(plan_obj, open_issues)
 
         return plan_obj, BotResult(
             bot_name="issuebot",
@@ -279,7 +351,10 @@ Return the JSON plan for all {len(open_issues)} issues.
         ), BotResult.failure("issuebot", str(e))
 
 
-def _render_plan_markdown(plan_obj: WorkloadPlan) -> str:
+def _render_plan_markdown(
+    plan_obj: WorkloadPlan,
+    open_issues: list[Issue] | None = None,
+) -> str:
     """Render a WorkloadPlan to a clean markdown report."""
     lines: list[str] = []
     lines.append(f"# 🗓 Sprint Plan — {plan_obj.project_name}")
@@ -294,8 +369,8 @@ def _render_plan_markdown(plan_obj: WorkloadPlan) -> str:
     # Priority summary table
     lines.append("## Priority Overview")
     lines.append("")
-    lines.append("| # | Issue | Priority | Effort | Rationale |")
-    lines.append("|---|-------|----------|--------|-----------|")
+    lines.append("| # | Issue | Labels | Priority | Effort | Rationale |")
+    lines.append("|---|-------|--------|----------|--------|-----------|")
 
     priority_order = ["critical", "high", "normal", "low"]
     sorted_issues = sorted(
@@ -315,9 +390,10 @@ def _render_plan_markdown(plan_obj: WorkloadPlan) -> str:
         url = pi.issue.web_url
         link = f"[#{pi.issue.iid}]({url})" if url else f"#{pi.issue.iid}"
         title = pi.issue.title[:55] + ("…" if len(pi.issue.title) > 55 else "")
+        labels = ", ".join(pi.issue.labels[:3]) if pi.issue.labels else "—"
         rationale = pi.rationale[:70] + ("…" if len(pi.rationale) > 70 else "")
         lines.append(
-            f"| {link} | {title} | {icon} {pi.priority.value} | "
+            f"| {link} | {title} | {labels} | {icon} {pi.priority.value} | "
             f"`{pi.effort.value}` | {rationale} |"
         )
 
@@ -338,10 +414,15 @@ def _render_plan_markdown(plan_obj: WorkloadPlan) -> str:
             url = pi.issue.web_url
             link = f"[#{pi.issue.iid}]({url})" if url else f"#{pi.issue.iid}"
             assignee = f" — @{', '.join(pi.issue.assignees)}" if pi.issue.assignees else ""
+            labels = f" — labels: {', '.join(pi.issue.labels[:4])}" if pi.issue.labels else ""
             lines.append(
                 f"- {icon} {link} **{pi.issue.title}** "
-                f"`{pi.effort.value}`{assignee}"
+                f"`{pi.effort.value}`{assignee}{labels}"
             )
+
+    source_issues = open_issues if open_issues is not None else [pi.issue for pi in plan_obj.planned_issues]
+    lines.append("")
+    lines.append(_render_open_tasks_by_assignee(source_issues))
 
     return "\n".join(lines)
 
@@ -350,7 +431,7 @@ def _render_plan_markdown(plan_obj: WorkloadPlan) -> str:
 
 _REVIEW_BASE_SYSTEM = """\
 You are an expert technical writer specializing in software project management.
-Your job is to improve GitLab issue descriptions to make them clearer, more complete,
+Your job is to improve GitLab and GitHub issue descriptions to make them clearer, more complete,
 and more actionable for developers.
 
 Keep the same intent and technical content — only improve structure, clarity,
