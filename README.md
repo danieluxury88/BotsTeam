@@ -138,6 +138,8 @@ uv run dashboard generate        # Regenerate data only
 
 # In the dashboard home page, use the Voice Bridge card for browser mic input
 # and spoken routed replies in Spanish or English
+# In the Projects view, generated reports can optionally be sent to Teams
+# when the project has Teams channels configured.
 
 # Or via orchestrator
 uv run orchestrator dashboard

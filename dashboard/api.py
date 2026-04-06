@@ -20,7 +20,7 @@ from orchestrator.registry import ProjectRegistry  # noqa: E402
 from orchestrator.router import process_user_request  # noqa: E402
 from generate_data import DashboardDataGenerator  # noqa: E402
 from shared.bot_registry import BOTS as _BOT_REGISTRY, runnable_bots as _runnable_bots  # noqa: E402
-from shared.config import get_active_provider, get_default_model, get_provider_default_model, load_env  # noqa: E402
+from shared.config import Config, get_active_provider, get_default_model, get_provider_default_model, load_env  # noqa: E402
 from shared.data_manager import get_data_root, get_notes_dir, get_reports_dir  # noqa: E402
 from shared.models import ProjectScope  # noqa: E402
 from shared.report_export import (  # noqa: E402
@@ -727,6 +727,86 @@ def delete_project(name):
     return {"deleted": name}, 200
 
 
+def _resolve_generate_reports_teams_delivery(project, data):
+    """Validate and resolve optional Teams delivery settings for report generation."""
+    enabled = bool(data.get("send_to_teams"))
+    if not enabled:
+        return {"enabled": False}, None, None
+
+    channels = getattr(project, "teams_channels", None) or []
+    if not channels:
+        return None, {"error": f"Project '{project.name}' has no Teams channels configured."}, 400
+
+    requested_channel = _clean_optional_text(data.get("teams_channel"))
+    if requested_channel:
+        channel = project.get_teams_channel(requested_channel)
+        if not channel:
+            return None, {"error": f"Teams channel '{requested_channel}' is not configured for project '{project.name}'."}, 400
+        webhook_url = project.get_teams_webhook_url(requested_channel)
+        if not webhook_url:
+            env_var = channel.get("webhook_env_var", "")
+            return None, {"error": f"Teams channel '{requested_channel}' is missing env var '{env_var}'."}, 400
+        return {
+            "enabled": True,
+            "channel": channel.get("name", requested_channel),
+            "webhook_url": webhook_url,
+        }, None, None
+
+    if len(channels) == 1:
+        channel = channels[0]
+        webhook_url = project.get_teams_webhook_url(channel.get("name"))
+        if not webhook_url:
+            env_var = channel.get("webhook_env_var", "")
+            return None, {"error": f"Teams channel '{channel.get('name', '')}' is missing env var '{env_var}'."}, 400
+        return {
+            "enabled": True,
+            "channel": channel.get("name"),
+            "webhook_url": webhook_url,
+        }, None, None
+
+    return None, {"error": f"Project '{project.name}' has multiple Teams channels. Choose one in the report modal."}, 400
+
+
+def _deliver_generated_report_to_teams(project, bot_name, result, report_saved, teams_delivery):
+    """Send a generated report to Teams and return a delivery result summary."""
+    from teamsbot.client import send_webhook
+    from teamsbot.formatter import build_bot_result_payload, build_saved_report_payload
+
+    report_path_str = report_saved.get("latest") if isinstance(report_saved, dict) else None
+    report_path = Path(report_path_str) if report_path_str else None
+
+    if report_path and report_path.exists():
+        payload = build_saved_report_payload(
+            project_name=project.name,
+            bot_name=bot_name,
+            report_markdown=report_path.read_text(encoding="utf-8"),
+            report_path=report_path,
+        )
+    else:
+        payload = build_bot_result_payload(result, project_name=project.name)
+
+    response = send_webhook(
+        teams_delivery["webhook_url"],
+        payload,
+        Config.teams_timeout_seconds(),
+    )
+    if response.status_code >= 400:
+        return {
+            "status": "failed",
+            "channel": teams_delivery["channel"],
+            "summary": (
+                f"Teams delivery to {teams_delivery['channel']} failed "
+                f"(HTTP {response.status_code})."
+            ),
+        }
+
+    return {
+        "status": "sent",
+        "channel": teams_delivery["channel"],
+        "summary": f"Sent to Teams channel {teams_delivery['channel']}.",
+    }
+
+
 def generate_reports(name, data):
     """Run selected bots for a project and return results."""
     from orchestrator.bot_invoker import invoke_bot
@@ -736,6 +816,9 @@ def generate_reports(name, data):
         return {"error": f"Project '{name}' not found."}, 404
 
     project = registry.projects[name]
+    teams_delivery, teams_error, teams_status = _resolve_generate_reports_teams_delivery(project, data)
+    if teams_error:
+        return teams_error, teams_status
 
     bots = data.get("bots", [])
     if not bots:
@@ -758,6 +841,8 @@ def generate_reports(name, data):
     results = {}
     completed = 0
     failed = 0
+    teams_sent = 0
+    teams_failed = 0
 
     for bot_name in bots:
         try:
@@ -790,6 +875,30 @@ def generate_reports(name, data):
             if artifacts:
                 result_entry["artifacts"] = artifacts
 
+            if teams_delivery["enabled"] and status_str not in ("error", "failed"):
+                try:
+                    delivery_result = _deliver_generated_report_to_teams(
+                        project,
+                        bot_name,
+                        result,
+                        report_saved,
+                        teams_delivery,
+                    )
+                except Exception as exc:
+                    delivery_result = {
+                        "status": "failed",
+                        "channel": teams_delivery["channel"],
+                        "summary": (
+                            f"Teams delivery to {teams_delivery['channel']} failed: {exc}"
+                        ),
+                    }
+
+                result_entry["teams_delivery"] = delivery_result
+                if delivery_result["status"] == "sent":
+                    teams_sent += 1
+                else:
+                    teams_failed += 1
+
             results[bot_name] = result_entry
             if status_str in ("error", "failed"):
                 failed += 1
@@ -800,7 +909,17 @@ def generate_reports(name, data):
             failed += 1
 
     _regenerate_dashboard()
-    return {"results": results, "completed": completed, "failed": failed}, 200
+    return {
+        "results": results,
+        "completed": completed,
+        "failed": failed,
+        "teams_delivery": {
+            "enabled": teams_delivery["enabled"],
+            "channel": teams_delivery.get("channel"),
+            "sent": teams_sent,
+            "failed": teams_failed,
+        },
+    }, 200
 
 
 def _execute_voice_command_payload(data):

@@ -268,6 +268,7 @@ class DashboardDataGenerator:
                 "github_repo": project.get("github_repo"),
                 "site_url": project.get("site_url"),
                 "audit_urls": project.get("audit_urls"),
+                "teams_channels": project.get("teams_channels"),
                 "report_branding_profile": project.get("report_branding_profile"),
                 "report_prepared_by": project.get("report_prepared_by"),
                 "report_client_name": project.get("report_client_name"),

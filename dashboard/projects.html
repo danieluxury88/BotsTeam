@@ -229,6 +229,19 @@
                         </div>
                     </fieldset>
 
+                    <fieldset class="form-fieldset" id="rg-teams-fieldset" hidden>
+                        <legend>Teams Delivery</legend>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="rg-send-teams">
+                            Send successful generated reports to Microsoft Teams
+                        </label>
+                        <div class="form-group">
+                            <label for="rg-teams-channel">Teams Channel</label>
+                            <select id="rg-teams-channel" class="form-input"></select>
+                            <span class="form-hint" id="rg-teams-hint">Uses the selected project Teams channel alias.</span>
+                        </div>
+                    </fieldset>
+
                     <p class="form-error" id="report-error"></p>
                     <div class="modal-actions">
                         <button type="button" class="btn btn-secondary" onclick="ReportGenerator.closeModal()">Cancel</button>

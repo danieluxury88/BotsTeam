@@ -5,6 +5,8 @@ from pathlib import Path
 from types import ModuleType
 from types import SimpleNamespace
 
+from shared.models import BotResult, BotStatus
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DASHBOARD_DIR = REPO_ROOT / "dashboard"
@@ -156,6 +158,134 @@ def test_update_project_validates_teams_channel_env_vars(
 
     assert status == 400
     assert "Invalid Teams webhook env var" in body["error"]
+
+
+def test_generate_reports_sends_to_single_configured_teams_channel(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    registry = api.ProjectRegistry(tmp_path / "projects.json")
+    repo_path = tmp_path / "repo"
+    report_path = tmp_path / "gitbot-latest.md"
+    repo_path.mkdir()
+    report_path.write_text("# Report\n\nLatest update", encoding="utf-8")
+
+    project = registry.add_project("UniLi", repo_path, scope=api.ProjectScope.TEAM)
+    project.teams_channels = [
+        {"name": "Reports", "webhook_env_var": "TEAMS_UNILI_REPORTS_WEBHOOK_URL"},
+    ]
+
+    monkeypatch.setattr(api, "_registry", lambda: registry)
+    monkeypatch.setattr(api, "_regenerate_dashboard", lambda: None)
+    monkeypatch.setattr(api, "_runnable_bots", lambda: ["gitbot"])
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("TEAMS_UNILI_REPORTS_WEBHOOK_URL", "https://example.invalid/teams")
+
+    def fake_invoke_bot(**kwargs):
+        assert kwargs["bot_name"] == "gitbot"
+        assert kwargs["project"].name == "UniLi"
+        return BotResult(
+            bot_name="gitbot",
+            status=BotStatus.SUCCESS,
+            summary="Generated report",
+            markdown_report="# Report\n\nLatest update",
+            data={"report_saved": {"latest": str(report_path)}},
+        )
+
+    sent_request: dict[str, object] = {}
+
+    def fake_send_webhook(webhook_url: str, payload: dict, timeout: int):
+        sent_request["webhook_url"] = webhook_url
+        sent_request["payload"] = payload
+        sent_request["timeout"] = timeout
+        return SimpleNamespace(status_code=200, body="ok")
+
+    monkeypatch.setattr("orchestrator.bot_invoker.invoke_bot", fake_invoke_bot)
+    monkeypatch.setattr("teamsbot.client.send_webhook", fake_send_webhook)
+
+    body, status = api.generate_reports(
+        "UniLi",
+        {
+            "bots": ["gitbot"],
+            "send_to_teams": True,
+        },
+    )
+
+    assert status == 200
+    assert body["completed"] == 1
+    assert body["failed"] == 0
+    assert body["teams_delivery"] == {
+        "enabled": True,
+        "channel": "Reports",
+        "sent": 1,
+        "failed": 0,
+    }
+    assert body["results"]["gitbot"]["teams_delivery"] == {
+        "status": "sent",
+        "channel": "Reports",
+        "summary": "Sent to Teams channel Reports.",
+    }
+    assert sent_request["webhook_url"] == "https://example.invalid/teams"
+    assert sent_request["timeout"] == api.Config.teams_timeout_seconds()
+    payload = sent_request["payload"]
+    assert isinstance(payload, dict)
+    assert payload["type"] == "message"
+
+
+def test_generate_reports_requires_channel_selection_for_multiple_teams_channels(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    registry = api.ProjectRegistry(tmp_path / "projects.json")
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+
+    project = registry.add_project("UniLi", repo_path, scope=api.ProjectScope.TEAM)
+    project.teams_channels = [
+        {"name": "Reports", "webhook_env_var": "TEAMS_UNILI_REPORTS_WEBHOOK_URL"},
+        {"name": "Alerts", "webhook_env_var": "TEAMS_UNILI_ALERTS_WEBHOOK_URL"},
+    ]
+
+    monkeypatch.setattr(api, "_registry", lambda: registry)
+
+    body, status = api.generate_reports(
+        "UniLi",
+        {
+            "bots": ["gitbot"],
+            "send_to_teams": True,
+        },
+    )
+
+    assert status == 400
+    assert body["error"] == "Project 'UniLi' has multiple Teams channels. Choose one in the report modal."
+
+
+def test_generate_reports_rejects_missing_teams_webhook_env_var(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    registry = api.ProjectRegistry(tmp_path / "projects.json")
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+
+    project = registry.add_project("UniLi", repo_path, scope=api.ProjectScope.TEAM)
+    project.teams_channels = [
+        {"name": "Reports", "webhook_env_var": "TEAMS_UNILI_REPORTS_WEBHOOK_URL"},
+    ]
+
+    monkeypatch.setattr(api, "_registry", lambda: registry)
+    monkeypatch.delenv("TEAMS_UNILI_REPORTS_WEBHOOK_URL", raising=False)
+
+    body, status = api.generate_reports(
+        "UniLi",
+        {
+            "bots": ["gitbot"],
+            "send_to_teams": True,
+        },
+    )
+
+    assert status == 400
+    assert body["error"] == "Teams channel 'Reports' is missing env var 'TEAMS_UNILI_REPORTS_WEBHOOK_URL'."
 
 
 def test_create_team_project_still_requires_path_without_site_url(

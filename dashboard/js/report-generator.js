@@ -2,6 +2,40 @@
 const ReportGenerator = {
     _projectName: null,
 
+    _configureTeamsOptions(project) {
+        const fieldset = document.getElementById('rg-teams-fieldset');
+        const checkbox = document.getElementById('rg-send-teams');
+        const select = document.getElementById('rg-teams-channel');
+        const hint = document.getElementById('rg-teams-hint');
+        const channels = Array.isArray(project.teams_channels) ? project.teams_channels : [];
+
+        if (!fieldset || !checkbox || !select || !hint) {
+            return;
+        }
+
+        checkbox.checked = false;
+        select.innerHTML = '';
+
+        if (!channels.length) {
+            fieldset.hidden = true;
+            select.disabled = true;
+            return;
+        }
+
+        fieldset.hidden = false;
+        select.innerHTML = channels.map((channel) => `
+            <option value="${Utils.escapeHtml(channel.name)}">${Utils.escapeHtml(channel.name)}</option>
+        `).join('');
+        select.disabled = true;
+        hint.textContent = channels.length === 1
+            ? 'This project has one configured Teams channel. Enable the option to send the generated report there.'
+            : 'Choose which configured Teams channel should receive successful reports.';
+
+        checkbox.onchange = () => {
+            select.disabled = !checkbox.checked || channels.length <= 1;
+        };
+    },
+
     // Build the bot checkbox list from CONFIG.BOTS for the given project scope.
     _renderBotList(project) {
         const isPersonal = project.scope === 'personal';
@@ -76,6 +110,7 @@ const ReportGenerator = {
 
             const botList = document.getElementById('rg-bot-list');
             if (botList) botList.innerHTML = this._renderBotList(project);
+            this._configureTeamsOptions(project);
 
             // Show form, hide progress/results
             document.getElementById('rg-form-section').hidden = false;
@@ -123,6 +158,15 @@ const ReportGenerator = {
 
         if (bots.includes('pmbot')) {
             options.pmbot_mode = document.getElementById('rg-pmbot-mode').value;
+        }
+
+        const sendToTeams = document.getElementById('rg-send-teams');
+        const teamsChannel = document.getElementById('rg-teams-channel');
+        if (sendToTeams && sendToTeams.checked) {
+            options.send_to_teams = true;
+            if (teamsChannel && teamsChannel.value) {
+                options.teams_channel = teamsChannel.value;
+            }
         }
 
         // Disable submit button and show progress
@@ -193,20 +237,27 @@ const ReportGenerator = {
             if (info.artifacts?.pdf) {
                 artifactLinks.push(`<a class="btn btn-primary" href="${Utils.escapeHtml(info.artifacts.pdf)}" target="_blank" rel="noopener">PDF</a>`);
             }
+            const teamsDelivery = info.teams_delivery
+                ? `<p>${Utils.escapeHtml(info.teams_delivery.summary || '')}</p>`
+                : '';
             return `
                 <div class="bot-result ${statusClass}">
                     <span class="bot-result-icon">${icon}</span>
                     <div class="bot-result-body">
                         <strong>${Utils.escapeHtml(botName)}</strong>
                         <p>${Utils.escapeHtml(info.summary || '')}</p>
+                        ${teamsDelivery}
                         ${artifactLinks.length ? `<div class="card-actions">${artifactLinks.join('')}</div>` : ''}
                     </div>
                 </div>
             `;
         }).join('');
 
-        document.getElementById('rg-results-summary').textContent =
-            `${data.completed} succeeded, ${data.failed} failed`;
+        let summary = `${data.completed} succeeded, ${data.failed} failed`;
+        if (data.teams_delivery?.enabled) {
+            summary += ` • Teams: ${data.teams_delivery.sent} sent, ${data.teams_delivery.failed} failed`;
+        }
+        document.getElementById('rg-results-summary').textContent = summary;
     },
 
     _showError(msg) {

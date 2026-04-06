@@ -121,6 +121,8 @@ Response:
 
 Generated from `shared/bot_registry.py`. Loaded by the browser at startup via `API.getBots()`, which populates `CONFIG.BOTS`. Adding a bot to `bot_registry.py` automatically makes it appear across the entire dashboard with no frontend changes.
 
+When a project has configured `teams_channels`, the report generator modal also exposes an optional Teams delivery toggle. Successful bot runs can be pushed directly to the selected Teams channel as part of the same dashboard action.
+
 ### `dashboard/data/projects.json`
 
 ```json

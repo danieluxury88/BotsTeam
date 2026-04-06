@@ -50,6 +50,8 @@ uv run teamsbot send-report UniLi pmbot --format message-card
 
 If the report does not exist yet, generate it first through the bot CLI or dashboard.
 
+From the dashboard `Generate Reports` modal, Teams delivery is optional. When a project has one or more configured `teams_channels`, the modal shows a `Send successful generated reports to Microsoft Teams` toggle and, when needed, a channel selector. The dashboard only sends successful bot runs.
+
 Webhook resolution order for `send-report` is:
 
 1. `--webhook-url`
@@ -59,7 +61,7 @@ Webhook resolution order for `send-report` is:
 
 ## Design Notes
 
-- Uses global `.env` configuration instead of per-project Teams settings.
+- Stores project channel aliases in the project registry, while keeping webhook secrets in `.env`.
 - Reuses the existing report storage layout under `data/{project}/reports/{bot}/latest.md`.
 - Keeps Teams-specific transport and formatting isolated inside `bots/teamsbot/`.
 
