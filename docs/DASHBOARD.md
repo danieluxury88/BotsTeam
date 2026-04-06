@@ -34,7 +34,7 @@ dashboard/data/index.json       — full report catalog
 dashboard/data/dashboard.json   — statistics + recent activity
     ↓  Fetch API (vanilla JS)
 Browser  (CONFIG.BOTS populated at runtime from bots.json via API.getBots())
-    projects.html   — project management (scope badges, dynamic bot modal)
+    projects.html   — project management (scope badges, repo host link, Teams channel config, dynamic bot modal)
     reports.html    — report browser + inline viewer
     bots.html       — bot status
     activity.html   — chronological feed
@@ -133,6 +133,7 @@ Generated from `shared/bot_registry.py`. Loaded by the browser at startup via `A
       "scope": "team",
       "gitlab_id": "76261915",
       "github_repo": null,
+      "teams_channels": [{ "name": "Reports", "webhook_env_var": "TEAMS_UNILI_REPORTS_WEBHOOK_URL" }],
       "last_activity": "2026-02-25T07:55:40",
       "reports_count": 4,
       "bots_run": ["gitbot", "pmbot"]
@@ -272,3 +273,5 @@ BOTS = {
 1. `api.py` — accept the field in POST/PUT handlers
 2. `generate_data.py` — include the field in `projects.json` output
 3. The project modal form in `projects.html`
+
+Current team-only integration fields include GitLab, GitHub, PageSpeed URLs, and Teams channel aliases. Teams channels are stored as structured metadata such as `[{name, webhook_env_var}]`, while the actual webhook URLs remain in local env vars and are never exposed through the dashboard API.

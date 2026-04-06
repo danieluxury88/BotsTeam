@@ -299,6 +299,49 @@ def _parse_multi_values(value):
     return parsed or None
 
 
+def _parse_teams_channels(value):
+    """Normalize Teams channel config into [{name, webhook_env_var}, ...]."""
+    if value is None:
+        return None
+
+    entries = value if isinstance(value, list) else [value]
+    parsed = []
+    seen = set()
+
+    for entry in entries:
+        if isinstance(entry, dict):
+            name = str(entry.get("name", "")).strip()
+            env_var = str(entry.get("webhook_env_var", "")).strip()
+        else:
+            raw = str(entry).strip()
+            if not raw:
+                continue
+            if "|" in raw:
+                name, env_var = [part.strip() for part in raw.split("|", 1)]
+            elif "=" in raw:
+                name, env_var = [part.strip() for part in raw.split("=", 1)]
+            else:
+                name, env_var = raw, ""
+
+        if not name and not env_var:
+            continue
+        if not name or not env_var:
+            raise ValueError("Each Teams channel must include both a name and a webhook env var.")
+        normalized_env_var = env_var.upper()
+        if not re.match(r"^[A-Z_][A-Z0-9_]*$", normalized_env_var):
+            raise ValueError(
+                f"Invalid Teams webhook env var '{env_var}'. Use uppercase letters, digits, and underscores."
+            )
+
+        key = (name.lower(), normalized_env_var)
+        if key in seen:
+            continue
+        seen.add(key)
+        parsed.append({"name": name, "webhook_env_var": normalized_env_var})
+
+    return parsed or None
+
+
 def _report_settings_for_project(project) -> ReportSettings:
     if not project:
         return ReportSettings()
@@ -582,6 +625,11 @@ def create_project(data):
     if name in registry.projects:
         return {"error": f"Project '{name}' already exists."}, 409
 
+    try:
+        teams_channels = _parse_teams_channels(data.get("teams_channels"))
+    except ValueError as exc:
+        return {"error": str(exc)}, 400
+
     registry.add_project(
         name=name,
         path=str(path_obj),
@@ -595,6 +643,7 @@ def create_project(data):
         github_repo=data.get("github_repo") or None,
         site_url=data.get("site_url") or None,
         audit_urls=_parse_audit_urls(data.get("audit_urls")),
+        teams_channels=teams_channels,
         report_branding_profile=_clean_optional_text(data.get("report_branding_profile")),
         report_prepared_by=_clean_optional_text(data.get("report_prepared_by")),
         report_client_name=_clean_optional_text(data.get("report_client_name")),
@@ -643,6 +692,11 @@ def update_project(name, data):
         project.site_url = data["site_url"] or None
     if "audit_urls" in data:
         project.audit_urls = _parse_audit_urls(data["audit_urls"])
+    if "teams_channels" in data:
+        try:
+            project.teams_channels = _parse_teams_channels(data["teams_channels"])
+        except ValueError as exc:
+            return {"error": str(exc)}, 400
     if "report_branding_profile" in data:
         project.report_branding_profile = _clean_optional_text(data["report_branding_profile"])
     if "report_prepared_by" in data:

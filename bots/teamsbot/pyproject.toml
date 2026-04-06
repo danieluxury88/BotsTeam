@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "teamsbot"
+version = "0.1.0"
+description = "Microsoft Teams notification bridge for DevBots"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "shared",
+    "orchestrator",
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+]
+
+[project.scripts]
+teamsbot = "teamsbot.cli:app"
+
+[tool.uv.sources]
+shared = { workspace = true }
+orchestrator = { workspace = true }

@@ -30,6 +30,29 @@ def test_project_roundtrips_languages_and_frameworks(tmp_path: Path):
     assert project.frameworks == ["Drupal"]
 
 
+def test_project_roundtrips_teams_channels(tmp_path: Path):
+    registry_file = tmp_path / "projects.json"
+    registry = ProjectRegistry(registry_file)
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+
+    registry.add_project(
+        "BotsTeam",
+        repo_path,
+        scope=ProjectScope.TEAM,
+        teams_channels=[
+            {"name": "Reports", "webhook_env_var": "TEAMS_BOTSTEAM_REPORTS_WEBHOOK_URL"},
+        ],
+    )
+
+    reloaded = ProjectRegistry(registry_file)
+    project = reloaded.projects["BotsTeam"]
+
+    assert project.teams_channels == [
+        {"name": "Reports", "webhook_env_var": "TEAMS_BOTSTEAM_REPORTS_WEBHOOK_URL"},
+    ]
+
+
 def test_project_from_dict_backfills_languages_from_legacy_language():
     project = Project.from_dict({
         "name": "Legacy",

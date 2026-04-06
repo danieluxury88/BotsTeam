@@ -68,15 +68,19 @@ function filterProjects(query) {
         return;
     }
 
+    const containsQuery = (value) => String(value || '').toLowerCase().includes(q);
+
     const filtered = allProjects.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        (p.description && p.description.toLowerCase().includes(q)) ||
-        (p.language && p.language.toLowerCase().includes(q)) ||
-        (p.languages && p.languages.some(language => language.toLowerCase().includes(q))) ||
-        (p.frameworks && p.frameworks.some(framework => framework.toLowerCase().includes(q))) ||
-        (p.github_repo && p.github_repo.toLowerCase().includes(q)) ||
-        (p.site_url && p.site_url.toLowerCase().includes(q)) ||
-        (p.audit_urls && p.audit_urls.some(url => url.toLowerCase().includes(q)))
+        containsQuery(p.name) ||
+        containsQuery(p.description) ||
+        containsQuery(p.language) ||
+        (p.languages && p.languages.some(containsQuery)) ||
+        (p.frameworks && p.frameworks.some(containsQuery)) ||
+        containsQuery(p.gitlab_id) ||
+        containsQuery(p.gitlab_url) ||
+        containsQuery(p.github_repo) ||
+        containsQuery(p.site_url) ||
+        (p.audit_urls && p.audit_urls.some(containsQuery))
     );
 
     renderProjects(filtered);

@@ -109,6 +109,7 @@
 | Item | Priority | Notes |
 |------|----------|-------|
 | Slack integration | ✅ Done | `bots/slackbot/` — Socket Mode, DM + @mention, all bots; see `docs/slack-integration.md` |
+| Teams notifications | ✅ Done | `bots/teamsbot/` — outbound Teams workflow/webhook delivery for test cards and saved reports; see `docs/teams-integration.md` |
 | Calendar: issue due/created events (pmbot) | Medium | Needs pmbot to export structured event data alongside `.md` |
 | Calendar: commit activity events (gitbot) | Low | Needs gitbot to export per-commit dates |
 | Multi-bot workflow (gitbot → qabot pipeline) | ✅ Done | Orchestrator supports a first-class `gitbot_qabot` workflow for “recent changes + what to test” requests |

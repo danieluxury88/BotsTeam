@@ -7,6 +7,7 @@ Conversational bot that manages multiple projects and orchestrates gitbot, qabot
 - 💬 **Natural Language Interface** — Ask questions in plain English
 - 🗂️ **Multi-Project Registry** — Manage unlimited projects with metadata
 - 🔗 **GitLab/GitHub Integration** — Per-project remote repository connections
+- 📣 **Teams Channel Metadata** — Optional per-project Teams channel aliases backed by env vars
 - 🧠 **Smart Routing** — Uses the configured LLM provider to understand requests and route to correct bot
 - 🔌 **Bot Invocation** — Calls gitbot, qabot, and pmbot programmatically
 - 🔄 **Pipeline Workflows** — Supports multi-bot flows like `gitbot -> qabot`
@@ -81,6 +82,8 @@ uv run orchestrator add myapp ~/projects/myapp \
 uv run orchestrator add myapp ~/projects/myapp \
   --github-repo owner/repo
 ```
+
+Project metadata can also include Teams delivery channels via the dashboard project form. Those channels store only a channel name and the env var that holds the webhook URL, so secrets stay local and out of `data/projects.json`.
 
 ### Listing Projects
 

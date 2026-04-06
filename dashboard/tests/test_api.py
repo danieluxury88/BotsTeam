@@ -107,6 +107,57 @@ def test_create_project_stores_languages_and_frameworks(
     assert body["frameworks"] == ["Drupal", "Symfony"]
 
 
+def test_create_project_stores_teams_channels(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    registry = api.ProjectRegistry(tmp_path / "projects.json")
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    monkeypatch.setattr(api, "_registry", lambda: registry)
+    monkeypatch.setattr(api, "_regenerate_dashboard", lambda: None)
+
+    body, status = api.create_project(
+        {
+            "name": "BotsTeam",
+            "scope": "team",
+            "path": str(repo_path),
+            "teams_channels": [
+                {"name": "Reports", "webhook_env_var": "teams_botsteam_reports_webhook_url"},
+            ],
+        }
+    )
+
+    assert status == 201
+    assert body["teams_channels"] == [
+        {"name": "Reports", "webhook_env_var": "TEAMS_BOTSTEAM_REPORTS_WEBHOOK_URL"},
+    ]
+
+
+def test_update_project_validates_teams_channel_env_vars(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    registry = api.ProjectRegistry(tmp_path / "projects.json")
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    registry.add_project("BotsTeam", repo_path, scope=api.ProjectScope.TEAM)
+    monkeypatch.setattr(api, "_registry", lambda: registry)
+    monkeypatch.setattr(api, "_regenerate_dashboard", lambda: None)
+
+    body, status = api.update_project(
+        "BotsTeam",
+        {
+            "teams_channels": [
+                {"name": "Reports", "webhook_env_var": "not-valid"},
+            ],
+        },
+    )
+
+    assert status == 400
+    assert "Invalid Teams webhook env var" in body["error"]
+
+
 def test_create_team_project_still_requires_path_without_site_url(
     monkeypatch,
     tmp_path: Path,

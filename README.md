@@ -13,6 +13,7 @@ This workspace contains multiple specialized bots that share common infrastructu
 - **[Project Manager](bots/project_manager/README.md)** — GitLab/GitHub issue analyzer and AI-powered sprint planner
 - **[Orchestrator](bots/orchestrator/README.md)** — Conversational interface that knows your projects and calls other bots
 - **[VoiceBot](bots/voicebot/README.md)** — Voice command layer for the orchestrator with Spanish-aware speech recognition
+- **TeamsBot** — Microsoft Teams notification bridge for test messages and saved reports
 
 **Personal bots** (local files):
 
@@ -48,6 +49,7 @@ uv run qabot suggest /path/to/project
 uv run pmbot analyze --project 12345
 uv run chat
 uv run voicebot listen --language auto
+uv run teamsbot send-test --dry-run
 ```
 
 ## 🚀 Usage Examples
@@ -243,6 +245,8 @@ Set up your `.env` file in the workspace root:
 | `GITLAB_URL` | `https://gitlab.com` | GitLab instance URL (for self-hosted) |
 | `GITHUB_TOKEN` | — | GitHub personal access token |
 | `GITHUB_API_URL` | `https://api.github.com` | GitHub API URL (for GitHub Enterprise) |
+| `TEAMS_WEBHOOK_URL` | — | Microsoft Teams workflow/webhook URL for `teamsbot` |
+| `TEAMS_TIMEOUT_SECONDS` | `10` | HTTP timeout for Teams deliveries |
 
 For GitHub issue creation or editing, the token must be allowed to write issues on the target repository.
 For fine-grained PATs, grant repository access to the repo and set `Issues` to `Read and write`.
@@ -322,6 +326,7 @@ Each bot has its own README with detailed usage:
 - [x] Personal context / scoped workspaces (team vs personal)
 - [x] Multi-bot workflows (gitbot → qabot pipeline)
 - [x] Slack integration — `uv run slackbot` (Socket Mode; see [docs](docs/slack-integration.md))
+- [x] Teams notifications — `uv run teamsbot send-test` / `uv run teamsbot send-report` (see [docs](docs/teams-integration.md))
 
 ### Personal Bots
 

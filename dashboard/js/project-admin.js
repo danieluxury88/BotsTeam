@@ -9,6 +9,27 @@ const ProjectAdmin = {
         return fallback;
     },
 
+    _serializeTeamsChannels(channels) {
+        if (!Array.isArray(channels) || !channels.length) {
+            return '';
+        }
+        return channels
+            .map(channel => `${channel.name || ''} | ${channel.webhook_env_var || ''}`.trim())
+            .join('\n');
+    },
+
+    _parseTeamsChannels(text) {
+        return text
+            .split('\n')
+            .map(line => line.trim())
+            .filter(Boolean)
+            .map(line => {
+                const separator = line.includes('|') ? '|' : '=';
+                const [name, webhookEnvVar] = line.split(separator, 2).map(part => part.trim());
+                return { name, webhook_env_var: webhookEnvVar };
+            });
+    },
+
     openAddModal() {
         this._editingName = null;
         const modal = document.getElementById('project-modal');
@@ -42,6 +63,7 @@ const ProjectAdmin = {
         document.getElementById('field-gitlab-id').value = project.gitlab_id || '';
         document.getElementById('field-gitlab-url').value = project.gitlab_url || '';
         document.getElementById('field-github-repo').value = project.github_repo || '';
+        document.getElementById('field-teams-channels').value = this._serializeTeamsChannels(project.teams_channels);
         document.getElementById('field-site-url').value = project.site_url || '';
         document.getElementById('field-audit-urls').value = (project.audit_urls || []).join('\n');
         document.getElementById('field-report-branding-profile').value = project.report_branding_profile || '';
@@ -130,6 +152,7 @@ const ProjectAdmin = {
             body.gitlab_project_id = document.getElementById('field-gitlab-id').value.trim() || null;
             body.gitlab_url = document.getElementById('field-gitlab-url').value.trim() || null;
             body.github_repo = document.getElementById('field-github-repo').value.trim() || null;
+            body.teams_channels = this._parseTeamsChannels(document.getElementById('field-teams-channels').value);
             body.site_url = document.getElementById('field-site-url').value.trim() || null;
             body.audit_urls = document.getElementById('field-audit-urls').value
                 .split('\n')

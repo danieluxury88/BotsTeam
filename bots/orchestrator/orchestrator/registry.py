@@ -1,5 +1,6 @@
 """Project registry — maintains list of known projects."""
 
+import os
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,6 +28,7 @@ class Project:
     github_token: str | None = None
     site_url: str | None = None
     audit_urls: list[str] | None = None
+    teams_channels: list[dict[str, str]] | None = None
     report_branding_profile: str | None = None
     report_prepared_by: str | None = None
     report_client_name: str | None = None
@@ -81,6 +83,33 @@ class Project:
         from shared.config import Config
         return Config.github_base_url()
 
+    def get_teams_channel(self, name: str | None = None) -> dict[str, str] | None:
+        """Return a configured Teams channel by name, or the sole configured channel."""
+        channels = self.teams_channels or []
+        if not channels:
+            return None
+
+        if name:
+            name_lower = name.strip().lower()
+            for channel in channels:
+                if channel.get("name", "").strip().lower() == name_lower:
+                    return channel
+            return None
+
+        if len(channels) == 1:
+            return channels[0]
+        return None
+
+    def get_teams_webhook_url(self, name: str | None = None) -> str | None:
+        """Resolve a Teams webhook URL from the configured channel env var."""
+        channel = self.get_teams_channel(name)
+        if not channel:
+            return None
+        env_var = channel.get("webhook_env_var", "").strip()
+        if not env_var:
+            return None
+        return os.environ.get(env_var) or None
+
     def get_data_dir(self) -> Path:
         """Get the data directory for this project (scope-aware)."""
         from shared.data_manager import get_project_data_dir
@@ -128,6 +157,7 @@ class Project:
             "github_token": self.github_token,
             "site_url": self.site_url,
             "audit_urls": self.audit_urls,
+            "teams_channels": self.teams_channels,
             "report_branding_profile": self.report_branding_profile,
             "report_prepared_by": self.report_prepared_by,
             "report_client_name": self.report_client_name,
@@ -161,6 +191,7 @@ class Project:
             github_token=data.get("github_token"),
             site_url=data.get("site_url"),
             audit_urls=data.get("audit_urls"),
+            teams_channels=data.get("teams_channels"),
             report_branding_profile=data.get("report_branding_profile"),
             report_prepared_by=data.get("report_prepared_by"),
             report_client_name=data.get("report_client_name"),
@@ -249,6 +280,7 @@ class ProjectRegistry:
         github_token: str | None = None,
         site_url: str | None = None,
         audit_urls: list[str] | None = None,
+        teams_channels: list[dict[str, str]] | None = None,
         report_branding_profile: str | None = None,
         report_prepared_by: str | None = None,
         report_client_name: str | None = None,
@@ -277,6 +309,7 @@ class ProjectRegistry:
             github_token=github_token,
             site_url=site_url,
             audit_urls=audit_urls,
+            teams_channels=teams_channels,
             report_branding_profile=report_branding_profile,
             report_prepared_by=report_prepared_by,
             report_client_name=report_client_name,

@@ -70,6 +70,103 @@ function renderHeaderNavigation() {
     }).join('');
 }
 
+function normalizeRepositoryDisplay(pathOrUrl) {
+    if (!pathOrUrl) {
+        return '';
+    }
+
+    try {
+        const parsed = new URL(pathOrUrl);
+        return parsed.pathname.replace(/^\/+|\/+$/g, '');
+    } catch {
+        return String(pathOrUrl).replace(/^\/+|\/+$/g, '');
+    }
+}
+
+function getProjectRepositoryLink(project) {
+    const gitlabId = typeof project.gitlab_id === 'string' ? project.gitlab_id.trim() : '';
+    const gitlabUrl = typeof project.gitlab_url === 'string' ? project.gitlab_url.trim() : '';
+    const githubRepo = typeof project.github_repo === 'string' ? project.github_repo.trim() : '';
+
+    if (gitlabUrl || gitlabId) {
+        try {
+            if (gitlabUrl) {
+                const parsed = new URL(gitlabUrl);
+                const existingPath = parsed.pathname.replace(/^\/+|\/+$/g, '');
+
+                if (existingPath) {
+                    return {
+                        href: `${parsed.origin}/${existingPath}`,
+                        host: 'gitlab',
+                        hostLabel: 'GitLab',
+                        display: existingPath,
+                    };
+                }
+
+                if (gitlabId.includes('/')) {
+                    const display = normalizeRepositoryDisplay(gitlabId);
+                    return {
+                        href: `${parsed.origin}/${display}`,
+                        host: 'gitlab',
+                        hostLabel: 'GitLab',
+                        display,
+                    };
+                }
+            }
+        } catch {
+            if (/^https?:\/\//i.test(gitlabUrl)) {
+                return {
+                    href: gitlabUrl,
+                    host: 'gitlab',
+                    hostLabel: 'GitLab',
+                    display: normalizeRepositoryDisplay(gitlabUrl) || 'Repository',
+                };
+            }
+        }
+
+        if (gitlabId.includes('/')) {
+            const display = normalizeRepositoryDisplay(gitlabId);
+            return {
+                href: `https://gitlab.com/${display}`,
+                host: 'gitlab',
+                hostLabel: 'GitLab',
+                display,
+            };
+        }
+    }
+
+    if (githubRepo) {
+        if (/^https?:\/\//i.test(githubRepo)) {
+            return {
+                href: githubRepo,
+                host: 'github',
+                hostLabel: 'GitHub',
+                display: normalizeRepositoryDisplay(githubRepo) || 'Repository',
+            };
+        }
+
+        const display = normalizeRepositoryDisplay(githubRepo);
+        return {
+            href: `https://github.com/${display}`,
+            host: 'github',
+            hostLabel: 'GitHub',
+            display,
+        };
+    }
+
+    return null;
+}
+
+function renderExternalLinkIcon() {
+    return `
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
+            <path d="M7 5h8v8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path d="M15 5l-9 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path d="M13 11v3a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+    `;
+}
+
 // Component rendering functions
 const Components = {
     // Render a project card
@@ -79,10 +176,12 @@ const Components = {
         const projectIdEscaped = Utils.escapeHtml(project.id);
         const projectIdUrl = encodeURIComponent(project.id);
         const isPersonal = project.scope === 'personal';
+        const repoLink = getProjectRepositoryLink(project);
         const scopeBadge = isPersonal
             ? '<span class="scope-badge scope-personal" title="Personal project">👤 Personal</span>'
             : '<span class="scope-badge scope-team" title="Team project">👥 Team</span>';
-        const integration = project.gitlab_id ? `GitLab #${project.gitlab_id}` :
+        const integration = repoLink ? `${repoLink.hostLabel}: ${repoLink.display}` :
+                          project.gitlab_id ? `GitLab #${project.gitlab_id}` :
                           project.github_repo ? `GitHub: ${project.github_repo}` :
                           project.site_url ? `Site: ${project.site_url}` :
                           isPersonal ? 'Local files' : 'No integration';
@@ -92,6 +191,19 @@ const Components = {
         const frameworks = Array.isArray(project.frameworks) && project.frameworks.length
             ? project.frameworks.join(', ')
             : '';
+        const repoLinkMarkup = repoLink ? `
+            <a
+                class="project-repo-link project-repo-link-${repoLink.host}"
+                href="${Utils.escapeHtml(repoLink.href)}"
+                target="_blank"
+                rel="noopener"
+                aria-label="${Utils.escapeHtml(`Open ${project.name} ${repoLink.hostLabel} repository`)}"
+                title="${Utils.escapeHtml(`Open ${repoLink.hostLabel} repository: ${repoLink.display}`)}"
+            >
+                <span class="project-repo-link-icon">${renderExternalLinkIcon()}</span>
+                <span class="project-repo-link-text">${Utils.escapeHtml(repoLink.hostLabel)}</span>
+            </a>
+        ` : '';
 
         const actions = [
             `
@@ -130,6 +242,7 @@ const Components = {
                 <div class="card-header">
                     <h3 class="card-title">📁 ${Utils.escapeHtml(project.name)}</h3>
                     <div class="card-header-right">
+                        ${repoLinkMarkup}
                         ${scopeBadge}
                         <span class="card-status ${statusClass}">${statusText}</span>
                     </div>

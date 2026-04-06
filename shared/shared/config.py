@@ -138,3 +138,23 @@ class Config:
     def github_base_url() -> str:
         """Get GitHub API base URL from environment (for GitHub Enterprise)."""
         return os.environ.get("GITHUB_API_URL", "https://api.github.com")
+
+    @staticmethod
+    def teams_webhook_url() -> str:
+        """Get Microsoft Teams webhook/workflow URL from environment."""
+        webhook_url = os.environ.get("TEAMS_WEBHOOK_URL") or os.environ.get("WEBHOOK_URL")
+        if not webhook_url:
+            raise EnvironmentError(
+                "TEAMS_WEBHOOK_URL is not set. "
+                "Add it to your .env file or pass --webhook-url."
+            )
+        return webhook_url
+
+    @staticmethod
+    def teams_timeout_seconds() -> int:
+        """Get the default Teams webhook timeout in seconds."""
+        raw = (os.environ.get("TEAMS_TIMEOUT_SECONDS") or "10").strip()
+        try:
+            return max(1, int(raw))
+        except ValueError:
+            return 10
