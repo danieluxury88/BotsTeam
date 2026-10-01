@@ -8,6 +8,8 @@ DevBots is a Python monorepo of AI-powered development bots that analyze code, s
 
 ## Common Commands
 
+A root `Makefile` wraps the common workflows (`make help` lists them: `install`, `lint`, `fix`, `test`, `check-updates`, `audit`, `doctor`, `clean`, `serve`, `generate`, `chat`). Target names follow the `core` auditing tool's conventions — see `docs/core-audit.md`.
+
 ```bash
 uv sync                          # Install all dependencies (workspace-wide)
 uv run pytest                    # Run tests

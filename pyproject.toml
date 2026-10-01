@@ -6,3 +6,7 @@ dev-dependencies = [
     "pytest>=7.0.0",
     "ruff>=0.1.0",
 ]
+
+[tool.pytest.ini_options]
+# Test files share basenames across packages (e.g. test_cli.py) without __init__.py
+addopts = "--import-mode=importlib"

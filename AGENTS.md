@@ -10,6 +10,7 @@
 - `bots/slackbot/`: Slack integration package.
 
 ## Build, Test, and Development Commands
+- `make help`: list Makefile shortcuts for the commands below (`make lint`, `make test`, `make audit`, `make doctor`, ...); see `docs/core-audit.md`.
 - `uv sync`: install workspace dependencies for all packages.
 - `uv run ruff check .`: run lint checks.
 - `uv run ruff check --fix .`: auto-fix lint issues where possible.
