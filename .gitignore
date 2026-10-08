@@ -58,3 +58,7 @@ htmlcov/
 
 # Logs
 *.log
+
+# Local-only
+TASKS.md
+*.code-workspace
