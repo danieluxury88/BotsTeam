@@ -5,6 +5,8 @@ from pathlib import Path
 from types import ModuleType
 from types import SimpleNamespace
 
+import pytest
+
 from shared.models import BotResult, BotStatus
 
 
@@ -395,6 +397,69 @@ def test_update_settings_rejects_obviously_wrong_model_for_provider(monkeypatch,
 
     assert status == 400
     assert "does not match provider 'openai'" in body["error"]
+
+
+def _settings_env(monkeypatch, tmp_path: Path) -> Path:
+    env_path = tmp_path / ".env"
+    env_path.write_text("DEVBOTS_PROVIDER=anthropic\nANTHROPIC_API_KEY=sk-original\n", encoding="utf-8")
+    monkeypatch.setattr(api, "REPO_ROOT", tmp_path)
+    # update_settings() mutates os.environ; setenv makes monkeypatch restore these afterwards.
+    monkeypatch.setenv("DEVBOTS_PROVIDER", "anthropic")
+    monkeypatch.setenv("DEVBOTS_MODEL", "claude-haiku-4-5-20251001")
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    return env_path
+
+
+def test_update_settings_rejects_api_keys(monkeypatch, tmp_path: Path) -> None:
+    env_path = _settings_env(monkeypatch, tmp_path)
+
+    for field in ("anthropic_key", "openai_key", "gemini_key"):
+        body, status = api.update_settings({field: "sk-attacker"})
+
+        assert status == 400
+        assert ".env" in body["error"]
+
+    assert env_path.read_text(encoding="utf-8") == "DEVBOTS_PROVIDER=anthropic\nANTHROPIC_API_KEY=sk-original\n"
+
+
+def test_update_settings_rejects_changed_openai_base_url_but_ignores_unchanged(monkeypatch, tmp_path: Path) -> None:
+    env_path = _settings_env(monkeypatch, tmp_path)
+    before = env_path.read_text(encoding="utf-8")
+
+    body, status = api.update_settings({"openai_base_url": "https://attacker.example/v1"})
+    assert status == 400
+    assert env_path.read_text(encoding="utf-8") == before
+
+    # A stale client that still echoes the current value back must keep working.
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://llm.internal/v1")
+    body, status = api.update_settings({"openai_base_url": "https://llm.internal/v1", "model": "claude-haiku-4-5-20251001"})
+    assert status == 200
+    assert "OPENAI_BASE_URL" not in env_path.read_text(encoding="utf-8")
+
+
+def test_update_settings_rejects_env_injection_in_values(monkeypatch, tmp_path: Path) -> None:
+    env_path = _settings_env(monkeypatch, tmp_path)
+    before = env_path.read_text(encoding="utf-8")
+
+    body, status = api.update_settings({"model": "claude-haiku-4-5-20251001\nOPENAI_BASE_URL=https://attacker.example"})
+    assert status == 400
+    assert "DEVBOTS_MODEL" in body["error"]
+
+    body, status = api.update_settings({"bot_models": {"gitbot": "x\nANTHROPIC_API_KEY=sk-attacker"}})
+    assert status == 400
+    assert "GITBOT_MODEL" in body["error"]
+
+    assert env_path.read_text(encoding="utf-8") == before
+
+
+def test_update_env_file_refuses_non_dashboard_keys(monkeypatch, tmp_path: Path) -> None:
+    env_path = _settings_env(monkeypatch, tmp_path)
+    before = env_path.read_text(encoding="utf-8")
+
+    with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
+        api._update_env_file({"DEVBOTS_MODEL": "claude-haiku-4-5-20251001", "ANTHROPIC_API_KEY": "sk-attacker"})
+
+    assert env_path.read_text(encoding="utf-8") == before
 
 
 def test_save_report_improvement_writes_timestamped_sibling(

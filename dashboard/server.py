@@ -1,19 +1,26 @@
 #!/usr/bin/env python3
 """
 Simple HTTP server for DevBots Dashboard
-Serves static files and provides CORS support for local development
+
+Serves static files and the project/report API. The server is local-only by design: it binds to
+the loopback interface, sends no CORS headers (the pages and the API share one origin), and
+rejects requests whose Host or Origin is not the loopback address it is served from.
 """
 
+import functools
 import http.server
 import json
 import os
 import sys
 import socketserver
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 
-# Default port
+# Default port and bind address. The API can rewrite .env, run LLM calls and edit trackers, and has
+# no authentication, so it must never listen on anything but loopback.
 PORT = 8080
+HOST = "127.0.0.1"
+LOOPBACK_HOSTNAMES = frozenset({"localhost", "127.0.0.1", "::1"})
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data"
@@ -49,7 +56,29 @@ from api import (  # noqa: E402
 
 
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
-    """Custom handler with CORS support, report file serving, and project API"""
+    """Custom handler with loopback-only request guard, report file serving, and project API"""
+
+    def _request_allowed(self):
+        """Reject DNS-rebinding (foreign Host) and cross-site (foreign Origin) requests.
+
+        Binding to loopback keeps other machines out, but any web page open in the local browser
+        can still send requests to localhost; a same-origin check closes that gap.
+        """
+        host = self.headers.get('Host', '')
+        if urlsplit('//' + host).hostname not in LOOPBACK_HOSTNAMES:
+            return False
+        origin = self.headers.get('Origin')
+        if origin is not None:
+            if origin == 'null' or urlsplit(origin).netloc != host:
+                return False
+        return True
+
+    def _guard(self):
+        """Send 403 and return False when the request fails the same-origin check."""
+        if self._request_allowed():
+            return True
+        self._send_json({"error": "Forbidden: dashboard only accepts same-origin local requests."}, 403)
+        return False
 
     def _parse_voice_command_api(self, path):
         if path == '/api/voice-command':
@@ -105,10 +134,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         return (project_name, filename, action)
 
     def end_headers(self):
-        # Add CORS headers for local development
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        # No CORS headers: the dashboard and its API are served from the same origin.
         self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
         
         # PWA: Add Service-Worker-Allowed header for service worker
@@ -117,11 +143,9 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         
         super().end_headers()
 
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.end_headers()
-
     def do_GET(self):
+        if not self._guard():
+            return
         path = self._clean_path()
         if path == '/api/settings':
             self._call_api(get_settings)
@@ -149,6 +173,8 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             super().do_GET()
 
     def do_POST(self):
+        if not self._guard():
+            return
         path = self._clean_path()
 
         if path == '/api/report-exports':
@@ -235,6 +261,8 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         self._call_api(create_project, body)
 
     def do_PUT(self):
+        if not self._guard():
+            return
         path = self._clean_path()
 
         if path == '/api/settings':
@@ -267,6 +295,8 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         self._call_api(update_project, api, body)
 
     def do_DELETE(self):
+        if not self._guard():
+            return
         path = self._clean_path()
 
         # DELETE /api/projects/{name}/notes/{file} — delete note
@@ -360,17 +390,23 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         # Custom logging format
         sys.stderr.write("%s - %s\n" % (self.address_string(), format % args))
 
+def make_server(port=PORT, host=HOST):
+    """Build the dashboard server bound to ``host`` (loopback unless a caller overrides it)."""
+    handler = functools.partial(DashboardHandler, directory=str(DASHBOARD_DIR))
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
+    return socketserver.ThreadingTCPServer((host, port), handler)
+
+
 def run_server(port=PORT):
     """Start the dashboard server"""
     dashboard_dir = Path(__file__).parent
     os.chdir(dashboard_dir)
 
-    socketserver.ThreadingTCPServer.allow_reuse_address = True
-    with socketserver.ThreadingTCPServer(("", port), DashboardHandler) as httpd:
+    with make_server(port) as httpd:
         print("=" * 60)
         print("🤖 DevBots Dashboard Server")
         print("=" * 60)
-        print(f"📊 Server running at http://localhost:{port}")
+        print(f"📊 Server running at http://localhost:{port} (loopback only)")
         print(f"📁 Serving from: {dashboard_dir}")
         print()
         print("📝 Available pages:")

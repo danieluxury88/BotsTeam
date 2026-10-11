@@ -20,9 +20,9 @@ from orchestrator.registry import ProjectRegistry  # noqa: E402
 from orchestrator.router import process_user_request  # noqa: E402
 from generate_data import DashboardDataGenerator  # noqa: E402
 from shared.bot_registry import BOTS as _BOT_REGISTRY, runnable_bots as _runnable_bots  # noqa: E402
-from shared.config import Config, get_active_provider, get_default_model, get_provider_default_model, load_env  # noqa: E402
+from shared.config import Config, DEFAULT_MODELS, get_active_provider, get_default_model, get_provider_default_model, load_env  # noqa: E402
 from shared.data_manager import get_data_root, get_notes_dir, get_reports_dir  # noqa: E402
-from shared.models import ProjectScope  # noqa: E402
+from shared.models import ProjectScope, utc_now  # noqa: E402
 from shared.report_export import (  # noqa: E402
     ReportSettings,
     export_report_file,
@@ -52,19 +52,29 @@ _BOT_MODEL_ENV_KEYS: dict[str, str] = {
 }
 
 _ALLOWED_PROVIDERS = {"anthropic", "openai", "gemini"}
+
+# The dashboard may only rewrite these .env keys. Secrets (API keys) and OPENAI_BASE_URL (which
+# decides where the OpenAI key is sent) are deliberately excluded: they are edited in .env by hand.
+_SETTINGS_WRITABLE_KEYS = frozenset({"DEVBOTS_PROVIDER", "DEVBOTS_MODEL", *_BOT_MODEL_ENV_KEYS.values()})
+_SETTINGS_READ_ONLY_MESSAGE = (
+    "API keys and the OpenAI base URL cannot be changed from the dashboard. "
+    "Edit the workspace .env file instead."
+)
+_SAFE_SETTING_VALUE = re.compile(r"^[A-Za-z0-9._:/@+-]{0,128}$")
 _PROVIDER_MODEL_PRESETS: dict[str, list[str]] = {
+    # The first entry of each list is the provider default, taken from shared.config.DEFAULT_MODELS.
     "anthropic": [
-        "claude-haiku-4-5-20251001",
+        DEFAULT_MODELS["anthropic"],
         "claude-sonnet-4-5-20250929",
     ],
     "openai": [
-        "gpt-4o-mini",
+        DEFAULT_MODELS["openai"],
         "gpt-4o",
         "gpt-4.1-mini",
         "gpt-4.1",
     ],
     "gemini": [
-        "gemini-2.0-flash",
+        DEFAULT_MODELS["gemini"],
         "gemini-2.0-flash-lite",
         "gemini-1.5-pro",
     ],
@@ -105,7 +115,7 @@ def _validate_name(name):
 
 
 def _utcnow_iso() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+    return utc_now().isoformat() + "Z"
 
 
 def _prune_voice_command_jobs() -> None:
@@ -134,6 +144,10 @@ def _update_env_file(updates: dict[str, str]) -> None:
     - Key not in dict  → leave the line untouched
     - New keys         → appended at the end (only if value is non-empty)
     """
+    disallowed = sorted(set(updates) - _SETTINGS_WRITABLE_KEYS)
+    if disallowed:
+        raise ValueError(f"Refusing to write non-dashboard .env keys: {', '.join(disallowed)}")
+
     env_path = REPO_ROOT / ".env"
     example_path = REPO_ROOT / ".env.example"
 
@@ -200,8 +214,16 @@ def get_settings() -> dict:
 
 
 def update_settings(body: dict) -> tuple[dict, int]:
-    """Persist provider/model/key changes to .env and apply them to the live process."""
+    """Persist provider/model changes to .env and apply them to the live process.
+
+    Only non-secret selection keys are accepted (see ``_SETTINGS_WRITABLE_KEYS``).
+    """
     updates: dict[str, str] = {}
+
+    if any(str(body.get(field, "")).strip() for field in ("anthropic_key", "openai_key", "gemini_key")):
+        return {"error": _SETTINGS_READ_ONLY_MESSAGE}, 400
+    if "openai_base_url" in body and str(body["openai_base_url"]).strip() != os.environ.get("OPENAI_BASE_URL", ""):
+        return {"error": _SETTINGS_READ_ONLY_MESSAGE}, 400
 
     current_provider = get_active_provider()
     current_model = get_default_model()
@@ -235,21 +257,21 @@ def update_settings(body: dict) -> tuple[dict, int]:
 
         updates["DEVBOTS_MODEL"] = submitted_model
 
-    for field, env_key in [
-        ("anthropic_key", "ANTHROPIC_API_KEY"),
-        ("openai_key",    "OPENAI_API_KEY"),
-        ("gemini_key",    "GEMINI_API_KEY"),
-    ]:
-        if field in body:
-            updates[env_key] = str(body[field]).strip()
-
-    if "openai_base_url" in body:
-        updates["OPENAI_BASE_URL"] = str(body["openai_base_url"]).strip()
-
+    bot_models = body.get("bot_models", {})
+    if not isinstance(bot_models, dict):
+        return {"error": "bot_models must be an object mapping bot id to model name."}, 400
     for bot, env_key in _BOT_MODEL_ENV_KEYS.items():
-        bot_models = body.get("bot_models", {})
         if bot in bot_models:
             updates[env_key] = str(bot_models[bot]).strip()
+
+    invalid = sorted(key for key, value in updates.items() if not _SAFE_SETTING_VALUE.match(value))
+    if invalid:
+        return {
+            "error": (
+                f"Invalid value for {', '.join(invalid)}. "
+                "Use letters, digits and . _ : / @ + - only (max 128 characters)."
+            )
+        }, 400
 
     _update_env_file(updates)
 

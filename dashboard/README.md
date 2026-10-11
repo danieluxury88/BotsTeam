@@ -30,6 +30,14 @@ uv run orchestrator dashboard
 
 The dashboard is available at `http://localhost:8080` by default.
 
+### Security model
+
+The dashboard is a local, single-user tool and has no authentication, so it is locked down instead:
+
+- The server binds to `127.0.0.1` only. It is not reachable from other machines.
+- No CORS headers are sent. Requests whose `Host` is not a loopback name, or whose `Origin` does not match the page's own origin, get `403`. This blocks other websites open in your browser and DNS-rebinding attacks.
+- The Settings page can change the provider and model selection only. API keys and `OPENAI_BASE_URL` are edited in the workspace `.env` file by hand, then restart the dashboard.
+
 ## Directory Structure
 
 ```text

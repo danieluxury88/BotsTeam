@@ -43,6 +43,11 @@ const Settings = {
             input.value = botModels[input.dataset.botModel] || '';
         });
 
+        document.querySelectorAll('[data-provider-default-model]').forEach(el => {
+            const presets = this._providerModelPresets[el.dataset.providerDefaultModel] || [];
+            if (presets.length) el.textContent = presets[0];
+        });
+
         this._updateProviderHints(provider);
         this._updateModelOptions(provider, s.model || '', s.provider_default_model || '', this._providerModelPresets);
         this._updateModelWarning(provider, s.model || '');
@@ -168,16 +173,6 @@ const Settings = {
             this._updateModelWarning(document.getElementById('field-provider').value, selectedModel);
         });
 
-        document.querySelectorAll('.key-toggle').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const input = document.getElementById(btn.dataset.target);
-                if (!input) return;
-                const isPassword = input.type === 'password';
-                input.type = isPassword ? 'text' : 'password';
-                btn.textContent = isPassword ? '🙈' : '👁';
-            });
-        });
-
         document.getElementById('settings-form').addEventListener('submit', async e => {
             e.preventDefault();
             await this._save();
@@ -202,17 +197,8 @@ const Settings = {
         const body = {
             provider:        document.getElementById('field-provider').value,
             model:           document.getElementById('field-model').value.trim(),
-            openai_base_url: document.getElementById('field-openai-base-url').value.trim(),
             bot_models:      botModels,
         };
-
-        // Only include API keys if the user typed something (empty = don't overwrite)
-        const anthropicKey = document.getElementById('field-anthropic-key').value.trim();
-        const openaiKey    = document.getElementById('field-openai-key').value.trim();
-        const geminiKey    = document.getElementById('field-gemini-key').value.trim();
-        if (anthropicKey) body.anthropic_key = anthropicKey;
-        if (openaiKey)    body.openai_key    = openaiKey;
-        if (geminiKey)    body.gemini_key    = geminiKey;
 
         const result = await API.updateSettings(body);
 
@@ -224,11 +210,6 @@ const Settings = {
             errorEl.hidden = false;
             return;
         }
-
-        // Clear key fields after a successful save and refresh indicators
-        document.getElementById('field-anthropic-key').value = '';
-        document.getElementById('field-openai-key').value = '';
-        document.getElementById('field-gemini-key').value = '';
 
         this._current = result.data;
         this._populate(result.data);

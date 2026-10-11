@@ -42,13 +42,6 @@
             border-bottom: 1px solid var(--color-border);
         }
 
-        .key-field-row {
-            display: grid;
-            grid-template-columns: 1fr auto auto;
-            gap: var(--space-sm);
-            align-items: center;
-        }
-
         .key-indicator {
             font-size: var(--font-size-sm);
             font-weight: 500;
@@ -57,19 +50,6 @@
 
         .key-indicator--set   { color: var(--color-success); }
         .key-indicator--unset { color: var(--color-text-tertiary); }
-
-        .key-toggle {
-            background: none;
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-sm);
-            padding: var(--space-xs) var(--space-sm);
-            cursor: pointer;
-            font-size: var(--font-size-base);
-            line-height: 1;
-            color: var(--color-text-secondary);
-        }
-
-        .key-toggle:hover { background: var(--color-bg-secondary); }
 
         .provider-hint {
             margin-top: var(--space-xs);
@@ -160,11 +140,11 @@
                             </div>
 
                             <p class="provider-hint" data-provider-hint="anthropic">
-                                Uses <strong>claude-haiku-4-5-20251001</strong> by default. Requires <code>ANTHROPIC_API_KEY</code>.
+                                Uses <strong data-provider-default-model="anthropic">its default model</strong> by default. Requires <code>ANTHROPIC_API_KEY</code>.
                             </p>
                             <p class="provider-hint" hidden data-provider-hint="openai">
                                 Compatible with OpenAI, Groq, Mistral, Ollama, and any OpenAI-compatible API.
-                                Set the Base URL below to point to a different endpoint.
+                                Set <code>OPENAI_BASE_URL</code> in <code>.env</code> to point to a different endpoint.
                             </p>
                             <p class="provider-hint" hidden data-provider-hint="gemini">
                                 Uses Google Gemini. Get your key at
@@ -173,61 +153,43 @@
                             </p>
                         </div>
 
-                        <!-- API Keys -->
+                        <!-- API Keys (read-only: edited in .env) -->
                         <div class="settings-card">
                             <h3 class="settings-card-title">API Keys</h3>
                             <p class="form-hint" style="margin-bottom: var(--space-lg)">
-                                Keys are stored in your <code>.env</code> file and are never returned by the API.
-                                Leave a field empty to keep the existing key unchanged.
+                                Keys and the OpenAI base URL are read from your <code>.env</code> file and cannot be
+                                changed from the dashboard. Edit <code>.env</code> and restart the dashboard to apply changes.
                             </p>
 
                             <div class="form-group">
-                                <label for="field-anthropic-key">
+                                <label>
                                     Anthropic API Key
                                     <span id="key-indicator-anthropic" class="key-indicator"></span>
                                 </label>
-                                <div class="key-field-row">
-                                    <input type="password" id="field-anthropic-key" class="form-input"
-                                           placeholder="sk-ant-… (leave blank to keep existing)"
-                                           autocomplete="new-password">
-                                    <button type="button" class="key-toggle" data-target="field-anthropic-key"
-                                            title="Show / hide key">👁</button>
-                                </div>
+                                <span class="form-hint"><code>ANTHROPIC_API_KEY</code></span>
                             </div>
 
                             <div class="form-group">
-                                <label for="field-openai-key">
+                                <label>
                                     OpenAI API Key
                                     <span id="key-indicator-openai" class="key-indicator"></span>
                                 </label>
-                                <div class="key-field-row">
-                                    <input type="password" id="field-openai-key" class="form-input"
-                                           placeholder="sk-… (leave blank to keep existing)"
-                                           autocomplete="new-password">
-                                    <button type="button" class="key-toggle" data-target="field-openai-key"
-                                            title="Show / hide key">👁</button>
-                                </div>
+                                <span class="form-hint"><code>OPENAI_API_KEY</code></span>
                             </div>
 
                             <div class="form-group">
                                 <label for="field-openai-base-url">OpenAI Base URL</label>
-                                <input type="url" id="field-openai-base-url" class="form-input"
-                                       placeholder="https://api.openai.com/v1 (leave blank for default)">
-                                <span class="form-hint">Change this to use Groq, Mistral, Ollama, or any compatible endpoint.</span>
+                                <input type="url" id="field-openai-base-url" class="form-input" readonly
+                                       placeholder="Default (https://api.openai.com/v1)">
+                                <span class="form-hint"><code>OPENAI_BASE_URL</code> — set it to use Groq, Mistral, Ollama, or any compatible endpoint.</span>
                             </div>
 
                             <div class="form-group">
-                                <label for="field-gemini-key">
+                                <label>
                                     Gemini API Key
                                     <span id="key-indicator-gemini" class="key-indicator"></span>
                                 </label>
-                                <div class="key-field-row">
-                                    <input type="password" id="field-gemini-key" class="form-input"
-                                           placeholder="AIza… (leave blank to keep existing)"
-                                           autocomplete="new-password">
-                                    <button type="button" class="key-toggle" data-target="field-gemini-key"
-                                            title="Show / hide key">👁</button>
-                                </div>
+                                <span class="form-hint"><code>GEMINI_API_KEY</code></span>
                             </div>
                         </div>
 
