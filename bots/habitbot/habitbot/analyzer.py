@@ -1,12 +1,12 @@
 """HabitBot analyzer — reads habit tracking files and generates AI consistency insights."""
 
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 from shared.data_manager import save_report
 from shared.file_reader import format_files_for_llm, read_habit_file
 from shared.llm import chat
-from shared.models import BotResult, BotStatus, ProjectScope
+from shared.models import BotResult, BotStatus, ProjectScope, utc_now
 
 SYSTEM_PROMPT = """\
 You are HabitBot, an AI assistant that analyzes personal habit tracking data.
@@ -93,7 +93,7 @@ Generate a habit analysis report."""
             "source_file": str(habit_source),
             "total_words": read_result.total_words,
         },
-        timestamp=datetime.utcnow(),
+        timestamp=utc_now(),
     )
 
     if project_name:

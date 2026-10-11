@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 
 from shared.llm import chat
-from shared.models import BotResult, BotStatus
+from shared.models import BotResult, BotStatus, utc_now
 
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
@@ -176,5 +175,5 @@ def get_bot_result(
             if instructions_file
             else None,
         },
-        timestamp=datetime.utcnow(),
+        timestamp=utc_now(),
     )

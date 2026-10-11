@@ -1,12 +1,11 @@
 """TaskBot analyzer — reads personal task lists and generates AI productivity insights."""
 
-from datetime import datetime
 from pathlib import Path
 
 from shared.data_manager import save_report
 from shared.file_reader import format_files_for_llm, read_task_file
 from shared.llm import chat
-from shared.models import BotResult, BotStatus, ProjectScope
+from shared.models import BotResult, BotStatus, ProjectScope, utc_now
 
 SYSTEM_PROMPT = """\
 You are TaskBot, an AI assistant that analyzes personal task lists and to-do files.
@@ -85,7 +84,7 @@ Generate a task analysis and productivity report."""
             "files_read": len(read_result.entries),
             "total_words": read_result.total_words,
         },
-        timestamp=datetime.utcnow(),
+        timestamp=utc_now(),
     )
 
     if project_name:

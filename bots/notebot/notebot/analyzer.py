@@ -1,12 +1,12 @@
 """NoteBot analyzer — reads markdown notes and generates AI insights, plus improves individual notes."""
 
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 from shared.data_manager import save_report
 from shared.file_reader import format_files_for_llm, read_markdown_files
 from shared.llm import chat
-from shared.models import BotResult, BotStatus, ProjectScope
+from shared.models import BotResult, BotStatus, ProjectScope, utc_now
 
 # ── Analyse all notes ─────────────────────────────────────────────────────────
 
@@ -117,7 +117,7 @@ def get_bot_result(
             summary=f"Improved note: {note_title or 'untitled'}",
             markdown_report=improved,
             data={"mode": "improve", "note": note_title},
-            timestamp=datetime.utcnow(),
+            timestamp=utc_now(),
         )
 
     # mode == "analyze"
@@ -170,7 +170,7 @@ Generate a structured notes analysis report."""
             "total_words": read_result.total_words,
             "mode": "analyze",
         },
-        timestamp=datetime.utcnow(),
+        timestamp=utc_now(),
     )
 
     if project_name:

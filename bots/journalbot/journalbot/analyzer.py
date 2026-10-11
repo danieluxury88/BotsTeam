@@ -1,12 +1,12 @@
 """JournalBot analyzer — reads markdown notes and generates AI insights."""
 
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 from shared.data_manager import save_report
 from shared.file_reader import format_files_for_llm, read_markdown_files
 from shared.llm import chat
-from shared.models import BotResult, BotStatus, ProjectScope
+from shared.models import BotResult, BotStatus, ProjectScope, utc_now
 
 SYSTEM_PROMPT = """\
 You are JournalBot, an AI assistant that analyzes personal journal entries and notes.
@@ -98,7 +98,7 @@ Generate a personal insights report."""
             "total_files": read_result.total_files,
             "total_words": read_result.total_words,
         },
-        timestamp=datetime.utcnow(),
+        timestamp=utc_now(),
     )
 
     if project_name:

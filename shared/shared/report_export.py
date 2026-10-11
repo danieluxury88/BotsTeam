@@ -10,7 +10,6 @@ import base64
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
 from html import unescape
 from pathlib import Path
 from typing import Any
@@ -19,7 +18,7 @@ from jinja2 import Template
 from markdown import markdown
 
 from shared.data_manager import get_workspace_root, save_report_artifact
-from shared.models import ProjectScope
+from shared.models import ProjectScope, utc_now
 
 ASSET_DIR = Path(__file__).resolve().parent / "assets"
 PROTONSYSTEMS_LOGO_PATH = ASSET_DIR / "protonsystems-logo-reverse.svg"
@@ -1009,7 +1008,7 @@ def export_report_file(
 def _normalize_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     raw = dict(metadata or {})
     lang = normalize_report_language(raw.get("lang"))
-    generated_at = raw.get("generated_at") or datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    generated_at = raw.get("generated_at") or utc_now().strftime("%Y-%m-%d %H:%M UTC")
     highlights_raw = raw.get("highlights") or []
     highlights = [
         item if isinstance(item, ReportHighlight) else ReportHighlight(**item)

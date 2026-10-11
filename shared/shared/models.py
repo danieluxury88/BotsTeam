@@ -4,10 +4,24 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
+
+
+# ── Time helpers ─────────────────────────────────────────────────────────────
+
+def utc_now() -> datetime:
+    """Current UTC time as a naive datetime (replacement for deprecated ``datetime.utcnow()``)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _to_naive_utc(value: datetime) -> datetime:
+    """Normalise a datetime to naive UTC; naive values are assumed to already be UTC."""
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 # ── Scope Enum ───────────────────────────────────────────────────────────────
@@ -109,7 +123,7 @@ class BotResult:
             summary=f"Failed: {message}",
             markdown_report=f"## ❌ {bot_name} failed\n\n{message}",
             errors=[message],
-            timestamp=datetime.utcnow(),
+            timestamp=utc_now(),
         )
 
 
@@ -287,11 +301,10 @@ class Issue:
     @property
     def age_days(self) -> int:
         """How many days since this issue was opened."""
-        return (datetime.utcnow() - self.created_at.replace(tzinfo=None)).days
+        return (utc_now() - _to_naive_utc(self.created_at)).days
 
     def is_stale(self, threshold_days: int = 30) -> bool:
-        updated = self.updated_at.replace(tzinfo=None)
-        return (datetime.utcnow() - updated).days > threshold_days
+        return (utc_now() - _to_naive_utc(self.updated_at)).days > threshold_days
 
     @property
     def short_desc(self) -> str:
