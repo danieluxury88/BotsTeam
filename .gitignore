@@ -26,9 +26,8 @@ venv/
 ENV/
 env/
 
-# uv
+# uv (uv.lock is committed for reproducible installs and audits)
 .uv/
-uv.lock
 
 # Environment variables
 .env
