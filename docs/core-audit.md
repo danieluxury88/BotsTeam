@@ -56,18 +56,21 @@ Project-specific targets: `help` (default goal), `install`, `serve`, `generate`,
   across packages (`test_cli.py`, `test_analyzer.py`) without `__init__.py`. Fixed by setting
   `--import-mode=importlib` in `[tool.pytest.ini_options]` in the root `pyproject.toml`.
 
+## Resolved (phase 0 stabilisation, 2026-10-10)
+
+Done ahead of merging the work-focused bots into core (see core's `docs/worklog/2026-10-10-botsteam-core-merge-proposal.md`, section 9). `make lint test audit` is green: 103 tests pass, ruff clean, pip-audit reports no known vulnerabilities.
+
+- **Dashboard exposure** — the server now binds `127.0.0.1` only, sends no CORS headers, and answers `403` to any request whose `Host` is not loopback or whose `Origin` differs from the page origin (blocks cross-site writes and DNS rebinding). Covered by `dashboard/tests/test_server.py`.
+- **`.env` writer** — `/api/settings` can only change `DEVBOTS_PROVIDER`, `DEVBOTS_MODEL` and the per-bot `*_MODEL` keys. API keys and `OPENAI_BASE_URL` (which decides where the OpenAI key is sent) are read-only in the dashboard and are edited in `.env`. Values are validated so a newline cannot inject extra `.env` lines, and `_update_env_file` refuses any key outside the allowlist.
+- **`make lint`** — 16 `F541` fixed.
+- **`make test`** — `test_analyze_report_appends_open_tasks_by_assignee` hard-coded `0d old` against a fixed 2026-04-02 date; the fixture is now relative to the current time.
+- **`make check-security`** — the ten flagged packages plus `idna`, `pillow` and `weasyprint` (reported by a newer advisory database) were upgraded in `uv.lock`.
+- **`uv.lock`** — no longer git-ignored, so audits and installs are reproducible.
+- **`datetime.utcnow()`** — replaced by `shared.models.utc_now()` (same naive-UTC value, no change to serialized timestamps).
+- **Default model** — the dashboard presets and hint derive from `shared.config.DEFAULT_MODELS` instead of repeating the model name. The model itself is unchanged; reviewing it is deferred to the move.
+
 ## Open items
 
-Surfaced while adding the Makefile; each makes the corresponding target fail until fixed.
-
-- **`make lint`** — 16 ruff `F541` errors (f-string without placeholders), all auto-fixable with `make fix`.
-- **`make test`** — 1 failing test (90 pass):
-  `bots/project_manager/tests/test_analyzer.py::test_analyze_report_appends_open_tasks_by_assignee`.
-- **`make check-security`** — pip-audit reports known vulnerabilities in locked dependencies
-  (minimum fixed version in parentheses): anyio (4.14.2), click (8.3.3), cryptography (50.0.0),
-  gitpython (3.1.60), pygments (2.20.0), pyjwt (2.15.0), pytest (9.0.3), python-dotenv (1.2.2),
-  requests (2.33.0), urllib3 (2.8.0).
-- **`uv.lock` is git-ignored** — `check-security` audits the local lockfile, so results can differ
-  between machines. Consider committing `uv.lock` for reproducible installs and audits.
-- **Core criteria** — add `TASKS.md` and `BotsTeam.code-workspace`; decide whether to commit
-  `.vscode/settings.json` and `.vscode/extensions.json` (requires un-ignoring them).
+- **Unauthenticated mutating endpoints** — project CRUD, run-bot and note endpoints still have no authentication. They are reachable only from the local machine and same-origin pages now; they fall away if the API is not migrated into core.
+- **Core criteria** — add `TASKS.md` and `BotsTeam.code-workspace` (both exist locally but are git-ignored as local-only files; re-run core's audit to confirm the criteria); decide whether to commit `.vscode/settings.json` and `.vscode/extensions.json` (requires un-ignoring them).
+- **Registry paths** — `data/projects.json` stores absolute paths and `data/` holds client report history. Both are git-ignored; keep it that way and do not move `data/` contents into core.
