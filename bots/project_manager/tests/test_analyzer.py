@@ -13,7 +13,8 @@ def _issue(
     labels: list[str] | None = None,
     assignees: list[str] | None = None,
 ) -> Issue:
-    now = datetime(2026, 4, 2, 12, 0, 0, tzinfo=timezone.utc)
+    # Relative to "now" so the rendered age ("0d old") does not drift as the calendar moves on.
+    now = datetime.now(timezone.utc)
     return Issue(
         iid=iid,
         title=title,
